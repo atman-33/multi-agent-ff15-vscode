@@ -27,9 +27,9 @@ Alternative considered: pass a provider id into the controller and switch on it 
 
 ### Model the fixed roster as a provider-independent pane launch plan
 
-The launch client will produce the executable path and arguments needed for each roster pane, while the layout helper will only render that plan into the bundled Zellij template. This keeps the roster topology provider-agnostic and allows client implementations to vary only the per-pane command contract.
+The launch client will produce the executable path and arguments needed for each roster pane, while the layout helper will only render that plan into the bundled Zellij template. This keeps the roster topology provider-agnostic and allows client implementations to vary only the per-pane command contract. For GitHub Copilot CLI, the pane launch plan will use the documented `--agent <custom-agent>` contract so each pane can launch the matching FF15 agent persona through the repository's `.github/agents/*.agent.md` definitions.
 
-Alternative considered: keep the current single-command placeholder and let each client emulate OpenCode-style `--agent` arguments. Rejected because the issue explicitly forbids inventing an OpenCode-equivalent contract for GitHub Copilot CLI.
+Alternative considered: use the documented `-i` interactive startup prompt to bootstrap each persona with a freeform instruction. Rejected because this repository already defines matching GitHub Copilot custom agents, and `--agent` keeps FF15 launch aligned with the OpenCode workflow without relying on prompt wording.
 
 ### Add a dedicated extension setting for launch-client selection
 

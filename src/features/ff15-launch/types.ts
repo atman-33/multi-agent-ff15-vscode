@@ -19,7 +19,7 @@ export interface Ff15LaunchControllerDependencies {
 	) => string;
 	getWorkspaceRoot: () => string | undefined;
 	launchTerminal: (input: LaunchTerminalInput) => Promise<void> | void;
-	showErrorMessage: (message: string) => Promise<void> | void;
+	showErrorMessage: (message: string) => PromiseLike<unknown> | void;
 }
 
 export interface LaunchResult {

@@ -7,6 +7,7 @@ import {
 } from "./launch-client";
 import {
 	prepareFf15LaunchLayout,
+	resolveLaunchableCopilotCommand,
 	resolveLaunchableOpencodeCommand,
 } from "./layout";
 import { launchZellijTerminal } from "./launch-terminal";
@@ -22,6 +23,7 @@ export const createVsCodeFf15LaunchController = (extensionUri: Uri) => {
 			),
 			{
 				ensureCommandAvailable,
+				resolveCopilotCommand: resolveLaunchableCopilotCommand,
 				resolveOpenCodeCommand: resolveLaunchableOpencodeCommand,
 			}
 		);

@@ -7,6 +7,7 @@ import {
 	FF15_AGENT_IDS,
 	type Ff15AgentId,
 	type Ff15PaneLaunchPlanEntry,
+	type ResolvedLaunchCommand,
 } from "./launch-client";
 
 const FF15_LAYOUT_TEMPLATE_PATH_SEGMENTS = [
@@ -23,6 +24,7 @@ const FF15_LAYOUT_TEMP_DIR_SEGMENTS = [
 const FF15_WORKSPACE_ROOT_PLACEHOLDER = "__FF15_WORKSPACE_ROOT__";
 const NEWLINE_SPLIT_REGEX = /\r?\n/;
 const NPM_CMD_SHIM_EXECUTABLE_REGEX = /"%dp0%\\([^"]+)"/i;
+const NPM_CMD_SHIM_SCRIPT_REGEX = /"%dp0%\\([^"]+\.(?:cjs|js|mjs))"/i;
 const FF15_PANE_PLACEHOLDERS: Record<Ff15AgentId, string> = {
 	gladiolus: "__FF15_GLADIOLUS_PANE__",
 	ignis: "__FF15_IGNIS_PANE__",
@@ -169,6 +171,30 @@ export const resolveWindowsNpmShimExecutablePath = (
 	return join(dirname(shimPath), ...executableMatch[1].split("\\"));
 };
 
+export const resolveWindowsNpmShimLaunchCommand = (
+	shimPath: string
+): ResolvedLaunchCommand => {
+	const shimContents = readFileSync(shimPath, "utf8");
+	const scriptMatch = NPM_CMD_SHIM_SCRIPT_REGEX.exec(shimContents);
+
+	if (!scriptMatch) {
+		throw new Error(`Could not resolve npm shim script from: ${shimPath}`);
+	}
+
+	const shimDir = dirname(shimPath);
+	const nodeExecutablePath = join(shimDir, "node.exe");
+	const scriptPath = join(shimDir, ...scriptMatch[1].split("\\"));
+
+	if (!existsSync(scriptPath)) {
+		throw new Error(`Resolved npm shim script does not exist: ${scriptPath}`);
+	}
+
+	return {
+		args: [scriptPath],
+		executable: existsSync(nodeExecutablePath) ? nodeExecutablePath : "node",
+	};
+};
+
 export const resolveLaunchableOpencodeCommand = (): string => {
 	if (process.platform !== "win32") {
 		return "opencode";
@@ -192,6 +218,30 @@ export const resolveLaunchableOpencodeCommand = (): string => {
 	}
 
 	return shimExecutablePath;
+};
+
+export const resolveLaunchableCopilotCommand = (): ResolvedLaunchCommand => {
+	if (process.platform !== "win32") {
+		return {
+			args: [],
+			executable: "copilot",
+		};
+	}
+
+	const executablePath = getFirstResolvedPath("copilot.exe");
+	if (executablePath) {
+		return {
+			args: [],
+			executable: executablePath,
+		};
+	}
+
+	const cmdShimPath = getFirstResolvedPath("copilot.cmd");
+	if (cmdShimPath) {
+		return resolveWindowsNpmShimLaunchCommand(cmdShimPath);
+	}
+
+	throw new Error("Could not resolve a launchable copilot command on PATH.");
 };
 
 export const prepareFf15LaunchLayout = (input: {

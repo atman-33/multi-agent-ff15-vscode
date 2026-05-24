@@ -31,4 +31,5 @@ The fixed 2x2 FF15 roster SHALL be defined independently from any specific launc
 #### Scenario: GitHub Copilot CLI plan is rendered into the roster
 - **WHEN** the selected launch client is GitHub Copilot CLI
 - **THEN** the rendered roster layout includes pane commands generated from the GitHub Copilot CLI launch plan for Noctis, Ignis, Gladiolus, and Prompto
+- **THEN** each GitHub Copilot CLI pane includes the documented `--agent <custom-agent>` arguments needed to launch the matching FF15 agent persona
 - **THEN** the layout topology remains the same 2x2 arrangement used by FF15 launch

@@ -8,6 +8,11 @@ export const FF15_AGENT_IDS = [
 export type Ff15AgentId = (typeof FF15_AGENT_IDS)[number];
 export type Ff15LaunchClientId = "github-copilot-cli" | "opencode";
 
+export interface ResolvedLaunchCommand {
+	executable: string;
+	args: string[];
+}
+
 export interface Ff15PaneLaunchPlanEntry {
 	agentId: Ff15AgentId;
 	args: string[];
@@ -23,19 +28,20 @@ export interface Ff15LaunchClient {
 
 export interface CreateFf15LaunchClientDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
+	resolveCopilotCommand: () => ResolvedLaunchCommand;
 	resolveOpenCodeCommand: () => string;
 }
 
 export const DEFAULT_FF15_LAUNCH_CLIENT_ID = "github-copilot-cli";
 
 const buildPaneLaunchPlan = (
-	executable: string,
+	command: ResolvedLaunchCommand,
 	getArgs: (agentId: Ff15AgentId) => string[]
 ): Ff15PaneLaunchPlanEntry[] =>
 	FF15_AGENT_IDS.map((agentId) => ({
 		agentId,
-		args: getArgs(agentId),
-		executable,
+		args: [...command.args, ...getArgs(agentId)],
+		executable: command.executable,
 	}));
 
 export const resolveFf15LaunchClientId = (
@@ -57,7 +63,7 @@ export const createFf15LaunchClient = (
 			getPaneLaunchPlan: () => {
 				const executable = dependencies.resolveOpenCodeCommand();
 
-				return buildPaneLaunchPlan(executable, (agentId) => [
+				return buildPaneLaunchPlan({ args: [], executable }, (agentId) => [
 					"--agent",
 					agentId,
 				]);
@@ -71,6 +77,10 @@ export const createFf15LaunchClient = (
 			dependencies.ensureCommandAvailable("copilot"),
 		getMissingDependencyMessage: () =>
 			"FF15 launch requires GitHub Copilot CLI `copilot` on PATH.",
-		getPaneLaunchPlan: () => buildPaneLaunchPlan("copilot", () => []),
+		getPaneLaunchPlan: () =>
+			buildPaneLaunchPlan(dependencies.resolveCopilotCommand(), (agentId) => [
+				"--agent",
+				agentId,
+			]),
 	};
 };

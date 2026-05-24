@@ -26,10 +26,15 @@ describe("resolveFf15LaunchClientId", () => {
 describe("createFf15LaunchClient", () => {
 	it("creates the default GitHub Copilot CLI launch plan", async () => {
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const resolveCopilotCommand = vi.fn(() => "C:/tools/copilot.exe");
 		const resolveOpenCodeCommand = vi.fn(() => "C:/tools/opencode.exe");
 
 		const launchClient = createFf15LaunchClient("github-copilot-cli", {
 			ensureCommandAvailable,
+			resolveCopilotCommand: () => ({
+				args: [],
+				executable: resolveCopilotCommand(),
+			}),
 			resolveOpenCodeCommand,
 		});
 
@@ -40,20 +45,42 @@ describe("createFf15LaunchClient", () => {
 			"FF15 launch requires GitHub Copilot CLI `copilot` on PATH."
 		);
 		expect(launchClient.getPaneLaunchPlan()).toEqual([
-			{ agentId: "noctis", args: [], executable: "copilot" },
-			{ agentId: "ignis", args: [], executable: "copilot" },
-			{ agentId: "gladiolus", args: [], executable: "copilot" },
-			{ agentId: "prompto", args: [], executable: "copilot" },
+			{
+				agentId: "noctis",
+				args: ["--agent", "noctis"],
+				executable: "C:/tools/copilot.exe",
+			},
+			{
+				agentId: "ignis",
+				args: ["--agent", "ignis"],
+				executable: "C:/tools/copilot.exe",
+			},
+			{
+				agentId: "gladiolus",
+				args: ["--agent", "gladiolus"],
+				executable: "C:/tools/copilot.exe",
+			},
+			{
+				agentId: "prompto",
+				args: ["--agent", "prompto"],
+				executable: "C:/tools/copilot.exe",
+			},
 		]);
+		expect(resolveCopilotCommand).toHaveBeenCalledTimes(1);
 		expect(resolveOpenCodeCommand).not.toHaveBeenCalled();
 	});
 
 	it("creates the OpenCode launch plan with per-agent arguments", async () => {
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const resolveCopilotCommand = vi.fn(() => "C:/tools/copilot.exe");
 		const resolveOpenCodeCommand = vi.fn(() => "C:/tools/opencode.exe");
 
 		const launchClient = createFf15LaunchClient("opencode", {
 			ensureCommandAvailable,
+			resolveCopilotCommand: () => ({
+				args: [],
+				executable: resolveCopilotCommand(),
+			}),
 			resolveOpenCodeCommand,
 		});
 
@@ -83,6 +110,59 @@ describe("createFf15LaunchClient", () => {
 				agentId: "prompto",
 				args: ["--agent", "prompto"],
 				executable: "C:/tools/opencode.exe",
+			},
+		]);
+		expect(resolveCopilotCommand).not.toHaveBeenCalled();
+	});
+
+	it("preserves resolved Copilot command arguments in the pane launch plan", () => {
+		const launchClient = createFf15LaunchClient("github-copilot-cli", {
+			ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+			resolveCopilotCommand: () => ({
+				args: [
+					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+				],
+				executable: "node",
+			}),
+			resolveOpenCodeCommand: vi.fn(() => "C:/tools/opencode.exe"),
+		});
+
+		expect(launchClient.getPaneLaunchPlan()).toEqual([
+			{
+				agentId: "noctis",
+				args: [
+					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--agent",
+					"noctis",
+				],
+				executable: "node",
+			},
+			{
+				agentId: "ignis",
+				args: [
+					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--agent",
+					"ignis",
+				],
+				executable: "node",
+			},
+			{
+				agentId: "gladiolus",
+				args: [
+					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--agent",
+					"gladiolus",
+				],
+				executable: "node",
+			},
+			{
+				agentId: "prompto",
+				args: [
+					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--agent",
+					"prompto",
+				],
+				executable: "node",
 			},
 		]);
 	});

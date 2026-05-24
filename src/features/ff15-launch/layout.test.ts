@@ -12,6 +12,8 @@ import {
 	prepareFf15LaunchLayout,
 	renderFf15LayoutTemplate,
 	resolveBundledFf15LayoutTemplatePath,
+	resolveLaunchableCopilotCommand,
+	resolveWindowsNpmShimLaunchCommand,
 	resolveWindowsNpmShimExecutablePath,
 } from "./layout";
 
@@ -28,12 +30,12 @@ const paneLaunchPlan = [
 	},
 	{
 		agentId: "gladiolus",
-		args: [],
+		args: ["--agent", "gladiolus"],
 		executable: "copilot",
 	},
 	{
 		agentId: "prompto",
-		args: [],
+		args: ["--agent", "prompto"],
 		executable: "copilot",
 	},
 ] as const;
@@ -87,6 +89,8 @@ describe("renderFf15LayoutTemplate", () => {
 		expect(rendered).toContain('args "--agent" "noctis"');
 		expect(rendered).toContain('args "--agent" "ignis"');
 		expect(rendered).toContain('command="copilot"');
+		expect(rendered).toContain('args "--agent" "gladiolus"');
+		expect(rendered).toContain('args "--agent" "prompto"');
 	});
 });
 
@@ -117,6 +121,56 @@ describe("resolveWindowsNpmShimExecutablePath", () => {
 			);
 		} finally {
 			rmSync(tempDir, { force: true, recursive: true });
+		}
+	});
+});
+
+describe("resolveWindowsNpmShimLaunchCommand", () => {
+	it("parses an npm-generated .cmd shim to a node-based launch command", () => {
+		const tempDir = mkdtempSync(join(tmpdir(), "ff15-layout-test-"));
+		const shimPath = join(tempDir, "copilot.cmd");
+		const expectedScriptPath = join(
+			tempDir,
+			"node_modules",
+			"@github",
+			"copilot",
+			"npm-loader.js"
+		);
+
+		try {
+			mkdirSync(dirname(expectedScriptPath), { recursive: true });
+			writeFileSync(expectedScriptPath, "", "utf8");
+			writeFileSync(
+				shimPath,
+				[
+					"@ECHO off",
+					'"%_prog%"  "%dp0%\\node_modules\\@github\\copilot\\npm-loader.js" %*',
+				].join("\n"),
+				"utf8"
+			);
+
+			expect(resolveWindowsNpmShimLaunchCommand(shimPath)).toEqual({
+				args: [expectedScriptPath],
+				executable: "node",
+			});
+		} finally {
+			rmSync(tempDir, { force: true, recursive: true });
+		}
+	});
+});
+
+describe("resolveLaunchableCopilotCommand", () => {
+	it("returns the bare copilot command outside Windows", () => {
+		const originalPlatform = process.platform;
+		Object.defineProperty(process, "platform", { value: "linux" });
+
+		try {
+			expect(resolveLaunchableCopilotCommand()).toEqual({
+				args: [],
+				executable: "copilot",
+			});
+		} finally {
+			Object.defineProperty(process, "platform", { value: originalPlatform });
 		}
 	});
 });
@@ -161,6 +215,7 @@ describe("prepareFf15LaunchLayout", () => {
 			expect(rendered).toContain('cwd "C:/repo path"');
 			expect(rendered).toContain('command="C:/tools/opencode.exe"');
 			expect(rendered).toContain('command="copilot"');
+			expect(rendered).toContain('args "--agent" "gladiolus"');
 		} finally {
 			rmSync(tempDir, { force: true, recursive: true });
 		}
