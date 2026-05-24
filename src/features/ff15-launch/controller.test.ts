@@ -9,11 +9,15 @@ import {
 describe("createFf15LaunchController", () => {
 	it("launches zellij for the resolved workspace when dependencies are available", async () => {
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const getLaunchLayoutPath = vi
+			.fn<(workspaceRoot: string) => string>()
+			.mockReturnValue("C:/temp/ff15-roster.kdl");
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getLaunchLayoutPath,
 			getWorkspaceRoot: () => "C:/repo",
 			launchTerminal,
 			showErrorMessage,
@@ -27,9 +31,11 @@ describe("createFf15LaunchController", () => {
 		});
 		expect(ensureCommandAvailable).toHaveBeenNthCalledWith(1, "zellij");
 		expect(ensureCommandAvailable).toHaveBeenNthCalledWith(2, "opencode");
+		expect(getLaunchLayoutPath).toHaveBeenCalledWith("C:/repo");
 		expect(launchTerminal).toHaveBeenCalledWith({
-			command: "zellij",
 			cwd: "C:/repo",
+			executable: "zellij",
+			args: ["--layout", "C:/temp/ff15-roster.kdl"],
 			name: "FF15",
 		});
 		expect(showErrorMessage).not.toHaveBeenCalled();
@@ -37,12 +43,14 @@ describe("createFf15LaunchController", () => {
 
 	it("shows an error when no workspace root can be resolved", async () => {
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const getLaunchLayoutPath = vi.fn<(workspaceRoot: string) => string>();
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
 		const getWorkspaceRoot = () => ["C:/repo"][1];
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getLaunchLayoutPath,
 			getWorkspaceRoot,
 			launchTerminal,
 			showErrorMessage,
@@ -56,6 +64,7 @@ describe("createFf15LaunchController", () => {
 		});
 		expect(showErrorMessage).toHaveBeenCalledWith(MISSING_WORKSPACE_MESSAGE);
 		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(getLaunchLayoutPath).not.toHaveBeenCalled();
 		expect(launchTerminal).not.toHaveBeenCalled();
 	});
 
@@ -63,11 +72,13 @@ describe("createFf15LaunchController", () => {
 		const ensureCommandAvailable = vi
 			.fn()
 			.mockRejectedValueOnce(new Error("missing zellij"));
+		const getLaunchLayoutPath = vi.fn<(workspaceRoot: string) => string>();
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getLaunchLayoutPath,
 			getWorkspaceRoot: () => "C:/repo",
 			launchTerminal,
 			showErrorMessage,
@@ -82,6 +93,7 @@ describe("createFf15LaunchController", () => {
 		});
 		expect(showErrorMessage).toHaveBeenCalledWith(MISSING_ZELLIJ_MESSAGE);
 		expect(ensureCommandAvailable).toHaveBeenCalledTimes(1);
+		expect(getLaunchLayoutPath).not.toHaveBeenCalled();
 		expect(launchTerminal).not.toHaveBeenCalled();
 	});
 
@@ -90,11 +102,13 @@ describe("createFf15LaunchController", () => {
 			.fn()
 			.mockResolvedValueOnce(undefined)
 			.mockRejectedValueOnce(new Error("missing opencode"));
+		const getLaunchLayoutPath = vi.fn<(workspaceRoot: string) => string>();
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getLaunchLayoutPath,
 			getWorkspaceRoot: () => "C:/repo",
 			launchTerminal,
 			showErrorMessage,
@@ -109,6 +123,7 @@ describe("createFf15LaunchController", () => {
 		});
 		expect(showErrorMessage).toHaveBeenCalledWith(MISSING_OPENCODE_MESSAGE);
 		expect(ensureCommandAvailable).toHaveBeenCalledTimes(2);
+		expect(getLaunchLayoutPath).not.toHaveBeenCalled();
 		expect(launchTerminal).not.toHaveBeenCalled();
 	});
 });
