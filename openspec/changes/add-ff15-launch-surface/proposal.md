@@ -7,7 +7,7 @@ multi-agent-ff15-vscode still exposes boilerplate sample views and has no FF15-s
 - Replace the sample-oriented sidebar experience with a minimal FF15 launch surface.
 - Add a primary launch action that uses the active VS Code workspace root as the working directory.
 - Validate that `zellij` and `opencode` are available on PATH before launch.
-- Start Zellij inside VS Code's terminal experience and stop with a clear error when dependencies are missing.
+- Start Zellij in a new external terminal window and stop with a clear error when dependencies are missing.
 - Add extension-side tests for dependency validation and launch command orchestration.
 
 ## Capabilities

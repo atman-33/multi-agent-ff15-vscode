@@ -24,4 +24,4 @@ The extension SHALL verify that `zellij` and `opencode` are available before att
 
 #### Scenario: Dependencies are available
 - **WHEN** the user triggers the primary launch action and both `zellij` and `opencode` are executable
-- **THEN** the extension opens a VS Code terminal rooted at the resolved workspace and starts Zellij inside that terminal
+- **THEN** the extension opens a new external terminal window rooted at the resolved workspace and starts Zellij there

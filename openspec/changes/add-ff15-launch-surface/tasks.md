@@ -6,7 +6,7 @@
 ## 2. Launch orchestration
 
 - [ ] 2.1 Add a launch controller that resolves the active workspace root and validates `zellij` and `opencode`
-- [ ] 2.2 Wire the launch controller into extension activation and the FF15 webview provider so the primary action opens Zellij in a VS Code terminal
+- [ ] 2.2 Wire the launch controller into extension activation and the FF15 webview provider so the primary action opens Zellij in a new external terminal window
 
 ## 3. Verification
 

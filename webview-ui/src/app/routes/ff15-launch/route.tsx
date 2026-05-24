@@ -7,7 +7,7 @@ type LaunchState = "error" | "idle" | "launched" | "launching";
 const STATUS_COPY: Record<LaunchState, string> = {
 	error: "Launch failed. Check the VS Code notification for details.",
 	idle: "Open Zellij for the current workspace from one place.",
-	launched: "Zellij is opening inside the VS Code terminal.",
+	launched: "Zellij is opening in a new external terminal.",
 	launching: "Checking dependencies and opening Zellij...",
 };
 
@@ -40,8 +40,9 @@ const Route = () => {
 				</p>
 				<p className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] text-sm leading-6">
 					Start the FF15 workspace from the current VS Code root. This first
-					slice checks local dependencies, opens a VS Code terminal, and starts
-					Zellij without relying on the sibling multi-agent-ff15 repository.
+					slice checks local dependencies, opens an external terminal, and
+					starts Zellij without relying on the sibling multi-agent-ff15
+					repository.
 				</p>
 			</header>
 
@@ -53,7 +54,7 @@ const Route = () => {
 						</p>
 						<p className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] text-sm leading-6">
 							The launcher validates `zellij` and `opencode` first, then opens
-							Zellij in the integrated terminal for the active workspace.
+							Zellij in a new external terminal for the active workspace.
 						</p>
 					</div>
 

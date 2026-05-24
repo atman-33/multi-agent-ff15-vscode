@@ -1,6 +1,6 @@
 ## Context
 
-The current extension is still a boilerplate project. It registers sample commands, exposes two sample webview views, and has no FF15-specific launch path. Issue #2 introduces the first vertical slice: replace the sample entry point with a minimal FF15 launch surface and wire that surface to a Zellij launch flow that runs inside VS Code.
+The current extension is still a boilerplate project. It registers sample commands, exposes two sample webview views, and has no FF15-specific launch path. Issue #2 introduces the first vertical slice: replace the sample entry point with a minimal FF15 launch surface and wire that surface to a Zellij launch flow that starts in an external terminal window.
 
 This slice intentionally stops before richer session management. The 2x2 FF15 layout and attach-or-create reuse model belong to follow-up issues. Even so, this slice crosses multiple modules: package manifest contributions, extension activation, sidebar/webview messaging, launch orchestration, dependency checks, and extension-side tests.
 
@@ -12,7 +12,7 @@ The user wants the active VS Code workspace root to be used as the launch target
 - Replace the current sample sidebar experience with a minimal FF15 launch surface.
 - Expose a single launch action that starts from the active VS Code workspace root.
 - Validate `zellij` and `opencode` before launch and fail with a clear user-facing message when either dependency is unavailable.
-- Open Zellij inside VS Code's terminal experience.
+- Open Zellij in a new external terminal window.
 - Isolate launch logic into extension-side modules that can support later session management enhancements.
 - Add unit tests for dependency validation and launch orchestration.
 
@@ -54,13 +54,13 @@ Before opening the terminal, the controller should verify that both `zellij` and
 - Alternative considered: rely on terminal launch failure alone. Rejected because it produces a worse user experience and weaker testable behavior.
 - Alternative considered: resolve executables via platform-specific commands such as `where.exe`. Rejected because process execution checks are more portable for later WSL work.
 
-### 5. Launch Zellij in a VS Code terminal by creating a terminal at the target cwd and sending the `zellij` command
+### 5. Launch Zellij in an external terminal window rooted at the target cwd
 
-For this slice, the extension should open a regular VS Code terminal rooted at the resolved workspace and send the `zellij` command into it.
+For this slice, the extension should open a new external terminal window rooted at the resolved workspace and start the `zellij` command there.
 
-- Chosen because it preserves PATH-based executable resolution and keeps the launch flow simple for v1.
-- Alternative considered: use `shellPath: "zellij"` directly when creating the terminal. Rejected because the plain terminal-plus-command approach is easier to keep compatible with later command variations.
-- Alternative considered: spawn Zellij entirely outside the VS Code terminal subsystem. Rejected because the user explicitly wants the experience to stay inside VS Code.
+- Chosen because the user wants Zellij to run outside the VS Code integrated terminal while still starting from the active workspace root.
+- Alternative considered: use `window.createTerminal()` and send the `zellij` command. Rejected because it keeps Zellij inside the VS Code terminal UI.
+- Alternative considered: launch a richer predefined layout in the same slice. Rejected because the 2x2 FF15 layout belongs to a follow-up issue.
 
 ## Risks / Trade-offs
 
