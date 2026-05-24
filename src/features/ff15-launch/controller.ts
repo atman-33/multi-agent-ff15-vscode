@@ -3,8 +3,6 @@ import type { Ff15LaunchControllerDependencies, LaunchResult } from "./types";
 export const MISSING_WORKSPACE_MESSAGE =
 	"Open a workspace folder to launch FF15.";
 export const MISSING_ZELLIJ_MESSAGE = "FF15 launch requires `zellij` on PATH.";
-export const MISSING_OPENCODE_MESSAGE =
-	"FF15 launch requires `opencode` on PATH.";
 
 const TERMINAL_EXECUTABLE = "zellij";
 const TERMINAL_NAME = "FF15";
@@ -22,6 +20,8 @@ export const createFf15LaunchController = (
 			};
 		}
 
+		const launchClient = dependencies.getLaunchClient();
+
 		try {
 			await dependencies.ensureCommandAvailable("zellij");
 		} catch {
@@ -33,18 +33,25 @@ export const createFf15LaunchController = (
 			};
 		}
 
+		let paneLaunchPlan: ReturnType<typeof launchClient.getPaneLaunchPlan>;
+
 		try {
-			await dependencies.ensureCommandAvailable("opencode");
+			await launchClient.ensureDependenciesAvailable();
+			paneLaunchPlan = launchClient.getPaneLaunchPlan();
 		} catch {
-			await dependencies.showErrorMessage(MISSING_OPENCODE_MESSAGE);
+			const message = launchClient.getMissingDependencyMessage();
+			await dependencies.showErrorMessage(message);
 			return {
 				cwd: workspaceRoot,
-				message: MISSING_OPENCODE_MESSAGE,
+				message,
 				status: "error",
 			};
 		}
 
-		const layoutPath = dependencies.getLaunchLayoutPath(workspaceRoot);
+		const layoutPath = dependencies.getLaunchLayoutPath(
+			workspaceRoot,
+			paneLaunchPlan
+		);
 
 		await dependencies.launchTerminal({
 			cwd: workspaceRoot,

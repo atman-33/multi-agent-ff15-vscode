@@ -3,6 +3,11 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import {
+	FF15_AGENT_IDS,
+	type Ff15AgentId,
+	type Ff15PaneLaunchPlanEntry,
+} from "./launch-client";
 
 const FF15_LAYOUT_TEMPLATE_PATH_SEGMENTS = [
 	"src",
@@ -15,19 +20,76 @@ const FF15_LAYOUT_TEMP_DIR_SEGMENTS = [
 	"multi-agent-ff15-vscode",
 	"ff15-launch",
 ] as const;
-const FF15_OPENCODE_COMMAND_PLACEHOLDER = "__FF15_OPENCODE_COMMAND__";
 const FF15_WORKSPACE_ROOT_PLACEHOLDER = "__FF15_WORKSPACE_ROOT__";
 const NEWLINE_SPLIT_REGEX = /\r?\n/;
 const NPM_CMD_SHIM_EXECUTABLE_REGEX = /"%dp0%\\([^"]+)"/i;
+const FF15_PANE_PLACEHOLDERS: Record<Ff15AgentId, string> = {
+	gladiolus: "__FF15_GLADIOLUS_PANE__",
+	ignis: "__FF15_IGNIS_PANE__",
+	noctis: "__FF15_NOCTIS_PANE__",
+	prompto: "__FF15_PROMPTO_PANE__",
+};
 
 const escapeKdlStringValue = (value: string): string =>
 	JSON.stringify(value).slice(1, -1);
+
+const escapeRegExp = (value: string): string =>
+	value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const replaceLayoutPlaceholder = (
 	template: string,
 	placeholder: string,
 	value: string
 ): string => template.replaceAll(placeholder, escapeKdlStringValue(value));
+
+const replaceIndentedPlaceholder = (
+	template: string,
+	placeholder: string,
+	value: string
+): string =>
+	template.replace(
+		new RegExp(`^([\\t ]*)${escapeRegExp(placeholder)}$`, "m"),
+		(_, indentation: string) =>
+			value
+				.split("\n")
+				.map((line) => (line.length === 0 ? line : `${indentation}${line}`))
+				.join("\n")
+	);
+
+const buildPaneLayoutSnippet = (
+	paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry
+): string => {
+	const commandLine = `pane command="${escapeKdlStringValue(
+		paneLaunchPlanEntry.executable
+	)}"`;
+
+	if (paneLaunchPlanEntry.args.length === 0) {
+		return commandLine;
+	}
+
+	return [
+		`${commandLine} {`,
+		`\targs ${paneLaunchPlanEntry.args
+			.map((arg) => `"${escapeKdlStringValue(arg)}"`)
+			.join(" ")}`,
+		"}",
+	].join("\n");
+};
+
+const getPaneLaunchPlanEntry = (
+	paneLaunchPlan: readonly Ff15PaneLaunchPlanEntry[],
+	agentId: Ff15AgentId
+): Ff15PaneLaunchPlanEntry => {
+	const paneLaunchPlanEntry = paneLaunchPlan.find(
+		(pane) => pane.agentId === agentId
+	);
+
+	if (!paneLaunchPlanEntry) {
+		throw new Error(`Missing FF15 pane launch plan for agent: ${agentId}`);
+	}
+
+	return paneLaunchPlanEntry;
+};
 
 const getFirstResolvedPath = (command: string): string | undefined => {
 	const result = spawnSync("where.exe", [command], {
@@ -73,19 +135,25 @@ export const resolveBundledFf15LayoutTemplatePath = (
 export const renderFf15LayoutTemplate = (input: {
 	template: string;
 	workspaceRoot: string;
-	opencodeCommand: string;
+	paneLaunchPlan: readonly Ff15PaneLaunchPlanEntry[];
 }): string => {
-	const withWorkspaceRoot = replaceLayoutPlaceholder(
+	let renderedLayout = replaceLayoutPlaceholder(
 		input.template,
 		FF15_WORKSPACE_ROOT_PLACEHOLDER,
 		input.workspaceRoot
 	);
 
-	return replaceLayoutPlaceholder(
-		withWorkspaceRoot,
-		FF15_OPENCODE_COMMAND_PLACEHOLDER,
-		input.opencodeCommand
-	);
+	for (const agentId of FF15_AGENT_IDS) {
+		renderedLayout = replaceIndentedPlaceholder(
+			renderedLayout,
+			FF15_PANE_PLACEHOLDERS[agentId],
+			buildPaneLayoutSnippet(
+				getPaneLaunchPlanEntry(input.paneLaunchPlan, agentId)
+			)
+		);
+	}
+
+	return renderedLayout;
 };
 
 export const resolveWindowsNpmShimExecutablePath = (
@@ -129,7 +197,7 @@ export const resolveLaunchableOpencodeCommand = (): string => {
 export const prepareFf15LaunchLayout = (input: {
 	extensionRoot: string;
 	workspaceRoot: string;
-	opencodeCommand: string;
+	paneLaunchPlan: readonly Ff15PaneLaunchPlanEntry[];
 }): string => {
 	const templatePath = resolveBundledFf15LayoutTemplatePath(
 		input.extensionRoot
@@ -137,7 +205,7 @@ export const prepareFf15LaunchLayout = (input: {
 	const renderedLayoutPath = getRenderedLayoutPath(input.workspaceRoot);
 	const template = readFileSync(templatePath, "utf8");
 	const renderedLayout = renderFf15LayoutTemplate({
-		opencodeCommand: input.opencodeCommand,
+		paneLaunchPlan: input.paneLaunchPlan,
 		template,
 		workspaceRoot: input.workspaceRoot,
 	});

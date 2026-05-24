@@ -1,7 +1,7 @@
 {
   "name": "vscode-extension-boilerplate",
   "displayName": "multi-agent-ff15-vscode",
-  "description": "FF15-style OpenCode launch surface for VS Code.",
+  "description": "FF15-style launch surface for VS Code.",
   "version": "0.1.0",
   "author": "atman-33",
   "publisher": "atman-dev",
@@ -58,6 +58,24 @@
           "icon": ""
         }
       ]
+    },
+    "configuration": {
+      "title": "FF15",
+      "properties": {
+        "multi-agent-ff15-vscode.launchClient": {
+          "type": "string",
+          "enum": [
+            "github-copilot-cli",
+            "opencode"
+          ],
+          "enumDescriptions": [
+            "Default. Launch each FF15 roster pane with GitHub Copilot CLI (`copilot`).",
+            "Launch each FF15 roster pane with OpenCode (`opencode --agent <agent>`)."
+          ],
+          "default": "github-copilot-cli",
+          "description": "Select which launch client FF15 uses for its fixed roster panes."
+        }
+      }
     }
   },
   "devDependencies": {
