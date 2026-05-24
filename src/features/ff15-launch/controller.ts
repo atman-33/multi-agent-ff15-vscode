@@ -44,7 +44,7 @@ export const createFf15LaunchController = (
 			};
 		}
 
-		const layoutPath = dependencies.getBundledLayoutPath();
+		const layoutPath = dependencies.getLaunchLayoutPath(workspaceRoot);
 
 		await dependencies.launchTerminal({
 			cwd: workspaceRoot,

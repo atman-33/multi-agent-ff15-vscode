@@ -1,18 +1,19 @@
 layout {
+	cwd "__FF15_WORKSPACE_ROOT__"
 	pane split_direction="vertical" {
 		pane split_direction="horizontal" {
-			pane command="opencode" {
+			pane command="__FF15_OPENCODE_COMMAND__" {
 				args "--agent" "noctis"
 			}
-			pane command="opencode" {
+			pane command="__FF15_OPENCODE_COMMAND__" {
 				args "--agent" "ignis"
 			}
 		}
 		pane split_direction="horizontal" {
-			pane command="opencode" {
+			pane command="__FF15_OPENCODE_COMMAND__" {
 				args "--agent" "gladiolus"
 			}
-			pane command="opencode" {
+			pane command="__FF15_OPENCODE_COMMAND__" {
 				args "--agent" "prompto"
 			}
 		}

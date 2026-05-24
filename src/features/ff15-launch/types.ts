@@ -7,7 +7,7 @@ export interface LaunchTerminalInput {
 
 export interface Ff15LaunchControllerDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
-	getBundledLayoutPath: () => string;
+	getLaunchLayoutPath: (workspaceRoot: string) => string;
 	getWorkspaceRoot: () => string | undefined;
 	launchTerminal: (input: LaunchTerminalInput) => Promise<void> | void;
 	showErrorMessage: (message: string) => Promise<void> | void;
