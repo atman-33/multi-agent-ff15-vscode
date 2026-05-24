@@ -13,11 +13,14 @@ export class Ff15LaunchViewProvider implements WebviewViewProvider {
 	static readonly viewId = FF15_LAUNCH_VIEW_ID;
 
 	private readonly extensionUri: Uri;
-	private readonly launchController = createVsCodeFf15LaunchController();
+	private readonly launchController: ReturnType<
+		typeof createVsCodeFf15LaunchController
+	>;
 	private view?: WebviewView;
 
 	constructor(extensionUri: Uri) {
 		this.extensionUri = extensionUri;
+		this.launchController = createVsCodeFf15LaunchController(extensionUri);
 	}
 
 	resolveWebviewView(

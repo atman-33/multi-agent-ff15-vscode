@@ -1,0 +1,20 @@
+layout {
+	pane split_direction="vertical" {
+		pane split_direction="horizontal" {
+			pane command="opencode" {
+				args "--agent" "noctis"
+			}
+			pane command="opencode" {
+				args "--agent" "ignis"
+			}
+		}
+		pane split_direction="horizontal" {
+			pane command="opencode" {
+				args "--agent" "gladiolus"
+			}
+			pane command="opencode" {
+				args "--agent" "prompto"
+			}
+		}
+	}
+}

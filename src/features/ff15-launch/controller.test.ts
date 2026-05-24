@@ -11,9 +11,11 @@ describe("createFf15LaunchController", () => {
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
+		const getBundledLayoutPath = () => "C:/extension/assets/ff15-roster.kdl";
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getBundledLayoutPath,
 			getWorkspaceRoot: () => "C:/repo",
 			launchTerminal,
 			showErrorMessage,
@@ -28,8 +30,9 @@ describe("createFf15LaunchController", () => {
 		expect(ensureCommandAvailable).toHaveBeenNthCalledWith(1, "zellij");
 		expect(ensureCommandAvailable).toHaveBeenNthCalledWith(2, "opencode");
 		expect(launchTerminal).toHaveBeenCalledWith({
-			command: "zellij",
 			cwd: "C:/repo",
+			executable: "zellij",
+			args: ["--layout", "C:/extension/assets/ff15-roster.kdl"],
 			name: "FF15",
 		});
 		expect(showErrorMessage).not.toHaveBeenCalled();
@@ -39,10 +42,12 @@ describe("createFf15LaunchController", () => {
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
+		const getBundledLayoutPath = () => "C:/extension/assets/ff15-roster.kdl";
 		const getWorkspaceRoot = () => ["C:/repo"][1];
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getBundledLayoutPath,
 			getWorkspaceRoot,
 			launchTerminal,
 			showErrorMessage,
@@ -65,9 +70,11 @@ describe("createFf15LaunchController", () => {
 			.mockRejectedValueOnce(new Error("missing zellij"));
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
+		const getBundledLayoutPath = () => "C:/extension/assets/ff15-roster.kdl";
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getBundledLayoutPath,
 			getWorkspaceRoot: () => "C:/repo",
 			launchTerminal,
 			showErrorMessage,
@@ -92,9 +99,11 @@ describe("createFf15LaunchController", () => {
 			.mockRejectedValueOnce(new Error("missing opencode"));
 		const launchTerminal = vi.fn().mockResolvedValue(undefined);
 		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
+		const getBundledLayoutPath = () => "C:/extension/assets/ff15-roster.kdl";
 
 		const controller = createFf15LaunchController({
 			ensureCommandAvailable,
+			getBundledLayoutPath,
 			getWorkspaceRoot: () => "C:/repo",
 			launchTerminal,
 			showErrorMessage,

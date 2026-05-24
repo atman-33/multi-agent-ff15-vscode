@@ -2,19 +2,61 @@ import { spawn } from "node:child_process";
 import { window } from "vscode";
 import type { LaunchTerminalInput } from "./types";
 
+const SHELL_ARGUMENT_NEEDS_QUOTING_REGEX = /[\s'"]/;
+
 const escapePowerShellSingleQuotedString = (value: string): string =>
 	value.replaceAll("'", "''");
 
-const launchExternalWindowsTerminal = ({
-	command,
+const quoteShellArgument = (value: string): string => {
+	if (value.length === 0) {
+		return "''";
+	}
+
+	if (!SHELL_ARGUMENT_NEEDS_QUOTING_REGEX.test(value)) {
+		return value;
+	}
+
+	return `'${value.replaceAll("'", "'\\''")}'`;
+};
+
+export const buildTerminalCommand = ({
+	executable,
+	args = [],
+}: Pick<LaunchTerminalInput, "args" | "executable">): string =>
+	[executable, ...args.map(quoteShellArgument)].join(" ");
+
+export const buildWindowsStartProcessScript = ({
+	args = [],
 	cwd,
-}: LaunchTerminalInput): Promise<void> => {
-	const escapedCommand = escapePowerShellSingleQuotedString(command);
+	executable,
+}: LaunchTerminalInput): string => {
+	const escapedExecutable = escapePowerShellSingleQuotedString(executable);
 	const escapedCwd = escapePowerShellSingleQuotedString(cwd);
-	const script = [
+	const argumentList =
+		args.length === 0
+			? ""
+			: ` -ArgumentList @(${args
+					.map((arg) => `'${escapePowerShellSingleQuotedString(arg)}'`)
+					.join(", ")})`;
+
+	return [
 		"$ErrorActionPreference = 'Stop'",
-		`Start-Process -FilePath '${escapedCommand}' -WorkingDirectory '${escapedCwd}'`,
+		`Start-Process -FilePath '${escapedExecutable}'${argumentList} -WorkingDirectory '${escapedCwd}'`,
 	].join("; ");
+};
+
+const launchExternalWindowsTerminal = ({
+	args,
+	cwd,
+	executable,
+	name,
+}: LaunchTerminalInput): Promise<void> => {
+	const script = buildWindowsStartProcessScript({
+		args,
+		cwd,
+		executable,
+		name,
+	});
 
 	return new Promise((resolve, reject) => {
 		const helper = spawn(
@@ -40,14 +82,16 @@ const launchExternalWindowsTerminal = ({
 };
 
 export const launchZellijTerminal = ({
-	command,
+	args,
 	cwd,
+	executable,
 	name,
 }: LaunchTerminalInput): Promise<void> | void => {
 	if (process.platform === "win32") {
 		return launchExternalWindowsTerminal({
-			command,
+			args,
 			cwd,
+			executable,
 			name,
 		});
 	}
@@ -58,5 +102,11 @@ export const launchZellijTerminal = ({
 	});
 
 	terminal.show();
-	terminal.sendText(command, true);
+	terminal.sendText(
+		buildTerminalCommand({
+			args,
+			executable,
+		}),
+		true
+	);
 };

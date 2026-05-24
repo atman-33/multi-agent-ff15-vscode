@@ -6,7 +6,7 @@ export const MISSING_ZELLIJ_MESSAGE = "FF15 launch requires `zellij` on PATH.";
 export const MISSING_OPENCODE_MESSAGE =
 	"FF15 launch requires `opencode` on PATH.";
 
-const TERMINAL_COMMAND = "zellij";
+const TERMINAL_EXECUTABLE = "zellij";
 const TERMINAL_NAME = "FF15";
 
 export const createFf15LaunchController = (
@@ -44,9 +44,12 @@ export const createFf15LaunchController = (
 			};
 		}
 
+		const layoutPath = dependencies.getBundledLayoutPath();
+
 		await dependencies.launchTerminal({
-			command: TERMINAL_COMMAND,
 			cwd: workspaceRoot,
+			executable: TERMINAL_EXECUTABLE,
+			args: ["--layout", layoutPath],
 			name: TERMINAL_NAME,
 		});
 
