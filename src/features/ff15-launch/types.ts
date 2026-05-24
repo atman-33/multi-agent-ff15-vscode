@@ -1,3 +1,8 @@
+import type {
+	Ff15LaunchClient,
+	Ff15PaneLaunchPlanEntry,
+} from "./launch-client";
+
 export interface LaunchTerminalInput {
 	cwd: string;
 	name: string;
@@ -7,10 +12,14 @@ export interface LaunchTerminalInput {
 
 export interface Ff15LaunchControllerDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
-	getLaunchLayoutPath: (workspaceRoot: string) => string;
+	getLaunchClient: () => Ff15LaunchClient;
+	getLaunchLayoutPath: (
+		workspaceRoot: string,
+		paneLaunchPlan: readonly Ff15PaneLaunchPlanEntry[]
+	) => string;
 	getWorkspaceRoot: () => string | undefined;
 	launchTerminal: (input: LaunchTerminalInput) => Promise<void> | void;
-	showErrorMessage: (message: string) => Promise<void> | void;
+	showErrorMessage: (message: string) => PromiseLike<unknown> | void;
 }
 
 export interface LaunchResult {
