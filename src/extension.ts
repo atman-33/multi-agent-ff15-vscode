@@ -1,43 +1,14 @@
-import { type ExtensionContext, commands, window } from "vscode";
-import {
-	reverseSelection,
-	showInformationMessage,
-} from "./commands/sample-commands";
-import { InteractiveViewProvider } from "./providers/interactive-view-provider";
-import { SimpleViewProvider } from "./providers/simple-view-provider";
+import { type ExtensionContext, window } from "vscode";
+import { Ff15LaunchViewProvider } from "./features/ff15-launch/provider";
 
 export const activate = (context: ExtensionContext) => {
-	// Register the commands
-	context.subscriptions.push(
-		commands.registerCommand(
-			"vscode-extension-boilerplate.showInformation",
-			showInformationMessage
-		)
-	);
-
-	context.subscriptions.push(
-		commands.registerCommand(
-			"vscode-extension-boilerplate.reverseSelection",
-			reverseSelection
-		)
-	);
-
-	// Register the webview providers
-	const simpleViewProvider = new SimpleViewProvider(context.extensionUri);
-	context.subscriptions.push(
-		window.registerWebviewViewProvider(
-			SimpleViewProvider.viewId,
-			simpleViewProvider
-		)
-	);
-
-	const interactiveViewProvider = new InteractiveViewProvider(
+	const ff15LaunchViewProvider = new Ff15LaunchViewProvider(
 		context.extensionUri
 	);
 	context.subscriptions.push(
 		window.registerWebviewViewProvider(
-			InteractiveViewProvider.viewId,
-			interactiveViewProvider
+			Ff15LaunchViewProvider.viewId,
+			ff15LaunchViewProvider
 		)
 	);
 };

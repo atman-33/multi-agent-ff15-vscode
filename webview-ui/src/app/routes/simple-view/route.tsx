@@ -1,0 +1,20 @@
+import sampleGif from "../../../assets/sample.gif";
+
+const Route = () => (
+	<div className="px-3 py-0.5">
+		<h1 className="font-semibold text-[color:var(--vscode-foreground)] text-xl leading-tight">
+			Simple View
+		</h1>
+		<p className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] text-sm">
+			This is a simple WebView view.
+		</p>
+		<img
+			alt="Animated sample preview"
+			height="300"
+			src={sampleGif}
+			width="300"
+		/>
+	</div>
+);
+
+export default Route;

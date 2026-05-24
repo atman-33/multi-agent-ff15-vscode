@@ -1,7 +1,7 @@
 {
   "name": "vscode-extension-boilerplate",
-  "displayName": "VSCode Extension Boilerplate",
-  "description": "",
+  "displayName": "multi-agent-ff15-vscode",
+  "description": "FF15-style OpenCode launch surface for VS Code.",
   "version": "0.1.0",
   "author": "atman-33",
   "publisher": "atman-dev",
@@ -43,45 +43,17 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "vscode-extension-boilerplate",
-          "title": "VSCode Extension Boilerplate",
+          "id": "multi-agent-ff15-vscode",
+          "title": "FF15",
           "icon": "./icons/sample.svg"
         }
       ]
     },
-    "commands": [
-      {
-        "command": "vscode-extension-boilerplate.showInformation",
-        "title": "Boilerplate: Show Information"
-      },
-      {
-        "command": "vscode-extension-boilerplate.reverseSelection",
-        "title": "Boilerplate: Reverse Selection"
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "vscode-extension-boilerplate.showInformation",
-          "when": "true"
-        },
-        {
-          "command": "vscode-extension-boilerplate.reverseSelection",
-          "when": "editorHasSelection"
-        }
-      ]
-    },
     "views": {
-      "vscode-extension-boilerplate": [
+      "multi-agent-ff15-vscode": [
         {
-          "id": "vscode-extension-boilerplate.simpleView",
-          "name": "Simple View",
-          "type": "webview",
-          "icon": ""
-        },
-        {
-          "id": "vscode-extension-boilerplate.interactiveView",
-          "name": "Interactive View",
+          "id": "multi-agent-ff15-vscode.launchView",
+          "name": "Launch",
           "type": "webview",
           "icon": ""
         }
