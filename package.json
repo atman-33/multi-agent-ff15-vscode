@@ -56,9 +56,22 @@
           "name": "Launch",
           "type": "webview",
           "icon": ""
+        },
+        {
+          "id": "multi-agent-ff15-vscode.settingsView",
+          "name": "Settings",
+          "type": "webview",
+          "icon": ""
         }
       ]
     },
+    "commands": [
+      {
+        "command": "multi-agent-ff15-vscode.openSettings",
+        "title": "Open FF15 Settings",
+        "category": "FF15"
+      }
+    ],
     "configuration": {
       "title": "FF15",
       "properties": {
