@@ -58,6 +58,12 @@
           "icon": ""
         },
         {
+          "id": "multi-agent-ff15-vscode.missionsView",
+          "name": "Missions",
+          "type": "webview",
+          "icon": ""
+        },
+        {
           "id": "multi-agent-ff15-vscode.settingsView",
           "name": "Settings",
           "type": "webview",
