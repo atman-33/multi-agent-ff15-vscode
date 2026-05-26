@@ -5,6 +5,13 @@ export const FF15_AGENT_IDS = [
 	"prompto",
 ] as const;
 
+export const FF15_AGENT_DISPLAY_NAMES = {
+	gladiolus: "Gladiolus",
+	ignis: "Ignis",
+	noctis: "Noctis",
+	prompto: "Prompto",
+} as const satisfies Record<Ff15AgentId, string>;
+
 export type Ff15AgentId = (typeof FF15_AGENT_IDS)[number];
 export type Ff15LaunchClientId = "github-copilot-cli" | "opencode";
 
@@ -15,7 +22,7 @@ export interface ResolvedLaunchCommand {
 
 export interface Ff15PaneLaunchPlanEntry {
 	agentId: Ff15AgentId;
-	args: string[];
+	args: readonly string[];
 	executable: string;
 }
 

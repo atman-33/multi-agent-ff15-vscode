@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+	FF15_AGENT_DISPLAY_NAMES,
 	FF15_AGENT_IDS,
 	type Ff15AgentId,
 	type Ff15PaneLaunchPlanEntry,
@@ -61,9 +62,9 @@ const replaceIndentedPlaceholder = (
 const buildPaneLayoutSnippet = (
 	paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry
 ): string => {
-	const commandLine = `pane command="${escapeKdlStringValue(
-		paneLaunchPlanEntry.executable
-	)}"`;
+	const commandLine = `pane name="${escapeKdlStringValue(
+		FF15_AGENT_DISPLAY_NAMES[paneLaunchPlanEntry.agentId]
+	)}" command="${escapeKdlStringValue(paneLaunchPlanEntry.executable)}"`;
 
 	if (paneLaunchPlanEntry.args.length === 0) {
 		return commandLine;
