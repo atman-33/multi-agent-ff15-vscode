@@ -12,6 +12,7 @@ describe("Ff15MissionsViewProvider", () => {
 		| ((message: {
 				command?: string;
 				missionId?: string;
+				prompt?: string;
 		  }) => void | Promise<void>)
 		| undefined;
 
@@ -57,7 +58,7 @@ describe("Ff15MissionsViewProvider", () => {
 		});
 	});
 
-	it("creates and selects missions through the mission store", async () => {
+	it("creates, selects, and deletes missions through the mission session controller", async () => {
 		const emptySnapshot = {
 			activeMissionId: null,
 			missions: [],
@@ -85,14 +86,23 @@ describe("Ff15MissionsViewProvider", () => {
 				},
 			],
 		};
+		const deletedSnapshot = {
+			activeMissionId: "mission-1",
+			missions: [createdSnapshot.missions[0]],
+		};
 		const missionsStore = {
-			createMission: vi.fn().mockResolvedValue(createdSnapshot),
 			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
+		};
+		const missionSessionController = {
+			createMission: vi.fn().mockResolvedValue(createdSnapshot),
+			deleteMission: vi.fn().mockResolvedValue(deletedSnapshot),
 			selectMission: vi.fn().mockResolvedValue(selectedSnapshot),
 		};
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
-			missionsStore as never
+			missionsStore as never,
+			undefined,
+			missionSessionController as never
 		);
 		const webviewView = {
 			webview: {
@@ -114,9 +124,18 @@ describe("Ff15MissionsViewProvider", () => {
 			command: "ff15-missions.select",
 			missionId: "mission-2",
 		});
+		await messageHandler?.({
+			command: "ff15-missions.delete",
+			missionId: "mission-2",
+		});
 
-		expect(missionsStore.createMission).toHaveBeenCalledTimes(1);
-		expect(missionsStore.selectMission).toHaveBeenCalledWith("mission-2");
+		expect(missionSessionController.createMission).toHaveBeenCalledTimes(1);
+		expect(missionSessionController.selectMission).toHaveBeenCalledWith(
+			"mission-2"
+		);
+		expect(missionSessionController.deleteMission).toHaveBeenCalledWith(
+			"mission-2"
+		);
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
 			snapshot: createdSnapshot,
@@ -124,6 +143,83 @@ describe("Ff15MissionsViewProvider", () => {
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(3, {
 			command: "ff15-missions.state",
 			snapshot: selectedSnapshot,
+		});
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(4, {
+			command: "ff15-missions.state",
+			snapshot: deletedSnapshot,
+		});
+	});
+
+	it("submits prompts through the mission send controller", async () => {
+		const emptySnapshot = {
+			activeMissionId: "mission-1",
+			missions: [
+				{
+					createdAt: "2026-05-25T00:00:00.000Z",
+					id: "mission-1",
+					lastError: null,
+					sessionName: null,
+					status: "draft",
+					title: "Mission 1",
+					updatedAt: "2026-05-25T00:00:00.000Z",
+					workspaceRoot: null,
+				},
+			],
+		};
+		const sentSnapshot = {
+			activeMissionId: "mission-1",
+			missions: [
+				{
+					createdAt: "2026-05-25T00:00:00.000Z",
+					id: "mission-1",
+					lastError: null,
+					sessionName: "ff15-session",
+					status: "active",
+					title: "Mission 1",
+					updatedAt: "2026-05-25T00:01:00.000Z",
+					workspaceRoot: "C:/repo",
+				},
+			],
+		};
+		const missionsStore = {
+			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
+		};
+		const missionSendController = {
+			submitPrompt: vi.fn().mockResolvedValue(sentSnapshot),
+		};
+		const provider = new Ff15MissionsViewProvider(
+			{} as never,
+			missionsStore as never,
+			missionSendController as never
+		);
+		const webviewView = {
+			webview: {
+				html: "",
+				localResourceRoots: [],
+				options: undefined,
+				postMessage: vi.fn(),
+				onDidReceiveMessage: vi.fn((listener) => {
+					messageHandler = listener;
+					return { dispose: vi.fn() };
+				}),
+			},
+		};
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		await messageHandler?.({
+			command: "ff15-missions.send",
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(missionSendController.submitPrompt).toHaveBeenCalledWith({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
+			command: "ff15-missions.state",
+			snapshot: sentSnapshot,
 		});
 	});
 });

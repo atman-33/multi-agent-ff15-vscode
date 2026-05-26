@@ -4,7 +4,13 @@ vi.mock("vscode", () => ({
 	commands: {
 		registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
 	},
+	workspace: {
+		getConfiguration: vi.fn(() => ({ get: vi.fn() })),
+		getWorkspaceFolder: vi.fn(),
+		workspaceFolders: undefined,
+	},
 	window: {
+		activeTextEditor: undefined,
 		registerWebviewViewProvider: vi.fn(() => ({ dispose: vi.fn() })),
 	},
 }));
