@@ -133,6 +133,32 @@ describe("createFf15MissionZellijTransport", () => {
 		});
 	});
 
+	it("fails cleanly for an existing mission when no live Noctis pane can be resolved", async () => {
+		const runZellijCommand = vi.fn().mockResolvedValue({
+			stdout: JSON.stringify([createPane(1, "gladiolus")]),
+		});
+		const transport = createFf15MissionZellijTransport({ runZellijCommand });
+
+		await expect(
+			transport.ensureMissionSession({
+				agentPanes: createAgentPanes("terminal_7"),
+				allowCreateNoctisPane: false,
+				missionId: "mission-1",
+				paneLaunchPlanEntry: createNoctisPaneLaunchPlanEntry(),
+				sessionName: "ff15-session",
+				workspaceRoot: "C:/repo",
+			})
+		).rejects.toThrow(
+			"FF15 could not resolve a live Noctis pane for this mission. Start a new mission to continue."
+		);
+
+		expect(runZellijCommand).toHaveBeenCalledTimes(1);
+		expect(runZellijCommand).toHaveBeenCalledWith({
+			args: ["--session", "ff15-session", "action", "list-panes", "--json"],
+			cwd: "C:/repo",
+		});
+	});
+
 	it("reconciles mission agent panes from the current session", async () => {
 		const runZellijCommand = vi.fn().mockResolvedValue({
 			stdout: JSON.stringify([
