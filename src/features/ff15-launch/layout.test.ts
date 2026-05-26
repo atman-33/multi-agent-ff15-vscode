@@ -85,6 +85,10 @@ describe("renderFf15LayoutTemplate", () => {
 		});
 
 		expect(rendered).toContain('cwd "C:/repo path"');
+		expect(rendered).toContain('name="Noctis"');
+		expect(rendered).toContain('name="Ignis"');
+		expect(rendered).toContain('name="Gladiolus"');
+		expect(rendered).toContain('name="Prompto"');
 		expect(rendered).toContain('command="C:/tools/opencode.exe"');
 		expect(rendered).toContain('args "--agent" "noctis"');
 		expect(rendered).toContain('args "--agent" "ignis"');
@@ -213,6 +217,10 @@ describe("prepareFf15LaunchLayout", () => {
 
 			expect(dirname(renderedLayoutPath)).toContain("multi-agent-ff15-vscode");
 			expect(rendered).toContain('cwd "C:/repo path"');
+			expect(rendered).toContain('name="Noctis"');
+			expect(rendered).toContain('name="Ignis"');
+			expect(rendered).toContain('name="Gladiolus"');
+			expect(rendered).toContain('name="Prompto"');
 			expect(rendered).toContain('command="C:/tools/opencode.exe"');
 			expect(rendered).toContain('command="copilot"');
 			expect(rendered).toContain('args "--agent" "gladiolus"');

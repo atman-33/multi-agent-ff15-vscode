@@ -121,7 +121,7 @@ describe("createFf15MissionZellijTransport", () => {
 				"action",
 				"new-pane",
 				"--name",
-				"noctis",
+				"Noctis",
 				"--cwd",
 				"C:/repo",
 				"--",

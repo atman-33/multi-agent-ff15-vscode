@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import {
+	FF15_AGENT_DISPLAY_NAMES,
 	FF15_AGENT_IDS,
 	type Ff15AgentId,
 	type Ff15PaneLaunchPlanEntry,
@@ -9,7 +10,8 @@ import {
 	type Ff15MissionAgentPanes,
 } from "./state";
 
-const NOCTIS_PANE_NAME = "noctis";
+const NOCTIS_AGENT_ID = "noctis";
+const NOCTIS_PANE_NAME = FF15_AGENT_DISPLAY_NAMES[NOCTIS_AGENT_ID];
 const LIST_PANES_COMMAND = ["action", "list-panes", "--json"] as const;
 const FF15_PROMPT_INPUT_DELAY_MS = 500;
 const AGENT_ARGUMENT_REGEX = /(?:^|\s)--agent\s+([a-z0-9-]+)(?=\s|$)/i;
@@ -130,7 +132,7 @@ const findNoctisPaneId = (
 			pane.exited ||
 			pane.is_plugin ||
 			pane.is_selectable === false ||
-			resolveAgentId(pane) !== NOCTIS_PANE_NAME
+			resolveAgentId(pane) !== NOCTIS_AGENT_ID
 		) {
 			continue;
 		}
