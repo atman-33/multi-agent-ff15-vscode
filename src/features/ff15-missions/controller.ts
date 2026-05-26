@@ -20,6 +20,7 @@ export const MISSION_SEND_FAILED_MESSAGE =
 
 interface Ff15MissionTransport {
 	ensureMissionSession: (input: {
+		allowCreateNoctisPane?: boolean;
 		agentPanes?: Ff15MissionAgentPanes;
 		missionId: string;
 		paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry;
@@ -135,6 +136,7 @@ export const createFf15MissionSendController = (
 		try {
 			const { agentPanes: resolvedAgentPanes, paneId } =
 				await dependencies.missionTransport.ensureMissionSession({
+					allowCreateNoctisPane: currentMission?.sessionName == null,
 					agentPanes,
 					missionId: input.missionId,
 					paneLaunchPlanEntry,

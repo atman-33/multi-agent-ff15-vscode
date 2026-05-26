@@ -15,6 +15,8 @@ const NOCTIS_PANE_NAME = FF15_AGENT_DISPLAY_NAMES[NOCTIS_AGENT_ID];
 const LIST_PANES_COMMAND = ["action", "list-panes", "--json"] as const;
 const FF15_PROMPT_INPUT_DELAY_MS = 500;
 const AGENT_ARGUMENT_REGEX = /(?:^|\s)--agent\s+([a-z0-9-]+)(?=\s|$)/i;
+const MISSING_LIVE_NOCTIS_PANE_MESSAGE =
+	"FF15 could not resolve a live Noctis pane for this mission. Start a new mission to continue.";
 
 interface ZellijPane {
 	id?: number | string;
@@ -243,12 +245,14 @@ export const createFf15MissionZellijTransport = (
 
 	return {
 		async ensureMissionSession(input: {
+			allowCreateNoctisPane?: boolean;
 			agentPanes?: Ff15MissionAgentPanes;
 			missionId: string;
 			paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry;
 			sessionName: string;
 			workspaceRoot: string;
 		}) {
+			const allowCreateNoctisPane = input.allowCreateNoctisPane ?? true;
 			let panes: ZellijPane[];
 
 			try {
@@ -258,6 +262,10 @@ export const createFf15MissionZellijTransport = (
 					input.workspaceRoot
 				);
 			} catch {
+				if (!allowCreateNoctisPane) {
+					throw new Error(MISSING_LIVE_NOCTIS_PANE_MESSAGE);
+				}
+
 				await runCommand({
 					args: ["attach", "--create-background", input.sessionName],
 					cwd: input.workspaceRoot,
@@ -277,6 +285,10 @@ export const createFf15MissionZellijTransport = (
 					agentPanes,
 					paneId: existingPaneId,
 				};
+			}
+
+			if (!allowCreateNoctisPane) {
+				throw new Error(MISSING_LIVE_NOCTIS_PANE_MESSAGE);
 			}
 
 			const result = await runCommand({
