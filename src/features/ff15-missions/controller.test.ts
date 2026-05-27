@@ -270,6 +270,85 @@ describe("createFf15MissionSendController", () => {
 		}
 	});
 
+	it("recovers an errored mission by retrying the send from the same mission context", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-05-26T00:10:00.000Z")
+					.mockReturnValueOnce("2026-05-26T00:11:00.000Z")
+					.mockReturnValueOnce("2026-05-26T00:12:00.000Z")
+					.mockReturnValueOnce("2026-05-26T00:13:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+
+			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+			const launchClient = createLaunchClient();
+			const missionTransport = {
+				ensureMissionSession: vi
+					.fn()
+					.mockRejectedValueOnce(
+						new Error(
+							"FF15 could not resolve a live Noctis pane for this mission. Start a new mission to continue."
+						)
+					)
+					.mockResolvedValueOnce({
+						agentPanes: createAgentPanes("terminal_7"),
+						paneId: "terminal_7",
+					}),
+				sendPrompt: vi.fn().mockResolvedValue(undefined),
+			};
+
+			const controller = createFf15MissionSendController({
+				ensureCommandAvailable,
+				getLaunchClient: () => launchClient,
+				getWorkspaceRoot: () => workspaceRoot,
+				missionTransport,
+				missionsStore,
+			});
+
+			await controller.submitPrompt({
+				missionId: "mission-1",
+				prompt: "Retry the delivery",
+			});
+
+			const recoveredSnapshot = await controller.submitPrompt({
+				missionId: "mission-1",
+				prompt: "Retry the delivery",
+			});
+
+			expect(missionTransport.ensureMissionSession).toHaveBeenNthCalledWith(
+				2,
+				expect.objectContaining({
+					allowCreateNoctisPane: false,
+					missionId: "mission-1",
+					sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
+					workspaceRoot,
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith({
+				paneId: "terminal_7",
+				prompt: "Retry the delivery",
+				sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
+			});
+			expect(recoveredSnapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					lastError: null,
+					status: "active",
+					workspaceRoot,
+				}),
+			]);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("stores a mission-scoped error when no workspace root can be resolved", async () => {
 		const { storage } = createStorage();
 		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {

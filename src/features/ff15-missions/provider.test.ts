@@ -222,4 +222,78 @@ describe("Ff15MissionsViewProvider", () => {
 			snapshot: sentSnapshot,
 		});
 	});
+
+	it("retries prompts through the mission send controller", async () => {
+		const emptySnapshot = {
+			activeMissionId: "mission-1",
+			missions: [
+				{
+					createdAt: "2026-05-25T00:00:00.000Z",
+					id: "mission-1",
+					lastError:
+						"FF15 could not resolve a live Noctis pane for this mission.",
+					sessionName: "ff15-session",
+					status: "error",
+					title: "Mission 1",
+					updatedAt: "2026-05-25T00:00:00.000Z",
+					workspaceRoot: "C:/repo",
+				},
+			],
+		};
+		const retriedSnapshot = {
+			activeMissionId: "mission-1",
+			missions: [
+				{
+					createdAt: "2026-05-25T00:00:00.000Z",
+					id: "mission-1",
+					lastError: null,
+					sessionName: "ff15-session",
+					status: "active",
+					title: "Mission 1",
+					updatedAt: "2026-05-25T00:01:00.000Z",
+					workspaceRoot: "C:/repo",
+				},
+			],
+		};
+		const missionsStore = {
+			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
+		};
+		const missionSendController = {
+			submitPrompt: vi.fn().mockResolvedValue(retriedSnapshot),
+		};
+		const provider = new Ff15MissionsViewProvider(
+			{} as never,
+			missionsStore as never,
+			missionSendController as never
+		);
+		const webviewView = {
+			webview: {
+				html: "",
+				localResourceRoots: [],
+				options: undefined,
+				postMessage: vi.fn(),
+				onDidReceiveMessage: vi.fn((listener) => {
+					messageHandler = listener;
+					return { dispose: vi.fn() };
+				}),
+			},
+		};
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		await messageHandler?.({
+			command: "ff15-missions.retry",
+			missionId: "mission-1",
+			prompt: "Retry the delivery",
+		});
+
+		expect(missionSendController.submitPrompt).toHaveBeenCalledWith({
+			missionId: "mission-1",
+			prompt: "Retry the delivery",
+		});
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
+			command: "ff15-missions.state",
+			snapshot: retriedSnapshot,
+		});
+	});
 });
