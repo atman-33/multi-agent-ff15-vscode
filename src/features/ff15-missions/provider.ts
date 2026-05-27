@@ -93,6 +93,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 					this.postSnapshot(this.missionsStore.getSnapshot());
 					return;
 				}
+				case "ff15-missions.retry":
 				case "ff15-missions.send": {
 					if (
 						typeof message.missionId !== "string" ||

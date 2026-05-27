@@ -20,6 +20,26 @@ interface MissionSnapshot {
 	missions: MissionSummary[];
 }
 
+const MISSION_STATUS_LABELS: Record<MissionSummary["status"], string> = {
+	active: "Active",
+	draft: "Draft",
+	error: "Delivery Error",
+	sending: "Sending",
+};
+
+const getMissionStatusClassName = (status: MissionSummary["status"]) => {
+	switch (status) {
+		case "active":
+			return "border-emerald-500/30 bg-emerald-500/12 text-emerald-200";
+		case "error":
+			return "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 text-[color:var(--vscode-errorForeground,#f87171)]";
+		case "sending":
+			return "border-amber-400/35 bg-amber-400/12 text-amber-100";
+		default:
+			return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]";
+	}
+};
+
 const EMPTY_SNAPSHOT: MissionSnapshot = {
 	activeMissionId: null,
 	missions: [],
@@ -60,17 +80,23 @@ const Route = () => {
 
 	const hasMissions = snapshot.missions.length > 0;
 	const composerDisabled = activeMission === null;
-	const sendDisabled =
+	const retryingErroredMission = activeMission?.status === "error";
+	const composerActionDisabled =
 		composerDisabled ||
 		draft.trim().length === 0 ||
 		activeMission?.status === "sending";
+	const composerActionLabel = retryingErroredMission
+		? "Retry Delivery"
+		: "Send to Noctis";
 	const composerStatusMessage = (() => {
 		if (composerDisabled) {
 			return "Noctis composer is disabled until a mission is active.";
 		}
 
 		if (activeMission.lastError) {
-			return activeMission.lastError;
+			return draft.trim().length > 0
+				? `${activeMission.lastError} Use Retry Delivery to resend from the same mission context.`
+				: `${activeMission.lastError} Enter a message to retry delivery from the same mission.`;
 		}
 
 		if (activeMission.status === "sending") {
@@ -144,7 +170,12 @@ const Route = () => {
 							});
 						}}
 					>
-						{mission.title}
+						<span>{mission.title}</span>
+						<span
+							className={`rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(mission.status)}`}
+						>
+							{MISSION_STATUS_LABELS[mission.status]}
+						</span>
 					</PillButton>
 				))}
 			</div>
@@ -177,25 +208,36 @@ const Route = () => {
 				value={draft}
 			>
 				<div className="flex items-center justify-between gap-3 p-2">
-					<span className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] text-xs">
-						{composerStatusMessage}
-					</span>
+					<div className="flex min-w-0 flex-col gap-1">
+						{activeMission ? (
+							<span
+								className={`w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(activeMission.status)}`}
+							>
+								{MISSION_STATUS_LABELS[activeMission.status]}
+							</span>
+						) : null}
+						<span className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] text-xs">
+							{composerStatusMessage}
+						</span>
+					</div>
 					<SidebarActionButton
 						className="h-7 w-auto px-3 text-xs"
-						disabled={sendDisabled}
+						disabled={composerActionDisabled}
 						onClick={() => {
 							if (!activeMission || draft.trim().length === 0) {
 								return;
 							}
 
 							vscode.postMessage({
-								command: "ff15-missions.send",
+								command: retryingErroredMission
+									? "ff15-missions.retry"
+									: "ff15-missions.send",
 								missionId: activeMission.id,
 								prompt: draft.trim(),
 							});
 						}}
 					>
-						Send to Noctis
+						{composerActionLabel}
 					</SidebarActionButton>
 				</div>
 			</TextareaPanel>
