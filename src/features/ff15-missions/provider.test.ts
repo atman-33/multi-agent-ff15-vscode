@@ -98,11 +98,16 @@ describe("Ff15MissionsViewProvider", () => {
 			deleteMission: vi.fn().mockResolvedValue(deletedSnapshot),
 			selectMission: vi.fn().mockResolvedValue(selectedSnapshot),
 		};
+		const missionWorkbenchController = {
+			showMission: vi.fn(),
+		};
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
 			missionsStore as never,
-			undefined,
-			missionSessionController as never
+			{
+				missionSessionController: missionSessionController as never,
+				missionWorkbenchController: missionWorkbenchController as never,
+			}
 		);
 		const webviewView = {
 			webview: {
@@ -134,6 +139,14 @@ describe("Ff15MissionsViewProvider", () => {
 			"mission-2"
 		);
 		expect(missionSessionController.deleteMission).toHaveBeenCalledWith(
+			"mission-2"
+		);
+		expect(missionWorkbenchController.showMission).toHaveBeenNthCalledWith(
+			1,
+			"mission-1"
+		);
+		expect(missionWorkbenchController.showMission).toHaveBeenNthCalledWith(
+			2,
 			"mission-2"
 		);
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
@@ -190,7 +203,9 @@ describe("Ff15MissionsViewProvider", () => {
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
 			missionsStore as never,
-			missionSendController as never
+			{
+				missionSendController: missionSendController as never,
+			}
 		);
 		const webviewView = {
 			webview: {
@@ -264,7 +279,9 @@ describe("Ff15MissionsViewProvider", () => {
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
 			missionsStore as never,
-			missionSendController as never
+			{
+				missionSendController: missionSendController as never,
+			}
 		);
 		const webviewView = {
 			webview: {

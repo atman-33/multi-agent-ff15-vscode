@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+const { missionsViewProviderConstructor } = vi.hoisted(() => ({
+	missionsViewProviderConstructor: vi.fn(),
+}));
+
 vi.mock("vscode", () => ({
 	commands: {
 		registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
@@ -24,6 +28,10 @@ vi.mock("./features/ff15-launch/provider", () => ({
 vi.mock("./features/ff15-missions/provider", () => ({
 	Ff15MissionsViewProvider: class {
 		static readonly viewId = "multi-agent-ff15-vscode.missionsView";
+
+		constructor(...args: unknown[]) {
+			missionsViewProviderConstructor(...args);
+		}
 	},
 }));
 
@@ -48,6 +56,18 @@ describe("activate", () => {
 		};
 
 		activate(context as never);
+
+		expect(missionsViewProviderConstructor).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.objectContaining({
+				missionSendController: expect.anything(),
+				missionSessionController: expect.anything(),
+				missionWorkbenchController: expect.objectContaining({
+					showMission: expect.any(Function),
+				}),
+			})
+		);
 
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
 			1,
