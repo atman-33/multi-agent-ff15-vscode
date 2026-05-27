@@ -19,6 +19,25 @@ const FF15_MISSION_SCHEMA_VERSION = 1;
 
 export type Ff15MissionStatus = "active" | "draft" | "error" | "sending";
 export type Ff15MissionAgentPanes = Record<Ff15AgentId, string | null>;
+export type Ff15MissionWorkflowRuntimeStatus =
+	| "ready"
+	| "starting"
+	| "unavailable";
+export type Ff15MissionWorkflowProbeVerdict = "go" | "no-go";
+
+export interface Ff15MissionWorkflowProbe {
+	checkedAt: string | null;
+	summary: string | null;
+	verdict: Ff15MissionWorkflowProbeVerdict | null;
+}
+
+export interface Ff15MissionWorkflowState {
+	activeTask: string | null;
+	currentStep: string | null;
+	lastReportSummary: string | null;
+	probe: Ff15MissionWorkflowProbe;
+	runtimeStatus: Ff15MissionWorkflowRuntimeStatus | null;
+}
 
 export interface Ff15MissionSummary {
 	id: string;
@@ -34,6 +53,7 @@ export interface Ff15MissionSummary {
 export interface Ff15MissionRecord extends Ff15MissionSummary {
 	agentPanes: Ff15MissionAgentPanes;
 	operationRef: string | null;
+	workflow: Ff15MissionWorkflowState;
 	schemaVersion: 1;
 }
 
@@ -58,6 +78,7 @@ export interface Ff15MissionsStore {
 				| "operationRef"
 				| "sessionName"
 				| "status"
+				| "workflow"
 				| "workspaceRoot"
 			>
 		>
@@ -82,6 +103,19 @@ export const createEmptyFf15MissionAgentPanes = (): Ff15MissionAgentPanes =>
 	Object.fromEntries(
 		FF15_AGENT_IDS.map((agentId) => [agentId, null])
 	) as Ff15MissionAgentPanes;
+
+export const createEmptyFf15MissionWorkflowState =
+	(): Ff15MissionWorkflowState => ({
+		activeTask: null,
+		currentStep: null,
+		lastReportSummary: null,
+		probe: {
+			checkedAt: null,
+			summary: null,
+			verdict: null,
+		},
+		runtimeStatus: null,
+	});
 
 const isMissionSummary = (value: unknown): value is Ff15MissionSummary => {
 	if (!value || typeof value !== "object") {
@@ -131,6 +165,47 @@ const normalizeAgentPanes = (value: unknown): Ff15MissionAgentPanes => {
 	return normalized;
 };
 
+const normalizeWorkflowProbe = (value: unknown): Ff15MissionWorkflowProbe => {
+	if (!value || typeof value !== "object") {
+		return createEmptyFf15MissionWorkflowState().probe;
+	}
+
+	const probe = value as Record<string, unknown>;
+	return {
+		checkedAt: typeof probe.checkedAt === "string" ? probe.checkedAt : null,
+		summary: typeof probe.summary === "string" ? probe.summary : null,
+		verdict:
+			probe.verdict === "go" || probe.verdict === "no-go"
+				? probe.verdict
+				: null,
+	};
+};
+
+const normalizeWorkflowState = (value: unknown): Ff15MissionWorkflowState => {
+	if (!value || typeof value !== "object") {
+		return createEmptyFf15MissionWorkflowState();
+	}
+
+	const workflow = value as Record<string, unknown>;
+	return {
+		activeTask:
+			typeof workflow.activeTask === "string" ? workflow.activeTask : null,
+		currentStep:
+			typeof workflow.currentStep === "string" ? workflow.currentStep : null,
+		lastReportSummary:
+			typeof workflow.lastReportSummary === "string"
+				? workflow.lastReportSummary
+				: null,
+		probe: normalizeWorkflowProbe(workflow.probe),
+		runtimeStatus:
+			workflow.runtimeStatus === "ready" ||
+			workflow.runtimeStatus === "starting" ||
+			workflow.runtimeStatus === "unavailable"
+				? workflow.runtimeStatus
+				: null,
+	};
+};
+
 const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 	if (!isMissionSummary(value)) {
 		return null;
@@ -140,6 +215,7 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 		agentPanes?: unknown;
 		operationRef?: unknown;
 		schemaVersion?: unknown;
+		workflow?: unknown;
 	};
 
 	return {
@@ -147,6 +223,7 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 		agentPanes: normalizeAgentPanes(mission.agentPanes),
 		operationRef:
 			typeof mission.operationRef === "string" ? mission.operationRef : null,
+		workflow: normalizeWorkflowState(mission.workflow),
 		schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 	};
 };
@@ -161,6 +238,7 @@ const createMissionRecordFromSummary = (
 	}),
 	agentPanes: createEmptyFf15MissionAgentPanes(),
 	operationRef: null,
+	workflow: createEmptyFf15MissionWorkflowState(),
 	schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 });
 
@@ -389,6 +467,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 				updatedAt: createdAt,
 				workspaceRoot,
 				agentPanes: createEmptyFf15MissionAgentPanes(),
+				workflow: createEmptyFf15MissionWorkflowState(),
 				schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 			} satisfies Ff15MissionRecord;
 
@@ -460,6 +539,9 @@ export const createWorkspaceStateFf15MissionsStore = (
 					agentPanes: patch.agentPanes
 						? normalizeAgentPanes(patch.agentPanes)
 						: mission.agentPanes,
+					workflow: patch.workflow
+						? normalizeWorkflowState(patch.workflow)
+						: mission.workflow,
 					updatedAt,
 					workspaceRoot:
 						patch.workspaceRoot ??

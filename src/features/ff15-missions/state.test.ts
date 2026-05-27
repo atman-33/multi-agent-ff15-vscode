@@ -239,6 +239,87 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 		}
 	});
 
+	it("persists workflow runtime metadata on the canonical mission runtime record", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-05-27T14:10:00.000Z")
+					.mockReturnValueOnce("2026-05-27T14:11:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				workflow: {
+					activeTask: "Validate loopback bridge readiness",
+					currentStep: "probe:ready",
+					lastReportSummary:
+						"Bridge lookup and submission endpoints responded.",
+					probe: {
+						checkedAt: "2026-05-27T14:11:00.000Z",
+						summary:
+							"Extension-host bridge is viable for the next runtime slice.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+			} as never);
+
+			const missionFilePath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1",
+				"mission.json"
+			);
+
+			expect(store.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					workflow: {
+						activeTask: "Validate loopback bridge readiness",
+						currentStep: "probe:ready",
+						lastReportSummary:
+							"Bridge lookup and submission endpoints responded.",
+						probe: {
+							checkedAt: "2026-05-27T14:11:00.000Z",
+							summary:
+								"Extension-host bridge is viable for the next runtime slice.",
+							verdict: "go",
+						},
+						runtimeStatus: "ready",
+					},
+				})
+			);
+			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
+				expect.objectContaining({
+					workflow: {
+						activeTask: "Validate loopback bridge readiness",
+						currentStep: "probe:ready",
+						lastReportSummary:
+							"Bridge lookup and submission endpoints responded.",
+						probe: {
+							checkedAt: "2026-05-27T14:11:00.000Z",
+							summary:
+								"Extension-host bridge is viable for the next runtime slice.",
+							verdict: "go",
+						},
+						runtimeStatus: "ready",
+					},
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("deletes a mission, removes its runtime folder, and retargets the active mission", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 
