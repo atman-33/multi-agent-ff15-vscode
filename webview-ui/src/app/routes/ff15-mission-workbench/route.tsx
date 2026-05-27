@@ -18,6 +18,17 @@ interface MissionWorkbenchMission {
 	sessionName: string | null;
 	status: "active" | "draft" | "error" | "sending";
 	title: string;
+	workflow: {
+		activeTask: string | null;
+		currentStep: string | null;
+		lastReportSummary: string | null;
+		probe: {
+			checkedAt: string | null;
+			summary: string | null;
+			verdict: "go" | "no-go" | null;
+		};
+		runtimeStatus: "ready" | "starting" | "unavailable" | null;
+	};
 	workspaceRoot: string | null;
 }
 
@@ -35,6 +46,95 @@ const EMPTY_STATE: MissionWorkbenchState = {
 		supported: [],
 		unsupported: [],
 	},
+};
+
+const RUNTIME_STATUS_LABELS = {
+	ready: "Ready",
+	starting: "Starting",
+	unavailable: "Unavailable",
+} as const;
+
+const getRuntimeStatusClassName = (
+	status: MissionWorkbenchMission["workflow"]["runtimeStatus"]
+) => {
+	if (status === "ready") {
+		return "border-emerald-500/30 bg-emerald-500/12 text-emerald-200";
+	}
+
+	if (status === "starting") {
+		return "border-amber-400/35 bg-amber-400/12 text-amber-100";
+	}
+
+	if (status === "unavailable") {
+		return "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 text-[color:var(--vscode-errorForeground,#f87171)]";
+	}
+
+	return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]";
+};
+
+const getComposerStatusMessage = ({
+	draft,
+	mission,
+	terminalActionLabel,
+}: {
+	draft: string;
+	mission: MissionWorkbenchMission | null;
+	terminalActionLabel: string;
+}) => {
+	const getRuntimeProbeMessage = (activeMission: MissionWorkbenchMission) => {
+		if (
+			activeMission.operationRef &&
+			activeMission.workflow.runtimeStatus === "starting"
+		) {
+			return "Starting the extension-owned operation runtime probe and validating local bridge scripts...";
+		}
+
+		if (
+			activeMission.operationRef &&
+			activeMission.workflow.runtimeStatus === "ready"
+		) {
+			return activeMission.workflow.lastReportSummary
+				? `Operation runtime ready. ${activeMission.workflow.lastReportSummary}`
+				: "Operation runtime ready. Local bridge scripts can now call the extension-owned runtime entry points.";
+		}
+
+		if (
+			activeMission.operationRef &&
+			activeMission.workflow.runtimeStatus === "unavailable"
+		) {
+			return (
+				activeMission.workflow.probe.summary ??
+				"The extension-owned runtime probe is unavailable for this mission."
+			);
+		}
+
+		return null;
+	};
+
+	if (!mission) {
+		return "Mission context is unavailable.";
+	}
+
+	if (mission.lastError) {
+		return draft.trim().length > 0
+			? `${mission.lastError} Use Retry Delivery to resend from the same mission context.`
+			: `${mission.lastError} Enter a message to retry delivery from the same mission.`;
+	}
+
+	if (mission.status === "sending") {
+		return `Launching or attaching ${mission.title} and delivering the prompt...`;
+	}
+
+	if (mission.status === "active") {
+		return `${mission.title} is active in ${mission.sessionName ?? "the mission session"}. Use ${terminalActionLabel} to focus its external window.`;
+	}
+
+	const runtimeProbeMessage = getRuntimeProbeMessage(mission);
+	if (runtimeProbeMessage) {
+		return runtimeProbeMessage;
+	}
+
+	return `Choose an operation, then use ${terminalActionLabel} whenever you want the visible mission terminal.`;
 };
 
 const MISSION_STATUS_LABELS: Record<MissionWorkbenchMission["status"], string> =
@@ -115,27 +215,37 @@ const Route = () => {
 	const terminalActionLabel = mission?.sessionName
 		? "Reopen Terminal"
 		: "Launch Terminal";
-	const composerStatusMessage = (() => {
-		if (!mission) {
-			return "Mission context is unavailable.";
+	const runtimeStatusLabel = (() => {
+		if (!mission?.operationRef) {
+			return "Idle";
 		}
 
-		if (mission.lastError) {
-			return draft.trim().length > 0
-				? `${mission.lastError} Use Retry Delivery to resend from the same mission context.`
-				: `${mission.lastError} Enter a message to retry delivery from the same mission.`;
+		if (!mission.workflow.runtimeStatus) {
+			return "Pending Probe";
 		}
 
-		if (mission.status === "sending") {
-			return `Launching or attaching ${mission.title} and delivering the prompt...`;
-		}
-
-		if (mission.status === "active") {
-			return `${mission.title} is active in ${mission.sessionName ?? "the mission session"}. Use ${terminalActionLabel} to focus its external window.`;
-		}
-
-		return `Choose an operation, then use ${terminalActionLabel} whenever you want the visible mission terminal.`;
+		return RUNTIME_STATUS_LABELS[mission.workflow.runtimeStatus];
 	})();
+	const probeVerdictLabel = (() => {
+		if (!mission?.operationRef) {
+			return "Not started";
+		}
+
+		if (mission.workflow.probe.verdict === "go") {
+			return "Go";
+		}
+
+		if (mission.workflow.probe.verdict === "no-go") {
+			return "No-Go";
+		}
+
+		return "Pending";
+	})();
+	const composerStatusMessage = getComposerStatusMessage({
+		draft,
+		mission,
+		terminalActionLabel,
+	});
 
 	if (!mission) {
 		return (
@@ -172,6 +282,14 @@ const Route = () => {
 							{selectedOperation?.name ?? "None selected yet"}
 						</div>
 						<div>Session: {mission.sessionName ?? "Not attached yet"}</div>
+						<div>Runtime: {runtimeStatusLabel}</div>
+						<div>Probe verdict: {probeVerdictLabel}</div>
+						<div>
+							Current step: {mission.workflow.currentStep ?? "Not reported yet"}
+						</div>
+						<div>
+							Active task: {mission.workflow.activeTask ?? "Not reported yet"}
+						</div>
 						<div>
 							Workspace: {mission.workspaceRoot ?? "Workspace root unavailable"}
 						</div>
@@ -214,9 +332,24 @@ const Route = () => {
 						<div className="mb-2 font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
 							Mission Status
 						</div>
+						<div className="mb-3 flex flex-wrap items-center gap-2">
+							<span
+								className={`rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getRuntimeStatusClassName(mission.workflow.runtimeStatus)}`}
+							>
+								{runtimeStatusLabel}
+							</span>
+							<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+								Probe {probeVerdictLabel}
+							</span>
+						</div>
 						<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] text-sm leading-6">
 							{composerStatusMessage}
 						</div>
+						{mission.workflow.probe.summary ? (
+							<div className="mt-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] text-xs leading-5">
+								{mission.workflow.probe.summary}
+							</div>
+						) : null}
 					</div>
 
 					<div className="min-h-0 flex-1">

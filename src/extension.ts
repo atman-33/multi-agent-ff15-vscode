@@ -3,6 +3,7 @@ import { FF15_OPEN_SETTINGS_COMMAND_ID } from "./config/extension-ids";
 import { Ff15LaunchViewProvider } from "./features/ff15-launch/provider";
 import { resolveActiveWorkspaceRoot } from "./features/ff15-launch/workspace-root";
 import { loadBundledOperationsCatalog } from "./features/ff15-operations/catalog";
+import { createFf15OperationRuntimeProbeService } from "./features/ff15-operations/runtime-probe";
 import { Ff15MissionsViewProvider } from "./features/ff15-missions/provider";
 import { createWorkspaceStateFf15MissionsStore } from "./features/ff15-missions/state";
 import {
@@ -12,6 +13,10 @@ import {
 import { createFf15MissionWorkbenchController } from "./features/ff15-missions/workbench-controller";
 import { openFf15Settings } from "./features/ff15-settings/open-settings";
 import { Ff15SettingsViewProvider } from "./features/ff15-settings/provider";
+
+let activeRuntimeProbeService: ReturnType<
+	typeof createFf15OperationRuntimeProbeService
+> | null = null;
 
 export const activate = (context: ExtensionContext) => {
 	const ff15LaunchViewProvider = new Ff15LaunchViewProvider(
@@ -29,10 +34,16 @@ export const activate = (context: ExtensionContext) => {
 		context.extensionUri,
 		ff15MissionsStore
 	);
+	const ff15OperationRuntimeProbeService =
+		createFf15OperationRuntimeProbeService({
+			missionsStore: ff15MissionsStore,
+		});
+	activeRuntimeProbeService = ff15OperationRuntimeProbeService;
 	const ff15MissionWorkbenchController = createFf15MissionWorkbenchController({
 		missionSendController: ff15MissionSendController,
 		missionSessionController: ff15MissionSessionController,
 		missionsStore: ff15MissionsStore,
+		operationRuntimeProbeService: ff15OperationRuntimeProbeService,
 		extensionUri: context.extensionUri,
 		loadOperationsCatalog: (workspaceRoot) =>
 			loadBundledOperationsCatalog({
@@ -69,6 +80,11 @@ export const activate = (context: ExtensionContext) => {
 	);
 };
 
-// this method is called when your extension is deactivated
-// biome-ignore lint/suspicious/noEmptyBlockStatements: ignore
-export function deactivate() {}
+export async function deactivate() {
+	if (!activeRuntimeProbeService) {
+		return;
+	}
+
+	await activeRuntimeProbeService.dispose();
+	activeRuntimeProbeService = null;
+}

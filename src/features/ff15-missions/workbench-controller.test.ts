@@ -12,6 +12,18 @@ import {
 	FF15_MISSION_WORKBENCH_PANEL_VIEW_TYPE,
 } from "./workbench-controller";
 
+const createEmptyWorkflowState = () => ({
+	activeTask: null,
+	currentStep: null,
+	lastReportSummary: null,
+	probe: {
+		checkedAt: null,
+		summary: null,
+		verdict: null,
+	},
+	runtimeStatus: null,
+});
+
 const createPanelDouble = () => {
 	let disposeHandler: (() => void) | undefined;
 
@@ -63,6 +75,7 @@ describe("createFf15MissionWorkbenchController", () => {
 				status: "draft" as const,
 				title: missionId === "mission-1" ? "Mission 1" : "Mission 2",
 				updatedAt: "2026-05-27T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
 				workspaceRoot: "C:/repo",
 			})),
 			updateMission: vi.fn(),
@@ -151,6 +164,7 @@ describe("createFf15MissionWorkbenchController", () => {
 			status: "draft" as const,
 			title: "Mission 1",
 			updatedAt: "2026-05-27T00:00:00.000Z",
+			workflow: createEmptyWorkflowState(),
 			workspaceRoot: "C:/repo",
 		};
 		const missionsStore = {
@@ -266,6 +280,7 @@ describe("createFf15MissionWorkbenchController", () => {
 					status: "draft" as const,
 					title: "Mission 1",
 					updatedAt: "2026-05-27T00:00:00.000Z",
+					workflow: createEmptyWorkflowState(),
 					workspaceRoot: "C:/repo",
 				})),
 				updateMission: vi.fn(),
@@ -284,5 +299,123 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 
 		expect(openMissionSession).toHaveBeenCalledWith("mission-1");
+	});
+
+	it("publishes runtime probe state transitions for an operation-backed mission when the workbench becomes ready", async () => {
+		const missionPanel = createPanelDouble();
+		const record = {
+			agentPanes: {
+				gladiolus: null,
+				ignis: null,
+				noctis: null,
+				prompto: null,
+			},
+			createdAt: "2026-05-27T00:00:00.000Z",
+			id: "mission-1",
+			lastError: null,
+			operationRef: "builtin:noctis-autonomous",
+			schemaVersion: 1 as const,
+			sessionName: null,
+			status: "draft" as const,
+			title: "Mission 1",
+			updatedAt: "2026-05-27T00:00:00.000Z",
+			workflow: createEmptyWorkflowState(),
+			workspaceRoot: "C:/repo",
+		};
+		const ensureMissionRuntime = vi.fn(async () => {
+			record.workflow = {
+				...record.workflow,
+				activeTask: "Validate loopback bridge readiness",
+				currentStep: "probe:starting",
+				runtimeStatus: "starting",
+			};
+
+			await Promise.resolve();
+
+			record.workflow = {
+				activeTask: "Validate loopback bridge readiness",
+				currentStep: "probe:ready",
+				lastReportSummary: "Bridge lookup and submission endpoints responded.",
+				probe: {
+					checkedAt: "2026-05-27T15:01:00.000Z",
+					summary:
+						"Extension-host bridge is viable for the next runtime slice.",
+					verdict: "go",
+				},
+				runtimeStatus: "ready",
+			};
+		});
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [
+					{
+						fileName: "noctis-autonomous.yaml",
+						name: "noctis-autonomous",
+						ref: "builtin:noctis-autonomous",
+						supported: true,
+						unavailableReason: null,
+					},
+				],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn(() => record),
+				updateMission: vi.fn(),
+			} as never,
+			operationRuntimeProbeService: {
+				ensureMissionRuntime,
+			},
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: { command: string }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.ready",
+		});
+
+		expect(ensureMissionRuntime).toHaveBeenCalledWith("mission-1");
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				state: expect.objectContaining({
+					mission: expect.objectContaining({
+						workflow: expect.objectContaining({
+							currentStep: "probe:starting",
+							runtimeStatus: "starting",
+						}),
+					}),
+				}),
+			})
+		);
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenNthCalledWith(
+			3,
+			expect.objectContaining({
+				state: expect.objectContaining({
+					mission: expect.objectContaining({
+						workflow: expect.objectContaining({
+							probe: expect.objectContaining({
+								verdict: "go",
+							}),
+							runtimeStatus: "ready",
+						}),
+					}),
+				}),
+			})
+		);
 	});
 });
