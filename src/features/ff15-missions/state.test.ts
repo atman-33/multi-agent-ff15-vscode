@@ -194,6 +194,51 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 		}
 	});
 
+	it("persists the selected operationRef on the canonical mission runtime record", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-05-25T00:00:00.000Z")
+					.mockReturnValueOnce("2026-05-25T00:03:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				operationRef: "builtin:noctis-autonomous",
+			} as never);
+
+			const missionFilePath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1",
+				"mission.json"
+			);
+
+			expect(store.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					operationRef: "builtin:noctis-autonomous",
+				})
+			);
+			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
+				expect.objectContaining({
+					operationRef: "builtin:noctis-autonomous",
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("deletes a mission, removes its runtime folder, and retargets the active mission", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 

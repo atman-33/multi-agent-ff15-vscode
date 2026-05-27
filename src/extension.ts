@@ -2,12 +2,14 @@ import { commands, type ExtensionContext, window } from "vscode";
 import { FF15_OPEN_SETTINGS_COMMAND_ID } from "./config/extension-ids";
 import { Ff15LaunchViewProvider } from "./features/ff15-launch/provider";
 import { resolveActiveWorkspaceRoot } from "./features/ff15-launch/workspace-root";
+import { loadBundledOperationsCatalog } from "./features/ff15-operations/catalog";
 import { Ff15MissionsViewProvider } from "./features/ff15-missions/provider";
 import { createWorkspaceStateFf15MissionsStore } from "./features/ff15-missions/state";
 import {
 	createVsCodeFf15MissionSendController,
 	createVsCodeFf15MissionSessionController,
 } from "./features/ff15-missions/vscode-controller";
+import { createFf15MissionWorkbenchController } from "./features/ff15-missions/workbench-controller";
 import { openFf15Settings } from "./features/ff15-settings/open-settings";
 import { Ff15SettingsViewProvider } from "./features/ff15-settings/provider";
 
@@ -27,11 +29,25 @@ export const activate = (context: ExtensionContext) => {
 		context.extensionUri,
 		ff15MissionsStore
 	);
+	const ff15MissionWorkbenchController = createFf15MissionWorkbenchController({
+		missionSendController: ff15MissionSendController,
+		missionSessionController: ff15MissionSessionController,
+		missionsStore: ff15MissionsStore,
+		extensionUri: context.extensionUri,
+		loadOperationsCatalog: (workspaceRoot) =>
+			loadBundledOperationsCatalog({
+				extensionRoot: context.extensionUri.fsPath,
+				workspaceRoot,
+			}),
+	});
 	const ff15MissionsViewProvider = new Ff15MissionsViewProvider(
 		context.extensionUri,
 		ff15MissionsStore,
-		ff15MissionSendController,
-		ff15MissionSessionController
+		{
+			missionSendController: ff15MissionSendController,
+			missionSessionController: ff15MissionSessionController,
+			missionWorkbenchController: ff15MissionWorkbenchController,
+		}
 	);
 	const ff15SettingsViewProvider = new Ff15SettingsViewProvider(
 		context.extensionUri

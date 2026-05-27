@@ -33,6 +33,7 @@ export interface Ff15MissionSummary {
 
 export interface Ff15MissionRecord extends Ff15MissionSummary {
 	agentPanes: Ff15MissionAgentPanes;
+	operationRef: string | null;
 	schemaVersion: 1;
 }
 
@@ -52,7 +53,12 @@ export interface Ff15MissionsStore {
 		patch: Partial<
 			Pick<
 				Ff15MissionRecord,
-				"agentPanes" | "lastError" | "sessionName" | "status" | "workspaceRoot"
+				| "agentPanes"
+				| "lastError"
+				| "operationRef"
+				| "sessionName"
+				| "status"
+				| "workspaceRoot"
 			>
 		>
 	) => Promise<Ff15MissionsStoreSnapshot>;
@@ -132,12 +138,15 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 
 	const mission = value as Ff15MissionSummary & {
 		agentPanes?: unknown;
+		operationRef?: unknown;
 		schemaVersion?: unknown;
 	};
 
 	return {
 		...normalizeMissionSummary(mission),
 		agentPanes: normalizeAgentPanes(mission.agentPanes),
+		operationRef:
+			typeof mission.operationRef === "string" ? mission.operationRef : null,
 		schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 	};
 };
@@ -151,6 +160,7 @@ const createMissionRecordFromSummary = (
 		workspaceRoot,
 	}),
 	agentPanes: createEmptyFf15MissionAgentPanes(),
+	operationRef: null,
 	schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 });
 
@@ -372,6 +382,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 				createdAt,
 				id: createId(),
 				lastError: null,
+				operationRef: null,
 				sessionName: null,
 				status: "draft",
 				title: `Mission ${missionNumber}`,
