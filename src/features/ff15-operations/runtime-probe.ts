@@ -17,6 +17,10 @@ import {
 	type Ff15MissionsStore,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
+import {
+	formatFf15OperationTaskLabel,
+	loadMissionOperationDefinition,
+} from "./definition";
 
 export const FF15_WORKSPACE_BRIDGE_DIR_NAME = "bridge";
 export const FF15_BRIDGE_MANIFEST_FILE_NAME = "ff15-bridge-manifest.json";
@@ -136,6 +140,9 @@ const getStringBodyValue = (
 	return typeof value === "string" ? value : null;
 };
 
+const getReportMessage = (body: Record<string, unknown>): string | null =>
+	getStringBodyValue(body, "message") ?? getStringBodyValue(body, "summary");
+
 const createPowerShellScript = ({
 	bodyExpression,
 	method,
@@ -205,10 +212,10 @@ const writeBridgeAssets = (
 		join(bridgeDir, "submit-report.ps1"),
 		createPowerShellScript({
 			bodyExpression:
-				"(@{ step = $Step; summary = $Summary } | ConvertTo-Json -Compress)",
+				"(@{ taskId = $TaskId; next = $Next; message = $Message } | ConvertTo-Json -Compress)",
 			method: "POST",
 			parameters:
-				"[Parameter(Mandatory=$true)][string]$MissionId, [Parameter(Mandatory=$true)][string]$Summary, [string]$Step = ''",
+				"[Parameter(Mandatory=$true)][string]$MissionId, [Parameter(Mandatory=$true)][string]$TaskId, [Parameter(Mandatory=$true)][string]$Next, [Parameter(Mandatory=$true)][string]$Message",
 			pathExpression: "/reports/$MissionId",
 		}),
 		"utf8"
@@ -287,6 +294,144 @@ export const createFf15OperationRuntimeProbeService = (
 		});
 	};
 
+	const persistMissionReportState = async (input: {
+		lastError: string | null;
+		mission: Ff15MissionRecord;
+		patch: WorkflowPatch;
+	}) =>
+		options.missionsStore.updateMission(input.mission.id, {
+			lastError: input.lastError,
+			workflow: mergeWorkflowState(input.mission.workflow, input.patch),
+		});
+
+	const respondAcknowledgedReport = (
+		response: ServerResponse,
+		missionId: string,
+		nextStep: string | null = null
+	) => {
+		respondJson(response, 200, {
+			acknowledged: true,
+			missionId,
+			nextStep,
+			runtimeStatus: "ready",
+		});
+	};
+
+	const handleProbeReportSubmission = async (input: {
+		currentStepName: string;
+		missionId: string;
+		reportMessage: string | null;
+		requestedNext: string | null;
+		requestedStep: string | null;
+		response: ServerResponse;
+	}) => {
+		await updateMissionWorkflow(input.missionId, {
+			currentStep:
+				input.requestedStep ?? input.requestedNext ?? input.currentStepName,
+			lastReportSummary: input.reportMessage,
+			runtimeStatus: "ready",
+		});
+		respondAcknowledgedReport(
+			input.response,
+			input.missionId,
+			input.requestedStep ?? input.requestedNext
+		);
+	};
+
+	const resolveMissionOperationStep = (mission: Ff15MissionRecord) => {
+		if (!mission.operationRef) {
+			return {
+				activeStep: null,
+				operationDefinition: null,
+			};
+		}
+
+		if (!mission.workspaceRoot) {
+			return {
+				activeStep: null,
+				operationDefinition: null,
+			};
+		}
+
+		if (!mission.workflow.currentStep) {
+			return {
+				activeStep: null,
+				operationDefinition: null,
+			};
+		}
+
+		const operationDefinition = loadMissionOperationDefinition(
+			mission.workspaceRoot,
+			mission.operationRef
+		);
+		return {
+			activeStep: operationDefinition
+				? (operationDefinition.steps.find(
+						(step) => step.name === mission.workflow.currentStep
+					) ?? null)
+				: null,
+			operationDefinition,
+		};
+	};
+
+	const handleInvalidReportTransition = async (input: {
+		activeStep: NonNullable<
+			ReturnType<typeof resolveMissionOperationStep>["activeStep"]
+		>;
+		mission: Ff15MissionRecord;
+		reportMessage: string | null;
+		requestedNext: string;
+		response: ServerResponse;
+	}) => {
+		await persistMissionReportState({
+			lastError: `Invalid next for ${input.activeStep.name}: ${input.requestedNext}`,
+			mission: input.mission,
+			patch: {
+				lastReportSummary: input.reportMessage,
+				runtimeStatus: "ready",
+			},
+		});
+		respondJson(input.response, 400, {
+			allowedNext: input.activeStep.rules.map((rule) => ({
+				condition: rule.condition,
+				next: rule.next,
+			})),
+			error: "Invalid next",
+			missionId: input.mission.id,
+		});
+	};
+
+	const handleValidatedReportTransition = async (input: {
+		mission: Ff15MissionRecord;
+		operationDefinition: ReturnType<typeof loadMissionOperationDefinition>;
+		reportMessage: string | null;
+		requestedNext: string | null;
+		requestedStep: string | null;
+		response: ServerResponse;
+	}) => {
+		const nextStepName = input.requestedNext ?? input.requestedStep;
+		const nextStep =
+			nextStepName && input.operationDefinition
+				? (input.operationDefinition.steps.find(
+						(step) => step.name === nextStepName
+					) ?? null)
+				: null;
+
+		await persistMissionReportState({
+			lastError: null,
+			mission: input.mission,
+			patch: {
+				activeTask: nextStep
+					? formatFf15OperationTaskLabel(nextStep.name)
+					: input.mission.workflow.activeTask,
+				currentStep: nextStepName,
+				lastReportSummary: input.reportMessage,
+				runtimeStatus: "ready",
+			},
+		});
+		respondAcknowledgedReport(input.response, input.mission.id, nextStepName);
+	};
+
 	const resolveMissionRequest = (
 		requestMessage: IncomingMessage,
 		runtime: WorkspaceBridgeRuntime
@@ -330,20 +475,59 @@ export const createFf15OperationRuntimeProbeService = (
 	};
 
 	const handleReportSubmission = async (
-		missionId: string,
+		mission: Ff15MissionRecord,
 		requestMessage: IncomingMessage,
 		response: ServerResponse
 	) => {
 		const body = await readJsonBody(requestMessage);
-		await updateMissionWorkflow(missionId, {
-			currentStep: getStringBodyValue(body, "step"),
-			lastReportSummary: getStringBodyValue(body, "summary"),
-			runtimeStatus: "ready",
-		});
-		respondJson(response, 200, {
-			acknowledged: true,
-			missionId,
-			runtimeStatus: "ready",
+		const missionId = mission.id;
+		const reportMessage = getReportMessage(body);
+		const requestedNext = getStringBodyValue(body, "next");
+		const requestedStep = getStringBodyValue(body, "step");
+		const currentStepName = mission.workflow.currentStep;
+
+		if (currentStepName?.startsWith("probe:")) {
+			await handleProbeReportSubmission({
+				currentStepName,
+				missionId,
+				reportMessage,
+				requestedNext,
+				requestedStep,
+				response,
+			});
+			return;
+		}
+
+		const { activeStep, operationDefinition } =
+			resolveMissionOperationStep(mission);
+		const nextRule =
+			activeStep && requestedNext
+				? (activeStep.rules.find((rule) => rule.next === requestedNext) ?? null)
+				: null;
+
+		if (
+			activeStep &&
+			activeStep.rules.length > 0 &&
+			requestedNext &&
+			!nextRule
+		) {
+			await handleInvalidReportTransition({
+				activeStep,
+				mission,
+				reportMessage,
+				requestedNext,
+				response,
+			});
+			return;
+		}
+
+		await handleValidatedReportTransition({
+			mission,
+			operationDefinition,
+			reportMessage,
+			requestedNext,
+			requestedStep,
+			response,
 		});
 	};
 
@@ -385,7 +569,7 @@ export const createFf15OperationRuntimeProbeService = (
 			resolvedRequest.resource === "reports"
 		) {
 			await handleReportSubmission(
-				resolvedRequest.missionId,
+				resolvedRequest.mission,
 				requestMessage,
 				response
 			);

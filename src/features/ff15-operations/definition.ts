@@ -9,6 +9,12 @@ import {
 interface ParsedOperationStep {
 	agent: string | null;
 	name: string;
+	rules: ParsedOperationRule[];
+}
+
+interface ParsedOperationRule {
+	condition: string | null;
+	next: string;
 }
 
 interface ParsedOperationDefinition {
@@ -23,6 +29,8 @@ const INITIAL_STEP_PATTERN = /^initial_step:\s*(.+?)\s*$/u;
 const STEPS_HEADER_PATTERN = /^steps:\s*$/u;
 const STEP_NAME_PATTERN = /^\s*-\s+name:\s*(.+?)\s*$/u;
 const STEP_AGENT_PATTERN = /^\s*agent:\s*(.+?)\s*$/u;
+const STEP_RULE_CONDITION_PATTERN = /^\s*-\s+condition:\s*(.+?)\s*$/u;
+const STEP_RULE_NEXT_PATTERN = /^\s*next:\s*(.+?)\s*$/u;
 const STEP_TASK_TOKEN_PATTERN = /[-_]+/u;
 const LINE_SPLIT_PATTERN = /\r?\n/u;
 
@@ -31,6 +39,23 @@ export interface Ff15MissionOperationActivation {
 	operationName: string;
 	stepAgent: string | null;
 	stepName: string;
+}
+
+export interface Ff15MissionOperationRule {
+	condition: string | null;
+	next: string;
+}
+
+export interface Ff15MissionOperationStep {
+	agent: string | null;
+	name: string;
+	rules: Ff15MissionOperationRule[];
+}
+
+export interface Ff15MissionOperationDefinition {
+	initialStep: string | null;
+	name: string;
+	steps: Ff15MissionOperationStep[];
 }
 
 const getOperationFileName = (operationRef: string): string | null =>
@@ -70,37 +95,93 @@ const tryReadRootField = (
 const shouldStopReadingSteps = (line: string): boolean =>
 	line.trim().length > 0 && !line.startsWith(" ");
 
+const pushCurrentRule = (
+	currentStep: ParsedOperationStep | null,
+	currentRule: ParsedOperationRule | null
+) => {
+	if (!currentStep) {
+		return;
+	}
+
+	if (!currentRule) {
+		return;
+	}
+
+	if (currentRule.next.length === 0) {
+		return;
+	}
+
+	currentStep.rules.push(currentRule);
+};
+
 const consumeStepLine = (
 	line: string,
 	currentStep: ParsedOperationStep | null,
+	currentRule: ParsedOperationRule | null,
 	steps: ParsedOperationStep[]
-): ParsedOperationStep | null => {
+): {
+	currentRule: ParsedOperationRule | null;
+	currentStep: ParsedOperationStep | null;
+} => {
 	if (line.trim().length === 0) {
-		return currentStep;
+		return { currentRule, currentStep };
 	}
 
 	const stepNameMatch = STEP_NAME_PATTERN.exec(line);
 	if (stepNameMatch) {
+		pushCurrentRule(currentStep, currentRule);
 		if (currentStep) {
 			steps.push(currentStep);
 		}
 
 		return {
-			agent: null,
-			name: cleanScalar(stepNameMatch[1]),
+			currentRule: null,
+			currentStep: {
+				agent: null,
+				name: cleanScalar(stepNameMatch[1]),
+				rules: [],
+			},
 		};
 	}
 
 	if (!currentStep) {
-		return currentStep;
+		return { currentRule, currentStep };
 	}
 
 	const agentMatch = STEP_AGENT_PATTERN.exec(line);
 	if (agentMatch) {
 		currentStep.agent = cleanScalar(agentMatch[1]);
+		return { currentRule, currentStep };
 	}
 
-	return currentStep;
+	const ruleConditionMatch = STEP_RULE_CONDITION_PATTERN.exec(line);
+	if (ruleConditionMatch) {
+		pushCurrentRule(currentStep, currentRule);
+		return {
+			currentRule: {
+				condition: cleanScalar(ruleConditionMatch[1]),
+				next: "",
+			},
+			currentStep,
+		};
+	}
+
+	const ruleNextMatch = STEP_RULE_NEXT_PATTERN.exec(line);
+	if (ruleNextMatch) {
+		const next = cleanScalar(ruleNextMatch[1]);
+		if (!currentRule) {
+			currentStep.rules.push({
+				condition: null,
+				next,
+			});
+			return { currentRule: null, currentStep };
+		}
+
+		currentRule.next = next;
+		return { currentRule, currentStep };
+	}
+
+	return { currentRule, currentStep };
 };
 
 const parseOperationDefinition = (
@@ -112,6 +193,7 @@ const parseOperationDefinition = (
 		steps: [],
 	};
 	let currentStep: ParsedOperationStep | null = null;
+	let currentRule: ParsedOperationRule | null = null;
 	let readingSteps = false;
 
 	for (const line of definitionSource.split(LINE_SPLIT_PATTERN)) {
@@ -127,9 +209,15 @@ const parseOperationDefinition = (
 			break;
 		}
 
-		currentStep = consumeStepLine(line, currentStep, parsed.steps);
+		({ currentRule, currentStep } = consumeStepLine(
+			line,
+			currentStep,
+			currentRule,
+			parsed.steps
+		));
 	}
 
+	pushCurrentRule(currentStep, currentRule);
 	if (currentStep) {
 		parsed.steps.push(currentStep);
 	}
@@ -137,10 +225,10 @@ const parseOperationDefinition = (
 	return parsed;
 };
 
-export const loadMissionOperationActivation = (
+export const loadMissionOperationDefinition = (
 	workspaceRoot: string,
 	operationRef: string
-): Ff15MissionOperationActivation | null => {
+): Ff15MissionOperationDefinition | null => {
 	const operationFileName = getOperationFileName(operationRef);
 	if (!operationFileName) {
 		return null;
@@ -159,14 +247,37 @@ export const loadMissionOperationActivation = (
 	const parsedDefinition = parseOperationDefinition(
 		readFileSync(operationPath, "utf8")
 	);
-	const stepName = parsedDefinition.initialStep;
+
+	return {
+		initialStep: parsedDefinition.initialStep,
+		name: parsedDefinition.name ?? operationRef,
+		steps: parsedDefinition.steps.map((step) => ({
+			agent: step.agent,
+			name: step.name,
+			rules: step.rules.map((rule) => ({
+				condition: rule.condition,
+				next: rule.next,
+			})),
+		})),
+	};
+};
+
+export const loadMissionOperationActivation = (
+	workspaceRoot: string,
+	operationRef: string
+): Ff15MissionOperationActivation | null => {
+	const parsedDefinition = loadMissionOperationDefinition(
+		workspaceRoot,
+		operationRef
+	);
+	const stepName = parsedDefinition?.initialStep;
 	if (!stepName) {
 		return null;
 	}
 
 	const activeStep =
 		parsedDefinition.steps.find((step) => step.name === stepName) ?? null;
-	const operationName = parsedDefinition.name ?? operationRef;
+	const operationName = parsedDefinition.name;
 
 	return {
 		activeTask: formatFf15OperationTaskLabel(stepName),
