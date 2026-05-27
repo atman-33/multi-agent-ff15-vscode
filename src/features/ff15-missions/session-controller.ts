@@ -160,11 +160,8 @@ export const createFf15MissionSessionController = (
 	};
 
 	return {
-		async createMission(): Promise<Ff15MissionsStoreSnapshot> {
-			const snapshot = await dependencies.missionsStore.createMission();
-			return snapshot.activeMissionId
-				? openMissionSession(snapshot.activeMissionId)
-				: snapshot;
+		createMission(): Promise<Ff15MissionsStoreSnapshot> {
+			return dependencies.missionsStore.createMission();
 		},
 		async deleteMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
 			const mission = dependencies.missionsStore.getMissionRecord(missionId);
@@ -195,12 +192,9 @@ export const createFf15MissionSessionController = (
 
 			return dependencies.missionsStore.deleteMission(missionId);
 		},
-		async selectMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
-			const snapshot =
-				await dependencies.missionsStore.selectMission(missionId);
-			return snapshot.activeMissionId === missionId
-				? openMissionSession(missionId)
-				: snapshot;
+		openMissionSession,
+		selectMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
+			return dependencies.missionsStore.selectMission(missionId);
 		},
 	};
 };

@@ -1,4 +1,4 @@
-import { PillButton } from "@/components/pill-button";
+import { SidebarListItemButton } from "@/components/sidebar-list-item-button";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
@@ -68,29 +68,33 @@ const Route = () => {
 	const hasMissions = snapshot.missions.length > 0;
 
 	return (
-		<div className="mx-auto flex h-full max-w-3xl flex-col gap-4 px-3 py-1.5">
-			<div className="flex items-center justify-between gap-3">
+		<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-1.5">
+			<div className="flex items-center gap-3">
 				<h1 className="font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
 					Missions
 				</h1>
-				<SidebarActionButton
-					className="h-7 w-auto px-3 text-xs"
-					onClick={() => {
-						vscode.postMessage({ command: "ff15-missions.create" });
-					}}
-				>
-					New Mission
-				</SidebarActionButton>
 			</div>
 
-			<div className="flex flex-wrap gap-2">
+			<SidebarActionButton
+				onClick={() => {
+					vscode.postMessage({ command: "ff15-missions.create" });
+				}}
+			>
+				New Mission
+			</SidebarActionButton>
+
+			<div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
 				{snapshot.missions.map((mission) => (
-					<PillButton
-						className={
-							mission.id === snapshot.activeMissionId
-								? "bg-[color:var(--vscode-button-background,#0e7490)]/15 text-[color:var(--vscode-button-foreground,#ffffff)]"
-								: ""
+					<SidebarListItemButton
+						active={mission.id === snapshot.activeMissionId}
+						badge={
+							<span
+								className={`rounded-md border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(mission.status)}`}
+							>
+								{MISSION_STATUS_LABELS[mission.status]}
+							</span>
 						}
+						description={mission.sessionName ?? "Not attached yet"}
 						key={mission.id}
 						onClick={() => {
 							vscode.postMessage({
@@ -98,32 +102,15 @@ const Route = () => {
 								missionId: mission.id,
 							});
 						}}
-					>
-						<span>{mission.title}</span>
-						<span
-							className={`rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(mission.status)}`}
-						>
-							{MISSION_STATUS_LABELS[mission.status]}
-						</span>
-					</PillButton>
+						title={mission.title}
+					/>
 				))}
-			</div>
 
-			<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] text-xs">
-				Select a mission to open or focus its Mission Workbench in the editor
-				area.
-			</div>
-
-			{hasMissions ? null : (
-				<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm">
-					No missions yet. Create one to open its Mission Workbench.
-				</div>
-			)}
-
-			<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-3 py-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
-				The full mission surface now lives in the editor-area Mission Workbench.
-				The sidebar stays focused on mission creation, selection, and status
-				navigation.
+				{hasMissions ? null : (
+					<div className="rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm">
+						No missions yet.
+					</div>
+				)}
 			</div>
 		</div>
 	);

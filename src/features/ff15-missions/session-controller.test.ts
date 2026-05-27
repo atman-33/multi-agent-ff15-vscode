@@ -58,7 +58,7 @@ const createAgentPanes = () => ({
 });
 
 describe("createFf15MissionSessionController", () => {
-	it("creates a mission and opens its dedicated terminal session", async () => {
+	it("creates a mission without opening its dedicated terminal session", async () => {
 		const workspaceRoot = createWorkspaceRoot();
 
 		try {
@@ -89,33 +89,21 @@ describe("createFf15MissionSessionController", () => {
 
 			const snapshot = await controller.createMission();
 
-			expect(ensureCommandAvailable).toHaveBeenCalledWith("zellij");
-			expect(launchClient.ensureDependenciesAvailable).toHaveBeenCalledTimes(1);
-			expect(launchTerminal).toHaveBeenCalledWith({
-				args: [
-					"attach",
-					"--create",
-					expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
-					"options",
-					"--default-layout",
-					`${workspaceRoot}/.ff15/layout.kdl`,
-				],
-				cwd: workspaceRoot,
-				executable: "zellij",
-				name: "FF15 Mission 1",
-			});
+			expect(ensureCommandAvailable).not.toHaveBeenCalled();
+			expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+			expect(launchTerminal).not.toHaveBeenCalled();
 			expect(snapshot.missions).toEqual([
 				expect.objectContaining({
 					id: "mission-1",
 					lastError: null,
-					sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
-					status: "active",
+					sessionName: null,
+					status: "draft",
 					workspaceRoot,
 				}),
 			]);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					agentPanes: createAgentPanes(),
+					agentPanes: createEmptyFf15MissionAgentPanes(),
 				})
 			);
 		} finally {
@@ -123,7 +111,7 @@ describe("createFf15MissionSessionController", () => {
 		}
 	});
 
-	it("reopens an existing mission in an external terminal when selected", async () => {
+	it("selects an existing mission without reopening its terminal", async () => {
 		const workspaceRoot = createWorkspaceRoot();
 
 		try {
@@ -158,15 +146,77 @@ describe("createFf15MissionSessionController", () => {
 				expect.objectContaining({
 					id: "mission-1",
 					lastError: null,
-					sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
-					status: "active",
+					sessionName: null,
+					status: "draft",
 				}),
 			]);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					agentPanes: createAgentPanes(),
+					agentPanes: createEmptyFf15MissionAgentPanes(),
 				})
 			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("opens a mission terminal only when explicitly requested", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-05-26T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+
+			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+			const launchClient = createLaunchClient();
+			const launchTerminal = vi.fn().mockResolvedValue(undefined);
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable,
+				getLaunchClient: () => launchClient,
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal,
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage: vi.fn(),
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+
+			const snapshot = await controller.openMissionSession("mission-1");
+
+			expect(ensureCommandAvailable).toHaveBeenCalledWith("zellij");
+			expect(launchClient.ensureDependenciesAvailable).toHaveBeenCalledTimes(1);
+			expect(launchTerminal).toHaveBeenCalledWith({
+				args: [
+					"attach",
+					"--create",
+					expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
+					"options",
+					"--default-layout",
+					`${workspaceRoot}/.ff15/layout.kdl`,
+				],
+				cwd: workspaceRoot,
+				executable: "zellij",
+				name: "FF15 Mission 1",
+			});
+			expect(snapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					lastError: null,
+					sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
+					status: "active",
+					workspaceRoot,
+				}),
+			]);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -227,6 +277,7 @@ describe("createFf15MissionSessionController", () => {
 			createId: () => "mission-1",
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
+		await missionsStore.createMission();
 		const showErrorMessage = vi.fn();
 		const controller = createFf15MissionSessionController({
 			ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
@@ -240,7 +291,7 @@ describe("createFf15MissionSessionController", () => {
 			terminateMissionSession: vi.fn().mockResolvedValue(undefined),
 		});
 
-		const snapshot = await controller.createMission();
+		const snapshot = await controller.openMissionSession("mission-1");
 
 		expect(showErrorMessage).toHaveBeenCalledWith(
 			MISSING_MISSION_WORKSPACE_MESSAGE
@@ -265,6 +316,7 @@ describe("createFf15MissionSessionController", () => {
 				getNow: () => "2026-05-26T00:10:00.000Z",
 				getWorkspaceRoot: () => workspaceRoot,
 			});
+			await missionsStore.createMission();
 			const showErrorMessage = vi.fn();
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi
@@ -284,7 +336,7 @@ describe("createFf15MissionSessionController", () => {
 				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
 			});
 
-			const snapshot = await controller.createMission();
+			const snapshot = await controller.openMissionSession("mission-1");
 
 			expect(showErrorMessage).toHaveBeenCalledWith(
 				MISSING_MISSION_ZELLIJ_MESSAGE

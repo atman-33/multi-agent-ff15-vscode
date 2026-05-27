@@ -112,6 +112,9 @@ const Route = () => {
 	const composerActionLabel = retryingErroredMission
 		? "Retry Delivery"
 		: "Send to Noctis";
+	const terminalActionLabel = mission?.sessionName
+		? "Reopen Terminal"
+		: "Launch Terminal";
 	const composerStatusMessage = (() => {
 		if (!mission) {
 			return "Mission context is unavailable.";
@@ -128,10 +131,10 @@ const Route = () => {
 		}
 
 		if (mission.status === "active") {
-			return `${mission.title} is active in ${mission.sessionName ?? "the mission session"}. Use Reopen Terminal to focus its external window.`;
+			return `${mission.title} is active in ${mission.sessionName ?? "the mission session"}. Use ${terminalActionLabel} to focus its external window.`;
 		}
 
-		return "Choose an operation, then draft a message for Noctis when you are ready to continue the mission.";
+		return `Choose an operation, then use ${terminalActionLabel} whenever you want the visible mission terminal.`;
 	})();
 
 	if (!mission) {
@@ -183,7 +186,7 @@ const Route = () => {
 							});
 						}}
 					>
-						Reopen Terminal
+						{terminalActionLabel}
 					</SidebarActionButton>
 					<SidebarActionButton
 						className="h-8 w-auto border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-transparent px-4 text-[color:var(--vscode-errorForeground,#f87171)] text-xs hover:bg-[color:var(--vscode-errorForeground,#f87171)]/12"

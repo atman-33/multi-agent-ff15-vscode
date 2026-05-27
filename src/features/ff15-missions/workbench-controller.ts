@@ -33,6 +33,7 @@ interface Ff15MissionSendController {
 
 interface Ff15MissionSessionController {
 	deleteMission: (missionId: string) => Promise<unknown>;
+	openMissionSession: (missionId: string) => Promise<unknown>;
 	selectMission: (missionId: string) => Promise<unknown>;
 }
 
@@ -184,7 +185,7 @@ export const createFf15MissionWorkbenchController = (
 				return;
 			}
 			case "ff15-mission-workbench.open-terminal": {
-				await options.missionSessionController.selectMission(missionId);
+				await options.missionSessionController.openMissionSession(missionId);
 				await postState(missionId, panel);
 				return;
 			}

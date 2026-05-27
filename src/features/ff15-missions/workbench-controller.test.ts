@@ -79,6 +79,7 @@ describe("createFf15MissionWorkbenchController", () => {
 			},
 			missionSessionController: {
 				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
 				selectMission: vi.fn(),
 			},
 			missionsStore: missionsStore as never,
@@ -193,6 +194,7 @@ describe("createFf15MissionWorkbenchController", () => {
 			},
 			missionSessionController: {
 				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
 				selectMission: vi.fn(),
 			},
 			missionsStore: missionsStore as never,
@@ -227,5 +229,60 @@ describe("createFf15MissionWorkbenchController", () => {
 				}),
 			}),
 		});
+	});
+
+	it("opens the mission terminal only from the explicit workbench action", async () => {
+		const missionPanel = createPanelDouble();
+		const openMissionSession = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				openMissionSession,
+				selectMission: vi.fn(),
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn(() => ({
+					agentPanes: {
+						gladiolus: null,
+						ignis: null,
+						noctis: null,
+						prompto: null,
+					},
+					createdAt: "2026-05-27T00:00:00.000Z",
+					id: "mission-1",
+					lastError: null,
+					operationRef: null,
+					schemaVersion: 1 as const,
+					sessionName: null,
+					status: "draft" as const,
+					title: "Mission 1",
+					updatedAt: "2026-05-27T00:00:00.000Z",
+					workspaceRoot: "C:/repo",
+				})),
+				updateMission: vi.fn(),
+			} as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: { command: string }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.open-terminal",
+		});
+
+		expect(openMissionSession).toHaveBeenCalledWith("mission-1");
 	});
 });
