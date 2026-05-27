@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -12,6 +12,7 @@ import {
 	createEmptyFf15MissionAgentPanes,
 	type Ff15MissionsStoreSnapshot,
 	createWorkspaceStateFf15MissionsStore,
+	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "./state";
 
 const MISSION_SESSION_NAME_PATTERN = /^ff15-[a-f0-9]{10}-mission-1$/;
@@ -60,6 +61,32 @@ const createAgentPanes = (noctisPaneId: string | null) => ({
 	...createEmptyFf15MissionAgentPanes(),
 	noctis: noctisPaneId,
 });
+
+const seedWorkspaceOperation = (workspaceRoot: string) => {
+	const operationsDir = join(
+		workspaceRoot,
+		FF15_WORKSPACE_RUNTIME_DIR_NAME,
+		"operations"
+	);
+	mkdirSync(operationsDir, { recursive: true });
+	writeFileSync(
+		join(operationsDir, "noctis-autonomous.yaml"),
+		[
+			"name: noctis-autonomous",
+			"description: >",
+			"  Default autonomous operation for Noctis.",
+			"initial_step: autonomous",
+			"",
+			"steps:",
+			"  - name: autonomous",
+			"    agent: noctis",
+			"    instruction:",
+			"      inline: |",
+			"        Handle the user request directly.",
+		].join("\n"),
+		"utf8"
+	);
+};
 
 const seedPersistedMission = async (
 	storage: ReturnType<typeof createStorage>["storage"],
@@ -148,6 +175,105 @@ describe("createFf15MissionSendController", () => {
 				sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
 			})
 		);
+	});
+
+	it("activates operation workflow state and sends an operation-aware prompt for the first operation-backed send", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			seedWorkspaceOperation(workspaceRoot);
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-05-28T00:10:00.000Z")
+					.mockReturnValueOnce("2026-05-28T00:11:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+			await missionsStore.updateMission("mission-1", {
+				operationRef: "builtin:noctis-autonomous",
+				workflow: {
+					activeTask: null,
+					currentStep: null,
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-28T00:09:00.000Z",
+						summary:
+							"Extension-host bridge is viable for the next runtime slice.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+			});
+
+			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+			const launchClient = createLaunchClient();
+			const missionTransport = {
+				ensureMissionSession: vi.fn().mockResolvedValue({
+					agentPanes: createAgentPanes("terminal_7"),
+					paneId: "terminal_7",
+				}),
+				sendPrompt: vi.fn().mockResolvedValue(undefined),
+			};
+
+			const controller = createFf15MissionSendController({
+				ensureCommandAvailable,
+				getLaunchClient: () => launchClient,
+				getWorkspaceRoot: () => workspaceRoot,
+				missionTransport,
+				missionsStore,
+			});
+
+			const snapshot = await controller.submitPrompt({
+				missionId: "mission-1",
+				prompt: "Draft the first response",
+			});
+
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					paneId: "terminal_7",
+					prompt: expect.stringContaining("Operation: noctis-autonomous"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("Active step: autonomous"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("Active task: Autonomous"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(
+						"User request:\nDraft the first response"
+					),
+				})
+			);
+			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					operationRef: "builtin:noctis-autonomous",
+					workflow: expect.objectContaining({
+						activeTask: "Autonomous",
+						currentStep: "autonomous",
+						runtimeStatus: "ready",
+					}),
+				})
+			);
+			expect(snapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					status: "active",
+					workspaceRoot,
+				}),
+			]);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
 	});
 
 	it("rehydrates persisted mission metadata and reuses the existing session for follow-up prompts", async () => {
