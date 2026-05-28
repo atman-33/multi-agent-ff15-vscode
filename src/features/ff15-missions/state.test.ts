@@ -376,6 +376,78 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 		}
 	});
 
+	it("rehydrates operation-backed mission metadata from the canonical .ff15 runtime after store reload", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const seededStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-05-28T01:00:00.000Z")
+					.mockReturnValueOnce("2026-05-28T01:01:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await seededStore.createMission();
+			await seededStore.updateMission("mission-1", {
+				agentPanes: {
+					...createEmptyFf15MissionAgentPanes(),
+					gladiolus: "terminal_1",
+					ignis: "terminal_2",
+					noctis: "terminal_0",
+					prompto: "terminal_3",
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Ignis Turn",
+					currentStep: "ignis-turn",
+					lastReportSummary: "りんご",
+					probe: {
+						checkedAt: "2026-05-28T01:01:00.000Z",
+						summary:
+							"Extension-host bridge is viable for the next runtime slice.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+			});
+
+			const rehydratedStore = createWorkspaceStateFf15MissionsStore(storage, {
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			expect(rehydratedStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					agentPanes: {
+						gladiolus: "terminal_1",
+						ignis: "terminal_2",
+						noctis: "terminal_0",
+						prompto: "terminal_3",
+					},
+					operationRef: "builtin:shiritori-smoke-test",
+					sessionName: "ff15-session",
+					status: "active",
+					workspaceRoot,
+					workflow: expect.objectContaining({
+						activeTask: "Ignis Turn",
+						currentStep: "ignis-turn",
+						lastReportSummary: "りんご",
+						runtimeStatus: "ready",
+					}),
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("deletes a mission, removes its runtime folder, and retargets the active mission", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 

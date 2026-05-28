@@ -418,4 +418,128 @@ describe("createFf15MissionWorkbenchController", () => {
 			})
 		);
 	});
+
+	it("reopens a hydrated operation-backed mission without losing the saved workflow continuation state", async () => {
+		const missionPanel = createPanelDouble();
+		const record = {
+			agentPanes: {
+				gladiolus: "terminal_1",
+				ignis: "terminal_2",
+				noctis: "terminal_0",
+				prompto: "terminal_3",
+			},
+			createdAt: "2026-05-28T00:00:00.000Z",
+			id: "mission-1",
+			lastError: null,
+			operationRef: "builtin:shiritori-smoke-test",
+			schemaVersion: 1 as const,
+			sessionName: "ff15-session",
+			status: "active" as const,
+			title: "Mission 1",
+			updatedAt: "2026-05-28T00:01:00.000Z",
+			workflow: {
+				activeTask: "Ignis Turn",
+				currentStep: "ignis-turn",
+				lastReportSummary: "りんご",
+				probe: {
+					checkedAt: "2026-05-28T00:01:00.000Z",
+					summary:
+						"Extension-host bridge is viable for the next runtime slice.",
+					verdict: "go" as const,
+				},
+				runtimeStatus: "ready" as const,
+			},
+			workspaceRoot: "C:/repo",
+		};
+		const ensureMissionRuntime = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [
+					{
+						fileName: "shiritori-smoke-test.yaml",
+						name: "shiritori-smoke-test",
+						ref: "builtin:shiritori-smoke-test",
+						supported: true,
+						unavailableReason: null,
+					},
+				],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn(() => record),
+				updateMission: vi.fn(),
+			} as never,
+			operationRuntimeProbeService: {
+				ensureMissionRuntime,
+			},
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				state: expect.objectContaining({
+					mission: expect.objectContaining({
+						operationRef: "builtin:shiritori-smoke-test",
+						sessionName: "ff15-session",
+						workflow: expect.objectContaining({
+							activeTask: "Ignis Turn",
+							currentStep: "ignis-turn",
+							runtimeStatus: "ready",
+						}),
+					}),
+				}),
+			})
+		);
+
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: { command: string }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.ready",
+		});
+
+		expect(ensureMissionRuntime).toHaveBeenCalledWith("mission-1");
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				state: expect.objectContaining({
+					mission: expect.objectContaining({
+						workflow: expect.objectContaining({
+							activeTask: "Ignis Turn",
+							currentStep: "ignis-turn",
+							runtimeStatus: "ready",
+						}),
+					}),
+				}),
+			})
+		);
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenNthCalledWith(
+			3,
+			expect.objectContaining({
+				state: expect.objectContaining({
+					mission: expect.objectContaining({
+						workflow: expect.objectContaining({
+							activeTask: "Ignis Turn",
+							currentStep: "ignis-turn",
+							runtimeStatus: "ready",
+						}),
+					}),
+				}),
+			})
+		);
+	});
 });

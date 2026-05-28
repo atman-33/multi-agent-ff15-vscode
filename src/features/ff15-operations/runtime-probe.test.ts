@@ -667,4 +667,99 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
 	});
+
+	it("rebuilds bridge assets for a hydrated ready mission after runtime service reload without losing workflow identity", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedWorkerDispatchOperation(workspaceRoot);
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-28T11:00:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: "terminal_1",
+					ignis: "terminal_2",
+					noctis: "terminal_0",
+					prompto: "terminal_3",
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Ignis Turn",
+					currentStep: "ignis-turn",
+					lastReportSummary: "りんご",
+					probe: {
+						checkedAt: "2026-05-28T10:59:00.000Z",
+						summary:
+							"Extension-host bridge is viable for the next runtime slice.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const initialService = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-28T11:01:00.000Z",
+				missionsStore: store,
+			});
+
+			try {
+				await initialService.ensureMissionRuntime("mission-1");
+			} finally {
+				await initialService.dispose();
+			}
+
+			rmSync(
+				join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				),
+				{ force: true, recursive: true }
+			);
+
+			const recoveredService = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-28T11:02:00.000Z",
+				missionsStore: store,
+			});
+
+			try {
+				await recoveredService.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+
+				expect(
+					existsSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME))
+				).toBe(true);
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						workflow: expect.objectContaining({
+							activeTask: "Ignis Turn",
+							currentStep: "ignis-turn",
+							lastReportSummary: "りんご",
+							runtimeStatus: "ready",
+						}),
+					})
+				);
+			} finally {
+				await recoveredService.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
 });
