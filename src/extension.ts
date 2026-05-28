@@ -1,5 +1,6 @@
 import { commands, type ExtensionContext, window } from "vscode";
 import { FF15_OPEN_SETTINGS_COMMAND_ID } from "./config/extension-ids";
+import { materializeBundledFf15WorkspaceTemplateFiles } from "./features/ff15-agents/materialize";
 import { Ff15LaunchViewProvider } from "./features/ff15-launch/provider";
 import { resolveActiveWorkspaceRoot } from "./features/ff15-launch/workspace-root";
 import { loadBundledOperationsCatalog } from "./features/ff15-operations/catalog";
@@ -20,6 +21,14 @@ let activeRuntimeProbeService: ReturnType<
 > | null = null;
 
 export const activate = (context: ExtensionContext) => {
+	const activationWorkspaceRoot = resolveActiveWorkspaceRoot();
+	if (activationWorkspaceRoot) {
+		materializeBundledFf15WorkspaceTemplateFiles({
+			extensionRoot: context.extensionUri.fsPath,
+			workspaceRoot: activationWorkspaceRoot,
+		});
+	}
+
 	const ff15LaunchViewProvider = new Ff15LaunchViewProvider(
 		context.extensionUri
 	);

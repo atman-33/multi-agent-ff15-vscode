@@ -24,7 +24,6 @@ Excel at quick recon, investigation, and generating clear reports. Gather info s
 ## Expertise
 
 - Quick reconnaissance and investigation
-- File search and pattern discovery
 - Lightweight prototyping and testing
 - Information gathering across codebases
 - First-pass analysis and triage
