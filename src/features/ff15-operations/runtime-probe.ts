@@ -10,7 +10,12 @@ import {
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import {
+	FF15_AGENT_DISPLAY_NAMES,
+	type Ff15AgentId,
+} from "../ff15-launch/launch-client";
+import {
 	createEmptyFf15MissionWorkflowState,
+	type Ff15MissionAgentPanes,
 	type Ff15MissionRecord,
 	type Ff15MissionWorkflowProbe,
 	type Ff15MissionWorkflowState,
@@ -18,6 +23,7 @@ import {
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
 import {
+	type Ff15MissionOperationStep,
 	formatFf15OperationTaskLabel,
 	loadMissionOperationDefinition,
 } from "./definition";
@@ -27,7 +33,21 @@ export const FF15_BRIDGE_MANIFEST_FILE_NAME = "ff15-bridge-manifest.json";
 
 interface Ff15OperationRuntimeProbeServiceOptions {
 	getNow?: () => string;
+	missionTransport?: Ff15OperationRuntimeMissionTransport;
 	missionsStore: Ff15MissionsStore;
+}
+
+interface Ff15OperationRuntimeMissionTransport {
+	reconcileMissionAgentPanes: (input: {
+		agentPanes: Ff15MissionAgentPanes;
+		sessionName: string;
+		workspaceRoot: string;
+	}) => Promise<Ff15MissionAgentPanes>;
+	sendPrompt: (input: {
+		paneId: string;
+		prompt: string;
+		sessionName: string;
+	}) => Promise<void>;
 }
 
 interface Ff15BridgeManifest {
@@ -64,6 +84,14 @@ export interface Ff15OperationRuntimeProbeService {
 	dispose: () => Promise<void>;
 	ensureMissionRuntime: (missionId: string) => Promise<void>;
 }
+
+type Ff15WorkerAgentId = Exclude<Ff15AgentId, "noctis">;
+
+const FF15_WORKER_AGENT_IDS = new Set<Ff15WorkerAgentId>([
+	"gladiolus",
+	"ignis",
+	"prompto",
+]);
 
 const createBridgeManifest = (
 	baseUrl: string,
@@ -102,6 +130,39 @@ const mergeWorkflowState = (
 		},
 	};
 };
+
+const isWorkerAgentId = (
+	value: string | null | undefined
+): value is Ff15WorkerAgentId =>
+	value === "gladiolus" || value === "ignis" || value === "prompto";
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+	error instanceof Error && error.message.length > 0 ? error.message : fallback;
+
+const getWorkerStepTaskId = (stepName: string) => `task-${stepName}`;
+
+const buildWorkerStepPrompt = (input: {
+	agentId: Ff15WorkerAgentId;
+	operationName: string;
+	reportMessage: string | null;
+	step: Ff15MissionOperationStep;
+	taskId: string;
+}) =>
+	[
+		"You are continuing an FF15 operation-backed mission.",
+		`Operation: ${input.operationName}`,
+		`Assigned step: ${input.step.name}`,
+		`Assigned task: ${formatFf15OperationTaskLabel(input.step.name)}`,
+		`Task ID: ${input.taskId}`,
+		`Step agent: ${input.agentId}`,
+		"",
+		"Worker handoff message:",
+		input.reportMessage && input.reportMessage.length > 0
+			? input.reportMessage
+			: "No handoff message provided.",
+	]
+		.filter((line): line is string => line != null)
+		.join("\n");
 
 const respondJson = (
 	response: ServerResponse,
@@ -295,11 +356,13 @@ export const createFf15OperationRuntimeProbeService = (
 	};
 
 	const persistMissionReportState = async (input: {
+		agentPanes?: Ff15MissionAgentPanes;
 		lastError: string | null;
 		mission: Ff15MissionRecord;
 		patch: WorkflowPatch;
 	}) =>
 		options.missionsStore.updateMission(input.mission.id, {
+			...(input.agentPanes ? { agentPanes: input.agentPanes } : {}),
 			lastError: input.lastError,
 			workflow: mergeWorkflowState(input.mission.workflow, input.patch),
 		});
@@ -401,6 +464,68 @@ export const createFf15OperationRuntimeProbeService = (
 		});
 	};
 
+	const autoDispatchWorkerStep = async (input: {
+		mission: Ff15MissionRecord;
+		operationName: string;
+		reportMessage: string | null;
+		step: Ff15MissionOperationStep;
+	}) => {
+		if (!options.missionTransport) {
+			return null;
+		}
+
+		const { sessionName, workspaceRoot } = input.mission;
+		if (!sessionName) {
+			throw new Error(
+				"Mission session is not ready for automatic worker handoff."
+			);
+		}
+
+		if (!workspaceRoot) {
+			throw new Error(
+				"Mission session is not ready for automatic worker handoff."
+			);
+		}
+
+		const reconciledAgentPanes =
+			await options.missionTransport.reconcileMissionAgentPanes({
+				agentPanes: input.mission.agentPanes,
+				sessionName,
+				workspaceRoot,
+			});
+		const stepAgent = input.step.agent;
+		if (!isWorkerAgentId(stepAgent)) {
+			throw new Error("Worker handoff requires a worker-owned step.");
+		}
+
+		const paneId = reconciledAgentPanes[stepAgent];
+
+		if (!paneId) {
+			throw new Error(
+				`FF15 could not resolve a live ${FF15_AGENT_DISPLAY_NAMES[stepAgent]} pane for this mission.`
+			);
+		}
+
+		const taskId = getWorkerStepTaskId(input.step.name);
+		await options.missionTransport.sendPrompt({
+			paneId,
+			prompt: buildWorkerStepPrompt({
+				agentId: stepAgent,
+				operationName: input.operationName,
+				reportMessage: input.reportMessage,
+				step: input.step,
+				taskId,
+			}),
+			sessionName,
+		});
+
+		return {
+			agentId: stepAgent,
+			agentPanes: reconciledAgentPanes,
+			taskId,
+		};
+	};
+
 	const handleValidatedReportTransition = async (input: {
 		mission: Ff15MissionRecord;
 		operationDefinition: ReturnType<typeof loadMissionOperationDefinition>;
@@ -416,9 +541,33 @@ export const createFf15OperationRuntimeProbeService = (
 						(step) => step.name === nextStepName
 					) ?? null)
 				: null;
+		const nextStepAgent = nextStep?.agent ?? null;
+		let agentPanes: Ff15MissionAgentPanes | undefined;
+		let lastError: string | null = null;
+
+		if (nextStep && isWorkerAgentId(nextStepAgent)) {
+			try {
+				const dispatch = await autoDispatchWorkerStep({
+					mission: input.mission,
+					operationName:
+						input.operationDefinition?.name ??
+						input.mission.operationRef ??
+						"FF15 operation",
+					reportMessage: input.reportMessage,
+					step: nextStep,
+				});
+				agentPanes = dispatch?.agentPanes;
+			} catch (error) {
+				lastError = `Automatic dispatch failed: ${getErrorMessage(
+					error,
+					"Worker handoff failed."
+				)}`;
+			}
+		}
 
 		await persistMissionReportState({
-			lastError: null,
+			agentPanes,
+			lastError,
 			mission: input.mission,
 			patch: {
 				activeTask: nextStep

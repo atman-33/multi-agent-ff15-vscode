@@ -17,6 +17,8 @@ import { createFf15MissionSessionController } from "./session-controller";
 import type { Ff15MissionsStore } from "./state";
 import { createFf15MissionZellijTransport } from "./transport";
 
+type Ff15MissionTransport = ReturnType<typeof createFf15MissionZellijTransport>;
+
 const runZellijCommand = (input: {
 	args: string[];
 	cwd?: string;
@@ -61,10 +63,10 @@ const createGetLaunchClient = () => () =>
 	);
 
 export const createVsCodeFf15MissionSendController = (
-	missionsStore: Ff15MissionsStore
+	missionsStore: Ff15MissionsStore,
+	missionTransport: Ff15MissionTransport = createFf15MissionZellijTransport()
 ) => {
 	const getLaunchClient = createGetLaunchClient();
-	const missionTransport = createFf15MissionZellijTransport();
 
 	return createFf15MissionSendController({
 		ensureCommandAvailable,
@@ -77,10 +79,10 @@ export const createVsCodeFf15MissionSendController = (
 
 export const createVsCodeFf15MissionSessionController = (
 	extensionUri: Uri,
-	missionsStore: Ff15MissionsStore
+	missionsStore: Ff15MissionsStore,
+	missionTransport: Ff15MissionTransport = createFf15MissionZellijTransport()
 ) => {
 	const getLaunchClient = createGetLaunchClient();
-	const missionTransport = createFf15MissionZellijTransport();
 
 	return createFf15MissionSessionController({
 		ensureCommandAvailable,

@@ -276,6 +276,84 @@ describe("createFf15MissionSendController", () => {
 		}
 	});
 
+	it("resets probe placeholder workflow state to the operation initial step on the first operation-backed send", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			seedWorkspaceOperation(workspaceRoot);
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-05-28T00:12:00.000Z")
+					.mockReturnValueOnce("2026-05-28T00:13:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+			await missionsStore.updateMission("mission-1", {
+				operationRef: "builtin:noctis-autonomous",
+				workflow: {
+					activeTask: "Validate loopback bridge readiness",
+					currentStep: "probe:ready",
+					lastReportSummary:
+						"Bridge lookup and submission endpoints responded.",
+					probe: {
+						checkedAt: "2026-05-28T00:11:00.000Z",
+						summary:
+							"Extension-host bridge is viable for the next runtime slice.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+			});
+
+			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+			const launchClient = createLaunchClient();
+			const missionTransport = {
+				ensureMissionSession: vi.fn().mockResolvedValue({
+					agentPanes: createAgentPanes("terminal_7"),
+					paneId: "terminal_7",
+				}),
+				sendPrompt: vi.fn().mockResolvedValue(undefined),
+			};
+
+			const controller = createFf15MissionSendController({
+				ensureCommandAvailable,
+				getLaunchClient: () => launchClient,
+				getWorkspaceRoot: () => workspaceRoot,
+				missionTransport,
+				missionsStore,
+			});
+
+			await controller.submitPrompt({
+				missionId: "mission-1",
+				prompt: "Draft the first response",
+			});
+
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("Active step: autonomous"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("Active task: Autonomous"),
+				})
+			);
+			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					workflow: expect.objectContaining({
+						activeTask: "Autonomous",
+						currentStep: "autonomous",
+					}),
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("rehydrates persisted mission metadata and reuses the existing session for follow-up prompts", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 

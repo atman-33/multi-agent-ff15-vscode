@@ -51,6 +51,35 @@ const seedTransitionOperation = (workspaceRoot: string) => {
 	);
 };
 
+const seedWorkerDispatchOperation = (workspaceRoot: string) => {
+	const operationsDir = join(
+		workspaceRoot,
+		FF15_WORKSPACE_RUNTIME_DIR_NAME,
+		"operations"
+	);
+	mkdirSync(operationsDir, { recursive: true });
+	writeFileSync(
+		join(operationsDir, "shiritori-smoke-test.yaml"),
+		[
+			"name: shiritori-smoke-test",
+			"initial_step: start",
+			"",
+			"steps:",
+			"  - name: start",
+			"    agent: noctis",
+			"    rules:",
+			"      - condition: Started successfully",
+			"        next: ignis-turn",
+			"  - name: ignis-turn",
+			"    agent: ignis",
+			"    rules:",
+			"      - condition: Ignis continued",
+			"        next: COMPLETE",
+		].join("\n"),
+		"utf8"
+	);
+};
+
 const invokeBridge = async ({
 	body,
 	method,
@@ -104,6 +133,231 @@ const invokeBridge = async ({
 	});
 
 describe("createFf15OperationRuntimeProbeService", () => {
+	it("auto-dispatches worker-owned next steps through the existing mission transport after an accepted report", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedWorkerDispatchOperation(workspaceRoot);
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-28T10:00:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				workflow: {
+					activeTask: "Start",
+					currentStep: "start",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-28T09:59:00.000Z",
+						summary: "Runtime already prepared for worker dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const reconcileMissionAgentPanes = vi.fn().mockResolvedValue({
+				gladiolus: "terminal_3",
+				ignis: "terminal_2",
+				noctis: "terminal_0",
+				prompto: "terminal_4",
+			});
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-28T10:01:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes,
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "りんご",
+						next: "ignis-turn",
+						taskId: "task-start",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(200);
+				expect(reconcileMissionAgentPanes).toHaveBeenCalledWith({
+					agentPanes: {
+						gladiolus: null,
+						ignis: null,
+						noctis: "terminal_0",
+						prompto: null,
+					},
+					sessionName: "ff15-session",
+					workspaceRoot,
+				});
+				expect(sendPrompt).toHaveBeenCalledWith({
+					paneId: "terminal_2",
+					prompt: expect.stringContaining("Assigned step: ignis-turn"),
+					sessionName: "ff15-session",
+				});
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("Operation: shiritori-smoke-test"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("Worker handoff message:\nりんご"),
+					})
+				);
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError: null,
+						workflow: expect.objectContaining({
+							activeTask: "Ignis Turn",
+							currentStep: "ignis-turn",
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("preserves the progressed worker-owned step and records an actionable error when worker auto-dispatch fails", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedWorkerDispatchOperation(workspaceRoot);
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-28T10:00:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				workflow: {
+					activeTask: "Start",
+					currentStep: "start",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-28T09:59:00.000Z",
+						summary: "Runtime already prepared for worker dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const reconcileMissionAgentPanes = vi.fn().mockResolvedValue({
+				gladiolus: "terminal_3",
+				ignis: null,
+				noctis: "terminal_0",
+				prompto: "terminal_4",
+			});
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-28T10:01:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes,
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "りんご",
+						next: "ignis-turn",
+						taskId: "task-start",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(200);
+				expect(sendPrompt).not.toHaveBeenCalled();
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError:
+							"Automatic dispatch failed: FF15 could not resolve a live Ignis pane for this mission.",
+						workflow: expect.objectContaining({
+							activeTask: "Ignis Turn",
+							currentStep: "ignis-turn",
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("accepts report submissions with taskId, next, and message and advances to the allowed next step", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
 

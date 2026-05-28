@@ -6,6 +6,7 @@ import { loadBundledOperationsCatalog } from "./features/ff15-operations/catalog
 import { createFf15OperationRuntimeProbeService } from "./features/ff15-operations/runtime-probe";
 import { Ff15MissionsViewProvider } from "./features/ff15-missions/provider";
 import { createWorkspaceStateFf15MissionsStore } from "./features/ff15-missions/state";
+import { createFf15MissionZellijTransport } from "./features/ff15-missions/transport";
 import {
 	createVsCodeFf15MissionSendController,
 	createVsCodeFf15MissionSessionController,
@@ -28,14 +29,19 @@ export const activate = (context: ExtensionContext) => {
 			getWorkspaceRoot: resolveActiveWorkspaceRoot,
 		}
 	);
-	const ff15MissionSendController =
-		createVsCodeFf15MissionSendController(ff15MissionsStore);
+	const ff15MissionTransport = createFf15MissionZellijTransport();
+	const ff15MissionSendController = createVsCodeFf15MissionSendController(
+		ff15MissionsStore,
+		ff15MissionTransport
+	);
 	const ff15MissionSessionController = createVsCodeFf15MissionSessionController(
 		context.extensionUri,
-		ff15MissionsStore
+		ff15MissionsStore,
+		ff15MissionTransport
 	);
 	const ff15OperationRuntimeProbeService =
 		createFf15OperationRuntimeProbeService({
+			missionTransport: ff15MissionTransport,
 			missionsStore: ff15MissionsStore,
 		});
 	activeRuntimeProbeService = ff15OperationRuntimeProbeService;
