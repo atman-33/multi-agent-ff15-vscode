@@ -63,12 +63,29 @@ const createAgentPanes = (noctisPaneId: string | null) => ({
 });
 
 const seedWorkspaceOperation = (workspaceRoot: string) => {
+	const facetsDir = join(
+		workspaceRoot,
+		FF15_WORKSPACE_RUNTIME_DIR_NAME,
+		"facets"
+	);
 	const operationsDir = join(
 		workspaceRoot,
 		FF15_WORKSPACE_RUNTIME_DIR_NAME,
 		"operations"
 	);
+	mkdirSync(join(facetsDir, "jobs"), { recursive: true });
+	mkdirSync(join(facetsDir, "instructions"), { recursive: true });
 	mkdirSync(operationsDir, { recursive: true });
+	writeFileSync(
+		join(facetsDir, "jobs", "noctis-autonomous.md"),
+		"Handle the user request directly when Noctis owns the step.\n",
+		"utf8"
+	);
+	writeFileSync(
+		join(facetsDir, "instructions", "noctis-autonomous.md"),
+		"Continue the conversation directly unless runtime guidance says otherwise.\n",
+		"utf8"
+	);
 	writeFileSync(
 		join(operationsDir, "noctis-autonomous.yaml"),
 		[
@@ -83,6 +100,89 @@ const seedWorkspaceOperation = (workspaceRoot: string) => {
 			"    instruction:",
 			"      inline: |",
 			"        Handle the user request directly.",
+		].join("\n"),
+		"utf8"
+	);
+};
+
+const seedRichWorkspaceOperation = (workspaceRoot: string) => {
+	const runtimeRoot = join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME);
+	const operationsDir = join(runtimeRoot, "operations");
+	const facetsDir = join(runtimeRoot, "facets");
+	mkdirSync(join(facetsDir, "jobs"), { recursive: true });
+	mkdirSync(join(facetsDir, "policies"), { recursive: true });
+	mkdirSync(join(facetsDir, "output-contracts"), { recursive: true });
+	mkdirSync(join(facetsDir, "skills", "agent-relationships"), {
+		recursive: true,
+	});
+	mkdirSync(operationsDir, { recursive: true });
+	writeFileSync(
+		join(facetsDir, "jobs", "planner.md"),
+		"Plan the current issue into a spec-ready brief.\n",
+		"utf8"
+	);
+	writeFileSync(
+		join(facetsDir, "jobs", "implementer.md"),
+		"Implement the approved change.\n",
+		"utf8"
+	);
+	writeFileSync(
+		join(facetsDir, "policies", "coding-standards.md"),
+		"Follow repository coding standards.\n",
+		"utf8"
+	);
+	writeFileSync(
+		join(facetsDir, "output-contracts", "spec-plan.md"),
+		"## Format\n\n- Include the accepted plan.\n",
+		"utf8"
+	);
+	writeFileSync(
+		join(facetsDir, "skills", "agent-relationships", "SKILL.md"),
+		[
+			"---",
+			"name: agent-relationships",
+			"description: Coordinate with the FF15 roster safely.",
+			"---",
+			"",
+			"# Agent Relationships",
+		].join("\n"),
+		"utf8"
+	);
+	writeFileSync(
+		join(operationsDir, "github-issue-openspec-dev.yaml"),
+		[
+			"name: github-issue-openspec-dev",
+			"description: >",
+			"  Drive spec planning for an incoming GitHub issue.",
+			"initial_step: spec-planning",
+			"",
+			"steps:",
+			"  - name: spec-planning",
+			"    agent: noctis",
+			"    job:",
+			"      file: ../facets/jobs/planner.md",
+			"    instruction:",
+			"      inline: |",
+			"        Draft the spec plan and prepare the handoff.",
+			"    skills:",
+			"      - file: ../facets/skills/agent-relationships/SKILL.md",
+			"    policies:",
+			"      - file: ../facets/policies/coding-standards.md",
+			"    output_contracts:",
+			"      report:",
+			"        - name: spec-plan.md",
+			"          format:",
+			"            file: ../facets/output-contracts/spec-plan.md",
+			"    rules:",
+			"      - condition: Spec plan is ready for implementation",
+			"        next: implement",
+			"  - name: implement",
+			"    agent: gladiolus",
+			"    job:",
+			"      file: ../facets/jobs/implementer.md",
+			"    rules:",
+			"      - condition: Implementation is complete",
+			"        next: COMPLETE",
 		].join("\n"),
 		"utf8"
 	);
@@ -181,7 +281,7 @@ describe("createFf15MissionSendController", () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 
 		try {
-			seedWorkspaceOperation(workspaceRoot);
+			seedRichWorkspaceOperation(workspaceRoot);
 			const { storage } = createStorage();
 			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
 				createId: () => "mission-1",
@@ -193,7 +293,7 @@ describe("createFf15MissionSendController", () => {
 			});
 			await missionsStore.createMission();
 			await missionsStore.updateMission("mission-1", {
-				operationRef: "builtin:noctis-autonomous",
+				operationRef: "builtin:github-issue-openspec-dev",
 				workflow: {
 					activeTask: null,
 					currentStep: null,
@@ -234,32 +334,68 @@ describe("createFf15MissionSendController", () => {
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					paneId: "terminal_7",
-					prompt: expect.stringContaining("Operation: noctis-autonomous"),
-				})
-			);
-			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
-				expect.objectContaining({
-					prompt: expect.stringContaining("Active step: autonomous"),
-				})
-			);
-			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
-				expect.objectContaining({
-					prompt: expect.stringContaining("Active task: Autonomous"),
+					prompt: expect.stringContaining("<operation-prompt>"),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: expect.stringContaining(
-						"User request:\nDraft the first response"
+						"operation: github-issue-openspec-dev"
 					),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("step: spec-planning"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("<job>"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(
+						"Plan the current issue into a spec-ready brief."
+					),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("<step-completion-contract>"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(
+						join(
+							workspaceRoot,
+							FF15_WORKSPACE_RUNTIME_DIR_NAME,
+							"bridge",
+							"submit-report.ps1"
+						)
+					),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(
+						'<user-request from="user" to="noctis">'
+					),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("Draft the first response"),
 				})
 			);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:noctis-autonomous",
+					operationRef: "builtin:github-issue-openspec-dev",
 					workflow: expect.objectContaining({
-						activeTask: "Autonomous",
-						currentStep: "autonomous",
+						activeTask: "Spec Planning",
+						currentStep: "spec-planning",
 						runtimeStatus: "ready",
 					}),
 				})
@@ -333,12 +469,17 @@ describe("createFf15MissionSendController", () => {
 
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("Active step: autonomous"),
+					prompt: expect.stringContaining("<operation-prompt>"),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("Active task: Autonomous"),
+					prompt: expect.stringContaining("step: autonomous"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining("task: Autonomous"),
 				})
 			);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(

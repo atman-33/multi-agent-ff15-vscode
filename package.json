@@ -115,5 +115,8 @@
     "ultracite": "^6.3.4",
     "vitest": "^3.2.4",
     "vsce": "^1.97.0"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
   }
 }

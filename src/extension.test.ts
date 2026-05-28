@@ -1,7 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { missionsViewProviderConstructor } = vi.hoisted(() => ({
+const {
+	materializeBundledFf15WorkspaceTemplateFiles,
+	missionsViewProviderConstructor,
+	resolveActiveWorkspaceRoot,
+} = vi.hoisted(() => ({
+	materializeBundledFf15WorkspaceTemplateFiles: vi.fn(),
 	missionsViewProviderConstructor: vi.fn(),
+	resolveActiveWorkspaceRoot: vi.fn(() => "c:/workspace"),
 }));
 
 vi.mock("vscode", () => ({
@@ -25,6 +31,14 @@ vi.mock("./features/ff15-launch/provider", () => ({
 	},
 }));
 
+vi.mock("./features/ff15-agents/materialize", () => ({
+	materializeBundledFf15WorkspaceTemplateFiles,
+}));
+
+vi.mock("./features/ff15-launch/workspace-root", () => ({
+	resolveActiveWorkspaceRoot,
+}));
+
 vi.mock("./features/ff15-missions/provider", () => ({
 	Ff15MissionsViewProvider: class {
 		static readonly viewId = "multi-agent-ff15-vscode.missionsView";
@@ -45,9 +59,16 @@ import { commands, window } from "vscode";
 import { activate } from "./extension";
 
 describe("activate", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		resolveActiveWorkspaceRoot.mockReturnValue("c:/workspace");
+	});
+
 	it("registers the FF15 launch, missions, settings views, and settings command", () => {
 		const context = {
-			extensionUri: {},
+			extensionUri: {
+				fsPath: "c:/extension",
+			},
 			subscriptions: [] as Array<{ dispose: () => void }>,
 			workspaceState: {
 				get: vi.fn(),
@@ -56,6 +77,12 @@ describe("activate", () => {
 		};
 
 		activate(context as never);
+
+		expect(resolveActiveWorkspaceRoot).toHaveBeenCalled();
+		expect(materializeBundledFf15WorkspaceTemplateFiles).toHaveBeenCalledWith({
+			extensionRoot: "c:/extension",
+			workspaceRoot: "c:/workspace",
+		});
 
 		expect(missionsViewProviderConstructor).toHaveBeenCalledWith(
 			expect.anything(),
@@ -89,5 +116,24 @@ describe("activate", () => {
 			expect.any(Function)
 		);
 		expect(context.subscriptions).toHaveLength(4);
+	});
+
+	it("skips workspace agent materialization when no workspace root is available", () => {
+		resolveActiveWorkspaceRoot.mockReturnValueOnce(undefined);
+
+		const context = {
+			extensionUri: {
+				fsPath: "c:/extension",
+			},
+			subscriptions: [] as Array<{ dispose: () => void }>,
+			workspaceState: {
+				get: vi.fn(),
+				update: vi.fn(() => Promise.resolve()),
+			},
+		};
+
+		activate(context as never);
+
+		expect(materializeBundledFf15WorkspaceTemplateFiles).not.toHaveBeenCalled();
 	});
 });
