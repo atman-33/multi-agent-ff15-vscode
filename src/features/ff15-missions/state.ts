@@ -403,7 +403,10 @@ export const createWorkspaceStateFf15MissionsStore = (
 		}));
 
 		for (const mission of missionRecords) {
-			persistMissionRecordToWorkspace(workspaceRoot, mission);
+			persistMissionRecordToWorkspace(
+				mission.workspaceRoot ?? workspaceRoot,
+				mission
+			);
 		}
 
 		return missionRecords;
@@ -433,7 +436,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 	};
 
 	const persistMissionRecord = (mission: Ff15MissionRecord) => {
-		const workspaceRoot = getActiveWorkspaceRoot() ?? mission.workspaceRoot;
+		const workspaceRoot = mission.workspaceRoot ?? getActiveWorkspaceRoot();
 		if (!workspaceRoot) {
 			return;
 		}

@@ -358,7 +358,7 @@ export const createFf15MissionZellijTransport = (
 			});
 			await waitForPromptDelivery();
 
-			return runCommand({
+			await runCommand({
 				args: [
 					"--session",
 					input.sessionName,

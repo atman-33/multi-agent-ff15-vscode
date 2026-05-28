@@ -58,6 +58,13 @@ const getNoctisPaneLaunchPlanEntry = (
 const getErrorMessage = (error: unknown, fallback: string): string =>
 	error instanceof Error && error.message.length > 0 ? error.message : fallback;
 
+const shouldReuseOperationWorkflowStep = (
+	stepName: string | null
+): stepName is string =>
+	typeof stepName === "string" &&
+	stepName.length > 0 &&
+	!stepName.startsWith("probe:");
+
 const activateOperationWorkflow = (input: {
 	operationRef: string;
 	prompt: string;
@@ -72,12 +79,19 @@ const activateOperationWorkflow = (input: {
 		return null;
 	}
 
-	const stepName = input.workflow.currentStep ?? activation.stepName;
-	const activeTask =
-		input.workflow.activeTask ??
-		(stepName === activation.stepName
+	const reusableWorkflowStep = shouldReuseOperationWorkflowStep(
+		input.workflow.currentStep
+	)
+		? input.workflow.currentStep
+		: null;
+	const stepName = reusableWorkflowStep ?? activation.stepName;
+	let activeTask =
+		stepName === activation.stepName
 			? activation.activeTask
-			: formatFf15OperationTaskLabel(stepName));
+			: formatFf15OperationTaskLabel(stepName);
+	if (reusableWorkflowStep && input.workflow.activeTask) {
+		activeTask = input.workflow.activeTask;
+	}
 
 	return {
 		prompt: buildOperationAwarePrompt({
