@@ -47,22 +47,42 @@ describe("createFf15LaunchClient", () => {
 		expect(launchClient.getPaneLaunchPlan()).toEqual([
 			{
 				agentId: "noctis",
-				args: ["--agent", "noctis"],
+				args: [
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
+					"--agent",
+					"noctis",
+				],
 				executable: "C:/tools/copilot.exe",
 			},
 			{
 				agentId: "ignis",
-				args: ["--agent", "ignis"],
+				args: [
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
+					"--agent",
+					"ignis",
+				],
 				executable: "C:/tools/copilot.exe",
 			},
 			{
 				agentId: "gladiolus",
-				args: ["--agent", "gladiolus"],
+				args: [
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
+					"--agent",
+					"gladiolus",
+				],
 				executable: "C:/tools/copilot.exe",
 			},
 			{
 				agentId: "prompto",
-				args: ["--agent", "prompto"],
+				args: [
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
+					"--agent",
+					"prompto",
+				],
 				executable: "C:/tools/copilot.exe",
 			},
 		]);
@@ -132,6 +152,8 @@ describe("createFf15LaunchClient", () => {
 				agentId: "noctis",
 				args: [
 					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
 					"--agent",
 					"noctis",
 				],
@@ -141,6 +163,8 @@ describe("createFf15LaunchClient", () => {
 				agentId: "ignis",
 				args: [
 					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
 					"--agent",
 					"ignis",
 				],
@@ -150,6 +174,8 @@ describe("createFf15LaunchClient", () => {
 				agentId: "gladiolus",
 				args: [
 					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
 					"--agent",
 					"gladiolus",
 				],
@@ -159,6 +185,8 @@ describe("createFf15LaunchClient", () => {
 				agentId: "prompto",
 				args: [
 					"C:/Users/test/AppData/Roaming/npm/node_modules/@github/copilot/npm-loader.js",
+					"--allow-all-tools",
+					"--deny-tool=shell(git push)",
 					"--agent",
 					"prompto",
 				],

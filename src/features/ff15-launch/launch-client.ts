@@ -40,6 +40,10 @@ export interface CreateFf15LaunchClientDependencies {
 }
 
 export const DEFAULT_FF15_LAUNCH_CLIENT_ID = "github-copilot-cli";
+const FF15_COPILOT_PERMISSION_ARGS = [
+	"--allow-all-tools",
+	"--deny-tool=shell(git push)",
+] as const;
 
 const buildPaneLaunchPlan = (
 	command: ResolvedLaunchCommand,
@@ -86,6 +90,7 @@ export const createFf15LaunchClient = (
 			"FF15 launch requires GitHub Copilot CLI `copilot` on PATH.",
 		getPaneLaunchPlan: () =>
 			buildPaneLaunchPlan(dependencies.resolveCopilotCommand(), (agentId) => [
+				...FF15_COPILOT_PERMISSION_ARGS,
 				"--agent",
 				agentId,
 			]),
