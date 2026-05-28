@@ -1,4 +1,5 @@
 import {
+	cpSync,
 	copyFileSync,
 	existsSync,
 	mkdirSync,
@@ -75,12 +76,18 @@ export const FF15_BUNDLED_OPERATION_DEFINITIONS = [
 const getPackagedOperationsDir = (extensionRoot: string) =>
 	join(extensionRoot, "src", "resources", "operations");
 
+const getPackagedFacetsDir = (extensionRoot: string) =>
+	join(extensionRoot, "src", "resources", "facets");
+
 const getWorkspaceOperationsDir = (workspaceRoot: string) =>
 	join(
 		workspaceRoot,
 		FF15_WORKSPACE_RUNTIME_DIR_NAME,
 		FF15_WORKSPACE_OPERATIONS_DIR_NAME
 	);
+
+const getWorkspaceFacetsDir = (workspaceRoot: string) =>
+	join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME, "facets");
 
 const getManagedOperationsManifestPath = (workspaceRoot: string) =>
 	join(
@@ -160,6 +167,22 @@ const materializeBundledOperations = (
 	});
 };
 
+const materializeBundledFacets = (
+	workspaceRoot: string,
+	extensionRoot: string
+) => {
+	const packagedFacetsDir = getPackagedFacetsDir(extensionRoot);
+	if (!existsSync(packagedFacetsDir)) {
+		return;
+	}
+
+	mkdirSync(getWorkspaceFacetsDir(workspaceRoot), { recursive: true });
+	cpSync(packagedFacetsDir, getWorkspaceFacetsDir(workspaceRoot), {
+		force: true,
+		recursive: true,
+	});
+};
+
 const classifyBundledOperation = (
 	operation: Ff15BundledOperationDefinition,
 	supportedAgentIds: readonly string[]
@@ -194,6 +217,7 @@ export const loadBundledOperationsCatalog = ({
 	}
 
 	materializeBundledOperations(workspaceRoot, extensionRoot, bundledOperations);
+	materializeBundledFacets(workspaceRoot, extensionRoot);
 	const classifiedOperations = bundledOperations.map((operation) =>
 		classifyBundledOperation(operation, supportedAgentIds)
 	);

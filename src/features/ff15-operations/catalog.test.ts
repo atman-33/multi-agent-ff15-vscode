@@ -29,10 +29,18 @@ describe("loadBundledOperationsCatalog", () => {
 			mkdirSync(join(extensionRoot, "src", "resources", "operations"), {
 				recursive: true,
 			});
+			mkdirSync(join(extensionRoot, "src", "resources", "facets", "jobs"), {
+				recursive: true,
+			});
 			mkdirSync(workspaceRoot, { recursive: true });
 			writeFileSync(
 				join(extensionRoot, "src", "resources", "operations", "supported.yaml"),
 				"name: supported\n",
+				"utf8"
+			);
+			writeFileSync(
+				join(extensionRoot, "src", "resources", "facets", "jobs", "planner.md"),
+				"Plan the current issue into a spec-ready brief.\n",
 				"utf8"
 			);
 			writeFileSync(
@@ -67,6 +75,15 @@ describe("loadBundledOperationsCatalog", () => {
 				workspaceRoot,
 			});
 
+			expect(
+				existsSync(join(workspaceRoot, ".ff15", "facets", "jobs", "planner.md"))
+			).toBe(true);
+			expect(
+				readFileSync(
+					join(workspaceRoot, ".ff15", "facets", "jobs", "planner.md"),
+					"utf8"
+				)
+			).toBe("Plan the current issue into a spec-ready brief.\n");
 			expect(
 				existsSync(
 					join(

@@ -66,25 +66,27 @@ const shouldReuseOperationWorkflowStep = (
 	!stepName.startsWith("probe:");
 
 const activateOperationWorkflow = (input: {
+	missionId: string;
 	operationRef: string;
 	prompt: string;
 	workflow: ReturnType<typeof createEmptyFf15MissionWorkflowState>;
 	workspaceRoot: string;
 }) => {
-	const activation = loadMissionOperationActivation(
-		input.workspaceRoot,
-		input.operationRef
-	);
-	if (!activation) {
-		return null;
-	}
-
 	const reusableWorkflowStep = shouldReuseOperationWorkflowStep(
 		input.workflow.currentStep
 	)
 		? input.workflow.currentStep
 		: null;
-	const stepName = reusableWorkflowStep ?? activation.stepName;
+	const activation = loadMissionOperationActivation(
+		input.workspaceRoot,
+		input.operationRef,
+		reusableWorkflowStep ?? undefined
+	);
+	if (!activation) {
+		return null;
+	}
+
+	const stepName = activation.stepName;
 	let activeTask =
 		stepName === activation.stepName
 			? activation.activeTask
@@ -98,9 +100,10 @@ const activateOperationWorkflow = (input: {
 			activation: {
 				...activation,
 				activeTask,
-				stepName,
 			},
+			missionId: input.missionId,
 			prompt: input.prompt,
+			workspaceRoot: input.workspaceRoot,
 		}),
 		workflow: {
 			...input.workflow,
@@ -255,6 +258,7 @@ export const createFf15MissionSendController = (
 			const operationWorkflowActivation =
 				currentMission?.operationRef && workspaceRoot
 					? activateOperationWorkflow({
+							missionId: input.missionId,
 							operationRef: currentMission.operationRef,
 							prompt,
 							workflow: currentWorkflow,

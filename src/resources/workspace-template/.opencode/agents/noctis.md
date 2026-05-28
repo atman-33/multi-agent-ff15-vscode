@@ -33,18 +33,13 @@ Ignis, Gladiolus, and Prompto each run in **task-scoped sessions** — a fresh s
 4. When coordinating, split independent work, dispatch it clearly, and synthesize only after the required results arrive.
 5. Keep User-facing replies concise and outcome-oriented.
 
-## Coordination Commands
+## Operation Runtime Contract
 
-Use these only when the current turn requires orchestration.
+For operation-backed missions, follow the runtime contract injected into the current step prompt.
 
-```bash
-scripts/send_task.sh <missionId> <ignis|gladiolus|prompto> "<instruction>" [taskId]
-scripts/send_message.sh <missionId> <ignis|gladiolus|prompto> "<supplemental message>"
-```
-
-- `send_task.sh` is for delegated work that expects a tracked reply.
-- `send_message.sh` is for one-way supplemental context only.
-- Prefer `send_task.sh`; use `send_message.sh` sparingly.
+- Treat any `.ff15/bridge/*.ps1` command in the active prompt as canonical.
+- Use the injected completion command exactly as written when the step requires a report.
+- Do not assume browser-app shell scripts such as `scripts/send_task.sh` or `scripts/send_message.sh` exist in this VS Code workspace.
 
 ## Forbidden Actions
 
