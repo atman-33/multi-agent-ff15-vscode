@@ -1,13 +1,27 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	cpSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FF15_WORKSPACE_RUNTIME_DIR_NAME } from "../ff15-missions/state";
+import {
+	createEmptyFf15MissionWorkflowState,
+	FF15_WORKSPACE_RUNTIME_DIR_NAME,
+} from "../ff15-missions/state";
 import {
 	buildOperationAwarePrompt,
+	buildWorkerOperationAwarePrompt,
 	loadMissionOperationActivation,
 	loadMissionOperationDefinition,
 } from "./definition";
+
+const MISSING_FILE_ERROR_PATTERN = /missing file/i;
+const MISSING_OUTPUT_CONTRACT_ERROR_PATTERN =
+	/does not declare output contract/i;
 
 const seedRichOperationBundle = (workspaceRoot: string) => {
 	const runtimeRoot = join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME);
@@ -91,6 +105,59 @@ const seedRichOperationBundle = (workspaceRoot: string) => {
 		].join("\n"),
 		"utf8"
 	);
+};
+
+const seedBundledPromptResolutionOperation = (
+	workspaceRoot: string,
+	options?: {
+		operationFileName?: string;
+		transformOperation?: (content: string) => string;
+	}
+) => {
+	const runtimeRoot = join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME);
+	const operationsDir = join(runtimeRoot, "operations");
+	const facetsDir = join(runtimeRoot, "facets");
+	const repoRoot = process.cwd();
+	const operationFileName =
+		options?.operationFileName ?? "idea-to-prd-and-issues.yaml";
+	const operationSourcePath = join(
+		repoRoot,
+		"src",
+		"resources",
+		"operations",
+		operationFileName
+	);
+	const operationTargetPath = join(operationsDir, operationFileName);
+
+	mkdirSync(operationsDir, { recursive: true });
+	mkdirSync(facetsDir, { recursive: true });
+	const operationContent = options?.transformOperation
+		? options.transformOperation(readFileSync(operationSourcePath, "utf8"))
+		: readFileSync(operationSourcePath, "utf8");
+	writeFileSync(operationTargetPath, operationContent, "utf8");
+	cpSync(join(repoRoot, "src", "resources", "facets"), facetsDir, {
+		recursive: true,
+	});
+};
+
+const createCompletedStepWorkflow = (
+	fromStep: string,
+	next: string,
+	taskId: string
+) => {
+	const workflow = createEmptyFf15MissionWorkflowState();
+	workflow.stepHistory = [
+		{
+			completedAt: "2026-05-29T00:00:00.000Z",
+			fromAgent: "noctis",
+			fromStep,
+			handoffSummary: `${fromStep} completed.`,
+			next,
+			taskId,
+		},
+	];
+
+	return workflow;
 };
 
 describe("ff15 operation definition", () => {
@@ -202,6 +269,222 @@ describe("ff15 operation definition", () => {
 			expect(prompt).toContain("task-spec-planning");
 			expect(prompt).toContain('<user-request from="user" to="noctis">');
 			expect(prompt).toContain("Draft the first response");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("resolves bundled output and language placeholders before XML prompt delivery", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-resolution-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot);
+			writeFileSync(
+				join(workspaceRoot, "requirements-brief.md"),
+				"# Requirements Brief\n",
+				"utf8"
+			);
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:idea-to-prd-and-issues",
+				"draft-prd"
+			);
+			expect(activation).not.toBeNull();
+
+			const prompt = buildOperationAwarePrompt({
+				activation: activation!,
+				missionId: "mission-1",
+				prompt: "Continue the workflow",
+				settings: {
+					languageName: "japanese",
+				},
+				workflow: createCompletedStepWorkflow(
+					"clarify-requirements",
+					"draft-prd",
+					"task-clarify-requirements"
+				),
+				workspaceRoot,
+			});
+
+			expect(prompt).toContain(join(workspaceRoot, "requirements-brief.md"));
+			expect(prompt).not.toContain(
+				'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}'
+			);
+			expect(prompt).not.toContain('{{ setting("language", "name") }}');
+			expect(prompt).toContain("japanese");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("fails bundled prompt delivery when a declared output artifact is missing", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-missing-output-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot);
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:idea-to-prd-and-issues",
+				"draft-prd"
+			);
+			expect(activation).not.toBeNull();
+
+			expect(() =>
+				buildOperationAwarePrompt({
+					activation: activation!,
+					missionId: "mission-1",
+					prompt: "Continue the workflow",
+					workflow: createCompletedStepWorkflow(
+						"clarify-requirements",
+						"draft-prd",
+						"task-clarify-requirements"
+					),
+					workspaceRoot,
+				})
+			).toThrow(MISSING_FILE_ERROR_PATTERN);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("fails bundled prompt delivery when an output placeholder references an undeclared contract", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-missing-contract-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot, {
+				transformOperation: (content) =>
+					content.replace(
+						'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}',
+						'{{ output("clarify-requirements", "latest", "missing-output.md") }}'
+					),
+			});
+			writeFileSync(
+				join(workspaceRoot, "missing-output.md"),
+				"# Missing Output\n",
+				"utf8"
+			);
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:idea-to-prd-and-issues",
+				"draft-prd"
+			);
+			expect(activation).not.toBeNull();
+
+			expect(() =>
+				buildOperationAwarePrompt({
+					activation: activation!,
+					missionId: "mission-1",
+					prompt: "Continue the workflow",
+					workflow: createCompletedStepWorkflow(
+						"clarify-requirements",
+						"draft-prd",
+						"task-clarify-requirements"
+					),
+					workspaceRoot,
+				})
+			).toThrow(MISSING_OUTPUT_CONTRACT_ERROR_PATTERN);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("resolves workspace-root placeholders before XML prompt delivery", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-root-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot, {
+				transformOperation: (content) =>
+					content.replace(
+						"2. Before starting, read `.opencode/skills/write-a-prd/SKILL.md`. In this step, stop after drafting the PRD and do not post the GitHub issue yet.",
+						'2. Confirm the execution root at `{{ root("execution_root") }}`. Then read `.opencode/skills/write-a-prd/SKILL.md`. In this step, stop after drafting the PRD and do not post the GitHub issue yet.'
+					),
+			});
+			writeFileSync(
+				join(workspaceRoot, "requirements-brief.md"),
+				"# Requirements Brief\n",
+				"utf8"
+			);
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:idea-to-prd-and-issues",
+				"draft-prd"
+			);
+			expect(activation).not.toBeNull();
+
+			const prompt = buildOperationAwarePrompt({
+				activation: activation!,
+				missionId: "mission-1",
+				prompt: "Continue the workflow",
+				workflow: createCompletedStepWorkflow(
+					"clarify-requirements",
+					"draft-prd",
+					"task-clarify-requirements"
+				),
+				workspaceRoot,
+			});
+
+			expect(prompt).toContain(workspaceRoot);
+			expect(prompt).not.toContain('{{ root("execution_root") }}');
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("resolves bundled output placeholders in worker prompts", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-worker-resolution-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot, {
+				operationFileName: "github-issue-openspec-dev.yaml",
+			});
+			writeFileSync(
+				join(workspaceRoot, "spec-plan.md"),
+				"---\nchange_name: test-change\n---\n",
+				"utf8"
+			);
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:github-issue-openspec-dev",
+				"implement"
+			);
+			expect(activation).not.toBeNull();
+
+			const prompt = buildWorkerOperationAwarePrompt({
+				activation: activation!,
+				handoff: null,
+				missionId: "mission-1",
+				workflow: createCompletedStepWorkflow(
+					"spec-planning",
+					"implement",
+					"task-spec-planning"
+				),
+				workspaceRoot,
+			});
+
+			expect(prompt).toContain(join(workspaceRoot, "spec-plan.md"));
+			expect(prompt).not.toContain(
+				'{{ output("spec-planning", "latest", "spec-plan.md") }}'
+			);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

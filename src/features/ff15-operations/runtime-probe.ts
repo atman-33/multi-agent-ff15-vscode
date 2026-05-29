@@ -550,6 +550,7 @@ export const createFf15OperationRuntimeProbeService = (
 				activation: input.activation,
 				handoff: input.handoff,
 				missionId: input.mission.id,
+				workflow: input.mission.workflow,
 				workspaceRoot,
 			}),
 			sessionName,
