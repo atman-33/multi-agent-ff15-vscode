@@ -351,6 +351,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 							verdict: "go",
 						},
 						runtimeStatus: "ready",
+						stepHistory: [],
 					},
 				})
 			);
@@ -368,6 +369,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 							verdict: "go",
 						},
 						runtimeStatus: "ready",
+						stepHistory: [],
 					},
 				})
 			);
@@ -416,6 +418,16 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 						verdict: "go",
 					},
 					runtimeStatus: "ready",
+					stepHistory: [
+						{
+							completedAt: "2026-05-28T01:01:00.000Z",
+							fromAgent: "noctis",
+							fromStep: "start",
+							handoffSummary: "りんご",
+							next: "ignis-turn",
+							taskId: "task-start",
+						},
+					],
 				},
 			});
 
@@ -439,6 +451,15 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 						activeTask: "Ignis Turn",
 						currentStep: "ignis-turn",
 						lastReportSummary: "りんご",
+						stepHistory: [
+							expect.objectContaining({
+								fromAgent: "noctis",
+								fromStep: "start",
+								handoffSummary: "りんご",
+								next: "ignis-turn",
+								taskId: "task-start",
+							}),
+						],
 						runtimeStatus: "ready",
 					}),
 				})

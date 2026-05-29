@@ -18,11 +18,14 @@ import {
 	type Ff15MissionAgentPanes,
 	type Ff15MissionRecord,
 	type Ff15MissionWorkflowProbe,
+	type Ff15MissionWorkflowStepHistoryEntry,
 	type Ff15MissionWorkflowState,
 	type Ff15MissionsStore,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
 import {
+	buildWorkerOperationAwarePrompt,
+	type Ff15MissionOperationActivation,
 	type Ff15MissionOperationStep,
 	formatFf15OperationTaskLabel,
 	loadMissionOperationDefinition,
@@ -141,28 +144,63 @@ const getErrorMessage = (error: unknown, fallback: string): string =>
 
 const getWorkerStepTaskId = (stepName: string) => `task-${stepName}`;
 
-const buildWorkerStepPrompt = (input: {
-	agentId: Ff15WorkerAgentId;
-	operationName: string;
+const createWorkerStepActivation = (
+	operationDefinition: NonNullable<
+		ReturnType<typeof loadMissionOperationDefinition>
+	>,
+	step: Ff15MissionOperationStep
+): Ff15MissionOperationActivation => ({
+	activeTask: formatFf15OperationTaskLabel(step.name),
+	definition: operationDefinition,
+	operationName: operationDefinition.name,
+	step,
+	stepAgent: step.agent ?? null,
+	stepName: step.name,
+});
+
+const getWorkerDispatchActivation = (
+	operationDefinition: ReturnType<typeof loadMissionOperationDefinition>,
+	step: Ff15MissionOperationStep | null
+): Ff15MissionOperationActivation | null => {
+	if (!operationDefinition) {
+		return null;
+	}
+
+	const stepAgent = step?.agent;
+	if (!(step && isWorkerAgentId(stepAgent))) {
+		return null;
+	}
+
+	return createWorkerStepActivation(operationDefinition, step);
+};
+
+const createWorkflowStepHistoryEntry = (input: {
+	activeStep: Ff15MissionOperationStep | null;
+	currentStepName: string | null;
+	next: string | null;
+	recordedAt: string;
 	reportMessage: string | null;
-	step: Ff15MissionOperationStep;
-	taskId: string;
-}) =>
-	[
-		"You are continuing an FF15 operation-backed mission.",
-		`Operation: ${input.operationName}`,
-		`Assigned step: ${input.step.name}`,
-		`Assigned task: ${formatFf15OperationTaskLabel(input.step.name)}`,
-		`Task ID: ${input.taskId}`,
-		`Step agent: ${input.agentId}`,
-		"",
-		"Worker handoff message:",
-		input.reportMessage && input.reportMessage.length > 0
-			? input.reportMessage
-			: "No handoff message provided.",
-	]
-		.filter((line): line is string => line != null)
-		.join("\n");
+	taskId: string | null;
+}): Ff15MissionWorkflowStepHistoryEntry | null => {
+	if (
+		input.activeStep == null &&
+		input.currentStepName == null &&
+		input.next == null &&
+		input.reportMessage == null &&
+		input.taskId == null
+	) {
+		return null;
+	}
+
+	return {
+		completedAt: input.recordedAt,
+		fromAgent: input.activeStep?.agent ?? null,
+		fromStep: input.activeStep?.name ?? input.currentStepName,
+		handoffSummary: input.reportMessage,
+		next: input.next,
+		taskId: input.taskId,
+	};
+};
 
 const respondJson = (
 	response: ServerResponse,
@@ -465,10 +503,9 @@ export const createFf15OperationRuntimeProbeService = (
 	};
 
 	const autoDispatchWorkerStep = async (input: {
+		activation: Ff15MissionOperationActivation;
+		handoff: Ff15MissionWorkflowStepHistoryEntry | null;
 		mission: Ff15MissionRecord;
-		operationName: string;
-		reportMessage: string | null;
-		step: Ff15MissionOperationStep;
 	}) => {
 		if (!options.missionTransport) {
 			return null;
@@ -493,8 +530,8 @@ export const createFf15OperationRuntimeProbeService = (
 				sessionName,
 				workspaceRoot,
 			});
-		const stepAgent = input.step.agent;
-		if (!isWorkerAgentId(stepAgent)) {
+		const stepAgent = input.activation.stepAgent;
+		if (!(input.activation.step && isWorkerAgentId(stepAgent))) {
 			throw new Error("Worker handoff requires a worker-owned step.");
 		}
 
@@ -506,15 +543,14 @@ export const createFf15OperationRuntimeProbeService = (
 			);
 		}
 
-		const taskId = getWorkerStepTaskId(input.step.name);
+		const taskId = getWorkerStepTaskId(input.activation.stepName);
 		await options.missionTransport.sendPrompt({
 			paneId,
-			prompt: buildWorkerStepPrompt({
-				agentId: stepAgent,
-				operationName: input.operationName,
-				reportMessage: input.reportMessage,
-				step: input.step,
-				taskId,
+			prompt: buildWorkerOperationAwarePrompt({
+				activation: input.activation,
+				handoff: input.handoff,
+				missionId: input.mission.id,
+				workspaceRoot,
 			}),
 			sessionName,
 		});
@@ -527,12 +563,14 @@ export const createFf15OperationRuntimeProbeService = (
 	};
 
 	const handleValidatedReportTransition = async (input: {
+		activeStep: ReturnType<typeof resolveMissionOperationStep>["activeStep"];
 		mission: Ff15MissionRecord;
 		operationDefinition: ReturnType<typeof loadMissionOperationDefinition>;
 		reportMessage: string | null;
 		requestedNext: string | null;
 		requestedStep: string | null;
 		response: ServerResponse;
+		taskId: string | null;
 	}) => {
 		const nextStepName = input.requestedNext ?? input.requestedStep;
 		const nextStep =
@@ -542,19 +580,30 @@ export const createFf15OperationRuntimeProbeService = (
 					) ?? null)
 				: null;
 		const nextStepAgent = nextStep?.agent ?? null;
+		const handoff = createWorkflowStepHistoryEntry({
+			activeStep: input.activeStep,
+			currentStepName: input.mission.workflow.currentStep,
+			next: nextStepName,
+			recordedAt: getNow(),
+			reportMessage: input.reportMessage,
+			taskId: input.taskId,
+		});
+		const stepHistory = handoff
+			? [...input.mission.workflow.stepHistory, handoff]
+			: input.mission.workflow.stepHistory;
+		const workerActivation = getWorkerDispatchActivation(
+			input.operationDefinition,
+			nextStep
+		);
 		let agentPanes: Ff15MissionAgentPanes | undefined;
 		let lastError: string | null = null;
 
-		if (nextStep && isWorkerAgentId(nextStepAgent)) {
+		if (workerActivation) {
 			try {
 				const dispatch = await autoDispatchWorkerStep({
+					activation: workerActivation,
+					handoff,
 					mission: input.mission,
-					operationName:
-						input.operationDefinition?.name ??
-						input.mission.operationRef ??
-						"FF15 operation",
-					reportMessage: input.reportMessage,
-					step: nextStep,
 				});
 				agentPanes = dispatch?.agentPanes;
 			} catch (error) {
@@ -576,6 +625,7 @@ export const createFf15OperationRuntimeProbeService = (
 				currentStep: nextStepName,
 				lastReportSummary: input.reportMessage,
 				runtimeStatus: "ready",
+				stepHistory,
 			},
 		});
 		respondAcknowledgedReport(input.response, input.mission.id, nextStepName);
@@ -633,6 +683,7 @@ export const createFf15OperationRuntimeProbeService = (
 		const reportMessage = getReportMessage(body);
 		const requestedNext = getStringBodyValue(body, "next");
 		const requestedStep = getStringBodyValue(body, "step");
+		const taskId = getStringBodyValue(body, "taskId");
 		const currentStepName = mission.workflow.currentStep;
 
 		if (currentStepName?.startsWith("probe:")) {
@@ -671,12 +722,14 @@ export const createFf15OperationRuntimeProbeService = (
 		}
 
 		await handleValidatedReportTransition({
+			activeStep,
 			mission,
 			operationDefinition,
 			reportMessage,
 			requestedNext,
 			requestedStep,
 			response,
+			taskId,
 		});
 	};
 

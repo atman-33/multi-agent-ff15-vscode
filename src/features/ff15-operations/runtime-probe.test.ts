@@ -227,17 +227,52 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				});
 				expect(sendPrompt).toHaveBeenCalledWith({
 					paneId: "terminal_2",
-					prompt: expect.stringContaining("Assigned step: ignis-turn"),
+					prompt: expect.stringContaining("<operation-prompt>"),
 					sessionName: "ff15-session",
 				});
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining("Operation: shiritori-smoke-test"),
+						prompt: expect.stringContaining("operation: shiritori-smoke-test"),
 					})
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining("Worker handoff message:\nりんご"),
+						prompt: expect.stringContaining("<handoff-context>"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("previous_step: start"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("previous_step_owner: noctis"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("task_id: task-start"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("selected_next: ignis-turn"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("handoff_summary: りんご"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("<step-completion-contract>"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining("submit-report.ps1"),
 					})
 				);
 				expect(store.getMissionRecord("mission-1")).toEqual(
@@ -246,6 +281,15 @@ describe("createFf15OperationRuntimeProbeService", () => {
 						workflow: expect.objectContaining({
 							activeTask: "Ignis Turn",
 							currentStep: "ignis-turn",
+							stepHistory: [
+								expect.objectContaining({
+									fromAgent: "noctis",
+									fromStep: "start",
+									handoffSummary: "りんご",
+									next: "ignis-turn",
+									taskId: "task-start",
+								}),
+							],
 						}),
 					})
 				);
