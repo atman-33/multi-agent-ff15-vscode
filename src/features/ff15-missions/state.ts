@@ -31,12 +31,22 @@ export interface Ff15MissionWorkflowProbe {
 	verdict: Ff15MissionWorkflowProbeVerdict | null;
 }
 
+export interface Ff15MissionWorkflowStepHistoryEntry {
+	completedAt: string | null;
+	fromAgent: string | null;
+	fromStep: string | null;
+	handoffSummary: string | null;
+	next: string | null;
+	taskId: string | null;
+}
+
 export interface Ff15MissionWorkflowState {
 	activeTask: string | null;
 	currentStep: string | null;
 	lastReportSummary: string | null;
 	probe: Ff15MissionWorkflowProbe;
 	runtimeStatus: Ff15MissionWorkflowRuntimeStatus | null;
+	stepHistory: Ff15MissionWorkflowStepHistoryEntry[];
 }
 
 export interface Ff15MissionSummary {
@@ -57,6 +67,16 @@ export interface Ff15MissionRecord extends Ff15MissionSummary {
 	schemaVersion: 1;
 }
 
+export interface Ff15MissionRecordPatch {
+	agentPanes?: Ff15MissionAgentPanes;
+	lastError?: string | null;
+	operationRef?: string | null;
+	sessionName?: string | null;
+	status?: Ff15MissionStatus;
+	workflow?: Partial<Ff15MissionWorkflowState>;
+	workspaceRoot?: string | null;
+}
+
 export interface Ff15MissionsStoreSnapshot {
 	activeMissionId: string | null;
 	missions: Ff15MissionSummary[];
@@ -70,18 +90,7 @@ export interface Ff15MissionsStore {
 	selectMission: (missionId: string) => Promise<Ff15MissionsStoreSnapshot>;
 	updateMission: (
 		missionId: string,
-		patch: Partial<
-			Pick<
-				Ff15MissionRecord,
-				| "agentPanes"
-				| "lastError"
-				| "operationRef"
-				| "sessionName"
-				| "status"
-				| "workflow"
-				| "workspaceRoot"
-			>
-		>
+		patch: Ff15MissionRecordPatch
 	) => Promise<Ff15MissionsStoreSnapshot>;
 }
 
@@ -115,6 +124,7 @@ export const createEmptyFf15MissionWorkflowState =
 			verdict: null,
 		},
 		runtimeStatus: null,
+		stepHistory: [],
 	});
 
 const isMissionSummary = (value: unknown): value is Ff15MissionSummary => {
@@ -181,6 +191,37 @@ const normalizeWorkflowProbe = (value: unknown): Ff15MissionWorkflowProbe => {
 	};
 };
 
+const normalizeWorkflowStepHistoryEntry = (
+	value: unknown
+): Ff15MissionWorkflowStepHistoryEntry | null => {
+	if (!value || typeof value !== "object") {
+		return null;
+	}
+
+	const entry = value as Record<string, unknown>;
+	return {
+		completedAt:
+			typeof entry.completedAt === "string" ? entry.completedAt : null,
+		fromAgent: typeof entry.fromAgent === "string" ? entry.fromAgent : null,
+		fromStep: typeof entry.fromStep === "string" ? entry.fromStep : null,
+		handoffSummary:
+			typeof entry.handoffSummary === "string" ? entry.handoffSummary : null,
+		next: typeof entry.next === "string" ? entry.next : null,
+		taskId: typeof entry.taskId === "string" ? entry.taskId : null,
+	};
+};
+
+const normalizeWorkflowStepHistory = (
+	value: unknown
+): Ff15MissionWorkflowStepHistoryEntry[] =>
+	Array.isArray(value)
+		? value
+				.map((entry) => normalizeWorkflowStepHistoryEntry(entry))
+				.filter(
+					(entry): entry is Ff15MissionWorkflowStepHistoryEntry => entry != null
+				)
+		: [];
+
 const normalizeWorkflowState = (value: unknown): Ff15MissionWorkflowState => {
 	if (!value || typeof value !== "object") {
 		return createEmptyFf15MissionWorkflowState();
@@ -203,8 +244,23 @@ const normalizeWorkflowState = (value: unknown): Ff15MissionWorkflowState => {
 			workflow.runtimeStatus === "unavailable"
 				? workflow.runtimeStatus
 				: null,
+		stepHistory: normalizeWorkflowStepHistory(workflow.stepHistory),
 	};
 };
+
+const mergeWorkflowState = (
+	existing: Ff15MissionWorkflowState,
+	patch: Partial<Ff15MissionWorkflowState>
+): Ff15MissionWorkflowState =>
+	normalizeWorkflowState({
+		...existing,
+		...patch,
+		probe: {
+			...existing.probe,
+			...(patch.probe ?? {}),
+		},
+		stepHistory: patch.stepHistory ?? existing.stepHistory,
+	});
 
 const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 	if (!isMissionSummary(value)) {
@@ -543,7 +599,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 						? normalizeAgentPanes(patch.agentPanes)
 						: mission.agentPanes,
 					workflow: patch.workflow
-						? normalizeWorkflowState(patch.workflow)
+						? mergeWorkflowState(mission.workflow, patch.workflow)
 						: mission.workflow,
 					updatedAt,
 					workspaceRoot:

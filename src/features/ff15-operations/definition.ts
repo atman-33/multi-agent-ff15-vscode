@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parse } from "yaml";
-import { FF15_WORKSPACE_RUNTIME_DIR_NAME } from "../ff15-missions/state";
+import {
+	type Ff15MissionWorkflowStepHistoryEntry,
+	FF15_WORKSPACE_RUNTIME_DIR_NAME,
+} from "../ff15-missions/state";
 import {
 	FF15_BUNDLED_OPERATION_DEFINITIONS,
 	FF15_WORKSPACE_OPERATIONS_DIR_NAME,
@@ -361,6 +364,32 @@ const buildOutputContractSections = (
 		)
 		.filter((section): section is string => section != null);
 
+const buildOperationStepSections = (
+	activation: Ff15MissionOperationActivation
+): string[] =>
+	[
+		buildTextSection("job", activation.step?.job ?? null),
+		buildReferenceFilesSection(activation.step?.skills ?? []),
+		buildTextSection("instruction", activation.step?.instruction ?? null),
+		...(activation.step?.policies ?? [])
+			.map((policy) => buildTextSection("policy", policy))
+			.filter((section): section is string => section != null),
+		...buildOutputContractSections(activation.step?.outputContracts ?? []),
+	].filter((section): section is string => section != null);
+
+const buildHandoffContextSection = (
+	handoff: Ff15MissionWorkflowStepHistoryEntry | null
+): string | null =>
+	buildPlainSection("handoff-context", [
+		`previous_step: ${handoff?.fromStep ?? "unknown"}`,
+		`previous_step_owner: ${handoff?.fromAgent ?? "unknown"}`,
+		`task_id: ${handoff?.taskId ?? "unknown"}`,
+		`selected_next: ${handoff?.next ?? "unknown"}`,
+		`handoff_summary: ${
+			handoff?.handoffSummary ?? "No handoff summary provided."
+		}`,
+	]);
+
 const describeNextMessageGuidance = (
 	operationDefinition: Ff15MissionOperationDefinition,
 	next: string
@@ -527,18 +556,7 @@ export const buildOperationAwarePrompt = (input: {
 				`task: ${input.activation.activeTask}`,
 				`agent: ${input.activation.stepAgent ?? "noctis"}`,
 			]),
-			buildTextSection("job", input.activation.step?.job ?? null),
-			buildReferenceFilesSection(input.activation.step?.skills ?? []),
-			buildTextSection(
-				"instruction",
-				input.activation.step?.instruction ?? null
-			),
-			...(input.activation.step?.policies ?? [])
-				.map((policy) => buildTextSection("policy", policy))
-				.filter((section): section is string => section != null),
-			...buildOutputContractSections(
-				input.activation.step?.outputContracts ?? []
-			),
+			...buildOperationStepSections(input.activation),
 			buildStepCompletionContract({
 				activation: input.activation,
 				missionId: input.missionId,
@@ -547,6 +565,45 @@ export const buildOperationAwarePrompt = (input: {
 			buildTextSection("user-request", input.prompt, {
 				from: "user",
 				to: "noctis",
+			}),
+		]
+			.filter((section): section is string => section != null)
+			.join("\n\n")
+	) ?? "";
+
+export const buildWorkerOperationAwarePrompt = (input: {
+	activation: Ff15MissionOperationActivation;
+	handoff: Ff15MissionWorkflowStepHistoryEntry | null;
+	missionId: string;
+	workspaceRoot: string;
+}): string =>
+	wrapXmlSection(
+		"operation-prompt",
+		[
+			buildPlainSection("workspace-context", [
+				`project_root: ${input.workspaceRoot}`,
+			]),
+			buildPlainSection("tooling-context", [
+				`activate_project: ${input.workspaceRoot}`,
+				`openspec_root: ${input.workspaceRoot}`,
+				`bridge_scripts_dir: ${join(
+					input.workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					"bridge"
+				)}`,
+			]),
+			buildPlainSection("workflow-context", [
+				`operation: ${input.activation.operationName}`,
+				`step: ${input.activation.stepName}`,
+				`task: ${input.activation.activeTask}`,
+				`agent: ${input.activation.stepAgent ?? "noctis"}`,
+			]),
+			buildHandoffContextSection(input.handoff),
+			...buildOperationStepSections(input.activation),
+			buildStepCompletionContract({
+				activation: input.activation,
+				missionId: input.missionId,
+				workspaceRoot: input.workspaceRoot,
 			}),
 		]
 			.filter((section): section is string => section != null)
