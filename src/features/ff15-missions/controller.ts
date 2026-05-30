@@ -103,6 +103,7 @@ const activateOperationWorkflow = (input: {
 			},
 			missionId: input.missionId,
 			prompt: input.prompt,
+			workflow: input.workflow,
 			workspaceRoot: input.workspaceRoot,
 		}),
 		workflow: {

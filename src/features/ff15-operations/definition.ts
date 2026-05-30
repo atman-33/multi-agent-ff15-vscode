@@ -2,7 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parse } from "yaml";
 import {
+	createEmptyFf15MissionWorkflowState,
 	type Ff15MissionWorkflowStepHistoryEntry,
+	type Ff15MissionWorkflowState,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
 import {
@@ -47,6 +49,11 @@ const LINE_SPLIT_PATTERN = /\r?\n/u;
 const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---/u;
 const FILE_EXTENSION_PATTERN = /\.[^.]+$/u;
 const XML_ESCAPE_PATTERN = /["&'<>]/gu;
+const OUTPUT_PLACEHOLDER_PATTERN =
+	/\{\{\s*output\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)\s*\}\}/gu;
+const SETTING_PLACEHOLDER_PATTERN =
+	/\{\{\s*setting\("([^"]+)",\s*"([^"]+)"\)\s*\}\}/gu;
+const ROOT_PLACEHOLDER_PATTERN = /\{\{\s*root\("([^"]+)"\)\s*\}\}/gu;
 const XML_ESCAPES: Record<string, string> = {
 	'"': "&quot;",
 	"&": "&amp;",
@@ -89,6 +96,17 @@ export interface Ff15MissionOperationDefinition {
 	initialStep: string | null;
 	name: string;
 	steps: Ff15MissionOperationStep[];
+}
+
+export interface Ff15OperationPromptSettings {
+	languageName?: string | null;
+}
+
+interface Ff15OperationPromptResolutionContext {
+	missionId: string;
+	settings?: Ff15OperationPromptSettings;
+	workflow: Ff15MissionWorkflowState;
+	workspaceRoot: string;
 }
 
 const getOperationFileName = (operationRef: string): string | null =>
@@ -351,30 +369,226 @@ const buildReferenceFilesSection = (skillPaths: string[]): string | null => {
 };
 
 const buildOutputContractSections = (
-	outputContracts: Ff15MissionOperationOutputContract[]
+	activation: Ff15MissionOperationActivation,
+	outputContracts: Ff15MissionOperationOutputContract[],
+	context: Ff15OperationPromptResolutionContext
 ): string[] =>
 	outputContracts
 		.map((outputContract) =>
 			buildTextSection(
 				"output-contract",
-				[`name: ${outputContract.name}`, outputContract.format]
+				[
+					`name: ${outputContract.name}`,
+					resolveInstructionPlaceholders({
+						content: outputContract.format,
+						definition: activation.definition,
+						context,
+					}),
+				]
 					.filter((line): line is string => line != null && line.length > 0)
 					.join("\n\n")
 			)
 		)
 		.filter((section): section is string => section != null);
 
+const normalizeLanguagePlaceholderValue = (
+	languageName: string | null | undefined
+): string => {
+	if (!languageName || languageName.trim().length === 0) {
+		return "english";
+	}
+
+	const normalized = languageName.trim().toLowerCase();
+	if (normalized === "ja") {
+		return "japanese";
+	}
+
+	if (normalized === "en") {
+		return "english";
+	}
+
+	return normalized;
+};
+
+const resolveOutputPlaceholderPath = (input: {
+	context: Ff15OperationPromptResolutionContext;
+	definition: Ff15MissionOperationDefinition;
+	fileName: string;
+	selector: string;
+	stepName: string;
+}): string => {
+	const referencedStep =
+		input.definition.steps.find((step) => step.name === input.stepName) ?? null;
+	if (!referencedStep) {
+		throw new Error(
+			`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". Unknown step.`
+		);
+	}
+
+	if (
+		!referencedStep.outputContracts.some(
+			(contract) => contract.name === input.fileName
+		)
+	) {
+		throw new Error(
+			`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". Step does not declare output contract "${input.fileName}".`
+		);
+	}
+
+	const matchingEntries = input.context.workflow.stepHistory.filter(
+		(entry) => entry.fromStep === input.stepName && entry.taskId != null
+	);
+	if (input.selector === "latest") {
+		if (matchingEntries.length === 0) {
+			throw new Error(
+				`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". No completed output recorded for selector "latest".`
+			);
+		}
+	} else if (input.selector.startsWith("task:")) {
+		const taskId = input.selector.slice("task:".length);
+		if (!matchingEntries.some((entry) => entry.taskId === taskId)) {
+			throw new Error(
+				`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". No completed output recorded for selector "${input.selector}".`
+			);
+		}
+	} else {
+		throw new Error(
+			`Unsupported output placeholder selector "${input.selector}" for step "${input.stepName}".`
+		);
+	}
+
+	const outputPath = join(input.context.workspaceRoot, input.fileName);
+	if (!existsSync(outputPath)) {
+		throw new Error(
+			`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". Missing file at ${outputPath}.`
+		);
+	}
+
+	return outputPath;
+};
+
+const resolveSettingPlaceholderValue = (
+	key: string,
+	mode: string,
+	settings?: Ff15OperationPromptSettings
+): string => {
+	if (key !== "language") {
+		throw new Error(`Unsupported setting placeholder key "${key}".`);
+	}
+
+	if (mode !== "name") {
+		throw new Error(
+			`Unsupported setting placeholder mode "${mode}" for key "${key}".`
+		);
+	}
+
+	return normalizeLanguagePlaceholderValue(settings?.languageName);
+};
+
+const resolveRootPlaceholderValue = (
+	scope: string,
+	workspaceRoot: string
+): string => {
+	if (scope === "app_root" || scope === "execution_root") {
+		return workspaceRoot;
+	}
+
+	throw new Error(`Unsupported root placeholder scope "${scope}".`);
+};
+
+const resolveInstructionPlaceholders = (input: {
+	content: string | null;
+	context: Ff15OperationPromptResolutionContext;
+	definition: Ff15MissionOperationDefinition;
+}): string | null => {
+	if (!input.content?.includes("{{")) {
+		return input.content;
+	}
+
+	const outputResolved = input.content.replace(
+		OUTPUT_PLACEHOLDER_PATTERN,
+		(_match, stepName: string, selector: string, fileName: string) =>
+			resolveOutputPlaceholderPath({
+				context: input.context,
+				definition: input.definition,
+				fileName,
+				selector,
+				stepName,
+			})
+	);
+
+	const settingResolved = outputResolved.replace(
+		SETTING_PLACEHOLDER_PATTERN,
+		(_match, key: string, mode: string) =>
+			resolveSettingPlaceholderValue(key, mode, input.context.settings)
+	);
+
+	const resolved = settingResolved.replace(
+		ROOT_PLACEHOLDER_PATTERN,
+		(_match, scope: string) =>
+			resolveRootPlaceholderValue(scope, input.context.workspaceRoot)
+	);
+
+	if (resolved.includes("{{ output(")) {
+		throw new Error(
+			'Invalid output placeholder syntax. Use {{ output("step", "selector", "file") }}.'
+		);
+	}
+
+	if (resolved.includes("{{ setting(")) {
+		throw new Error(
+			'Invalid setting placeholder syntax. Use {{ setting("key", "mode") }}.'
+		);
+	}
+
+	if (resolved.includes("{{ root(")) {
+		throw new Error(
+			'Invalid root placeholder syntax. Use {{ root("scope") }}.'
+		);
+	}
+
+	return resolved;
+};
+
 const buildOperationStepSections = (
-	activation: Ff15MissionOperationActivation
+	activation: Ff15MissionOperationActivation,
+	context: Ff15OperationPromptResolutionContext
 ): string[] =>
 	[
-		buildTextSection("job", activation.step?.job ?? null),
+		buildTextSection(
+			"job",
+			resolveInstructionPlaceholders({
+				content: activation.step?.job ?? null,
+				context,
+				definition: activation.definition,
+			})
+		),
 		buildReferenceFilesSection(activation.step?.skills ?? []),
-		buildTextSection("instruction", activation.step?.instruction ?? null),
+		buildTextSection(
+			"instruction",
+			resolveInstructionPlaceholders({
+				content: activation.step?.instruction ?? null,
+				context,
+				definition: activation.definition,
+			})
+		),
 		...(activation.step?.policies ?? [])
-			.map((policy) => buildTextSection("policy", policy))
+			.map((policy) =>
+				buildTextSection(
+					"policy",
+					resolveInstructionPlaceholders({
+						content: policy,
+						context,
+						definition: activation.definition,
+					})
+				)
+			)
 			.filter((section): section is string => section != null),
-		...buildOutputContractSections(activation.step?.outputContracts ?? []),
+		...buildOutputContractSections(
+			activation,
+			activation.step?.outputContracts ?? [],
+			context
+		),
 	].filter((section): section is string => section != null);
 
 const buildHandoffContextSection = (
@@ -533,6 +747,8 @@ export const buildOperationAwarePrompt = (input: {
 	activation: Ff15MissionOperationActivation;
 	missionId: string;
 	prompt: string;
+	settings?: Ff15OperationPromptSettings;
+	workflow?: Ff15MissionWorkflowState;
 	workspaceRoot: string;
 }): string =>
 	wrapXmlSection(
@@ -556,7 +772,12 @@ export const buildOperationAwarePrompt = (input: {
 				`task: ${input.activation.activeTask}`,
 				`agent: ${input.activation.stepAgent ?? "noctis"}`,
 			]),
-			...buildOperationStepSections(input.activation),
+			...buildOperationStepSections(input.activation, {
+				missionId: input.missionId,
+				settings: input.settings,
+				workflow: input.workflow ?? createEmptyFf15MissionWorkflowState(),
+				workspaceRoot: input.workspaceRoot,
+			}),
 			buildStepCompletionContract({
 				activation: input.activation,
 				missionId: input.missionId,
@@ -575,6 +796,8 @@ export const buildWorkerOperationAwarePrompt = (input: {
 	activation: Ff15MissionOperationActivation;
 	handoff: Ff15MissionWorkflowStepHistoryEntry | null;
 	missionId: string;
+	settings?: Ff15OperationPromptSettings;
+	workflow?: Ff15MissionWorkflowState;
 	workspaceRoot: string;
 }): string =>
 	wrapXmlSection(
@@ -599,7 +822,12 @@ export const buildWorkerOperationAwarePrompt = (input: {
 				`agent: ${input.activation.stepAgent ?? "noctis"}`,
 			]),
 			buildHandoffContextSection(input.handoff),
-			...buildOperationStepSections(input.activation),
+			...buildOperationStepSections(input.activation, {
+				missionId: input.missionId,
+				settings: input.settings,
+				workflow: input.workflow ?? createEmptyFf15MissionWorkflowState(),
+				workspaceRoot: input.workspaceRoot,
+			}),
 			buildStepCompletionContract({
 				activation: input.activation,
 				missionId: input.missionId,
