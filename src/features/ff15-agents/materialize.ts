@@ -25,6 +25,14 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 		relativePath: [".github", "agents", "prompto.agent.md"],
 	},
 	{
+		relativePath: [
+			".github",
+			"skills",
+			"workspace-operation-customization",
+			"SKILL.md",
+		],
+	},
+	{
 		relativePath: [".opencode", "agents", "gladiolus.md"],
 	},
 	{
@@ -41,6 +49,23 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 	},
 	{
 		relativePath: [".opencode", "agents", "prompto.md"],
+	},
+	{
+		relativePath: [
+			".opencode",
+			"skills",
+			"workspace-operation-customization",
+			"SKILL.md",
+		],
+	},
+	{
+		relativePath: [
+			".opencode",
+			"skills",
+			"workspace-operation-customization",
+			"scripts",
+			"validate-operation-yaml.py",
+		],
 	},
 ] as const satisfies readonly Ff15WorkspaceTemplateFileDefinition[];
 
