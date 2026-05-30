@@ -399,6 +399,156 @@ describe("createFf15OperationRuntimeProbeService", () => {
 		}
 	});
 
+	it("accepts a repeated step attempt with an incremented task id and dispatches the latest attempt artifact", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedOutputAwareWorkerDispatchOperation(workspaceRoot);
+			const firstAttemptOutputPath = getWorkspaceMissionOutputFilePath({
+				fileName: "spec-plan.md",
+				missionId: "mission-1",
+				stepName: "spec-planning",
+				taskId: "task-spec-planning",
+				workspaceRoot,
+			});
+			mkdirSync(dirname(firstAttemptOutputPath), { recursive: true });
+			writeFileSync(
+				firstAttemptOutputPath,
+				"---\nchange_name: first-attempt\n---\n",
+				"utf8"
+			);
+
+			const secondAttemptOutputPath = getWorkspaceMissionOutputFilePath({
+				fileName: "spec-plan.md",
+				missionId: "mission-1",
+				stepName: "spec-planning",
+				taskId: "task-spec-planning-2",
+				workspaceRoot,
+			});
+			mkdirSync(dirname(secondAttemptOutputPath), { recursive: true });
+			writeFileSync(
+				secondAttemptOutputPath,
+				"---\nchange_name: second-attempt\n---\n",
+				"utf8"
+			);
+
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-30T08:30:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Spec Planning",
+					currentStep: "spec-planning",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-30T08:29:00.000Z",
+						summary: "Runtime prepared for repeated step dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+					stepHistory: [
+						{
+							completedAt: "2026-05-30T08:28:00.000Z",
+							fromAgent: "noctis",
+							fromStep: "spec-planning",
+							handoffSummary: "First attempt completed.",
+							next: "implement",
+							taskId: "task-spec-planning",
+						},
+					],
+				},
+				workspaceRoot,
+			});
+
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-30T08:31:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes: vi.fn().mockResolvedValue({
+						gladiolus: "terminal_1",
+						ignis: "terminal_2",
+						noctis: "terminal_0",
+						prompto: "terminal_3",
+					}),
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "Second spec attempt is ready.",
+						next: "implement",
+						taskId: "task-spec-planning-2",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(200);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						paneId: "terminal_1",
+						prompt: expect.stringContaining(secondAttemptOutputPath),
+						sessionName: "ff15-session",
+					})
+				);
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError: null,
+						workflow: expect.objectContaining({
+							currentStep: "implement",
+							stepHistory: [
+								expect.objectContaining({
+									taskId: "task-spec-planning",
+								}),
+								expect.objectContaining({
+									taskId: "task-spec-planning-2",
+								}),
+							],
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("rejects a report transition when the current step's required output artifact is missing", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
 

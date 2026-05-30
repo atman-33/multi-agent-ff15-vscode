@@ -346,7 +346,57 @@ const readSkillMetadata = (skillPath: string) => {
 	};
 };
 
-const getOperationStepTaskId = (stepName: string) => `task-${stepName}`;
+const getOperationStepTaskPrefix = (stepName: string) => `task-${stepName}`;
+
+const getRecordedTaskAttemptNumber = (input: {
+	stepName: string;
+	workflow: Ff15MissionWorkflowState;
+}): number => {
+	const taskIdPrefix = getOperationStepTaskPrefix(input.stepName);
+	let highestAttempt = 0;
+
+	for (const historyEntry of input.workflow.stepHistory) {
+		if (historyEntry.fromStep !== input.stepName) {
+			continue;
+		}
+
+		const taskId =
+			typeof historyEntry.taskId === "string" ? historyEntry.taskId.trim() : "";
+		if (taskId.length === 0) {
+			continue;
+		}
+
+		if (taskId === taskIdPrefix) {
+			highestAttempt = Math.max(highestAttempt, 1);
+			continue;
+		}
+
+		if (!taskId.startsWith(`${taskIdPrefix}-`)) {
+			continue;
+		}
+
+		const suffix = taskId.slice(`${taskIdPrefix}-`.length);
+		const parsedAttempt = Number.parseInt(suffix, 10);
+		if (Number.isFinite(parsedAttempt) && parsedAttempt >= 2) {
+			highestAttempt = Math.max(highestAttempt, parsedAttempt);
+		}
+	}
+
+	return highestAttempt;
+};
+
+export const getOperationStepTaskId = (input: {
+	stepName: string;
+	workflow: Ff15MissionWorkflowState;
+}): string => {
+	const taskIdPrefix = getOperationStepTaskPrefix(input.stepName);
+	const highestRecordedAttempt = getRecordedTaskAttemptNumber(input);
+	if (highestRecordedAttempt === 0) {
+		return taskIdPrefix;
+	}
+
+	return `${taskIdPrefix}-${highestRecordedAttempt + 1}`;
+};
 
 const buildReferenceFilesSection = (skillPaths: string[]): string | null => {
 	const referenceFiles = skillPaths
@@ -380,7 +430,10 @@ const buildOutputContractSections = (
 				fileName: outputContract.name,
 				missionId: context.missionId,
 				stepName: activation.stepName,
-				taskId: getOperationStepTaskId(activation.stepName),
+				taskId: getOperationStepTaskId({
+					stepName: activation.stepName,
+					workflow: context.workflow,
+				}),
 				workspaceRoot: context.workspaceRoot,
 			});
 
@@ -682,6 +735,7 @@ const describeNextMessageGuidance = (
 const buildStepCompletionContract = (input: {
 	activation: Ff15MissionOperationActivation;
 	missionId: string;
+	workflow: Ff15MissionWorkflowState;
 	workspaceRoot: string;
 }): string | null => {
 	if (!input.activation.step || input.activation.step.rules.length === 0) {
@@ -694,7 +748,10 @@ const buildStepCompletionContract = (input: {
 		"bridge",
 		"submit-report.ps1"
 	);
-	const taskId = getOperationStepTaskId(input.activation.stepName);
+	const taskId = getOperationStepTaskId({
+		stepName: input.activation.stepName,
+		workflow: input.workflow,
+	});
 
 	return buildTextSection(
 		"step-completion-contract",
@@ -800,47 +857,53 @@ export const buildOperationAwarePrompt = (input: {
 	settings?: Ff15OperationPromptSettings;
 	workflow?: Ff15MissionWorkflowState;
 	workspaceRoot: string;
-}): string =>
-	wrapXmlSection(
-		"operation-prompt",
-		[
-			buildPlainSection("workspace-context", [
-				`project_root: ${input.workspaceRoot}`,
-			]),
-			buildPlainSection("tooling-context", [
-				`activate_project: ${input.workspaceRoot}`,
-				`openspec_root: ${input.workspaceRoot}`,
-				`bridge_scripts_dir: ${join(
-					input.workspaceRoot,
-					FF15_WORKSPACE_RUNTIME_DIR_NAME,
-					"bridge"
-				)}`,
-			]),
-			buildPlainSection("workflow-context", [
-				`operation: ${input.activation.operationName}`,
-				`step: ${input.activation.stepName}`,
-				`task: ${input.activation.activeTask}`,
-				`agent: ${input.activation.stepAgent ?? "noctis"}`,
-			]),
-			...buildOperationStepSections(input.activation, {
-				missionId: input.missionId,
-				settings: input.settings,
-				workflow: input.workflow ?? createEmptyFf15MissionWorkflowState(),
-				workspaceRoot: input.workspaceRoot,
-			}),
-			buildStepCompletionContract({
-				activation: input.activation,
-				missionId: input.missionId,
-				workspaceRoot: input.workspaceRoot,
-			}),
-			buildTextSection("user-request", input.prompt, {
-				from: "user",
-				to: "noctis",
-			}),
-		]
-			.filter((section): section is string => section != null)
-			.join("\n\n")
-	) ?? "";
+}): string => {
+	const workflow = input.workflow ?? createEmptyFf15MissionWorkflowState();
+
+	return (
+		wrapXmlSection(
+			"operation-prompt",
+			[
+				buildPlainSection("workspace-context", [
+					`project_root: ${input.workspaceRoot}`,
+				]),
+				buildPlainSection("tooling-context", [
+					`activate_project: ${input.workspaceRoot}`,
+					`openspec_root: ${input.workspaceRoot}`,
+					`bridge_scripts_dir: ${join(
+						input.workspaceRoot,
+						FF15_WORKSPACE_RUNTIME_DIR_NAME,
+						"bridge"
+					)}`,
+				]),
+				buildPlainSection("workflow-context", [
+					`operation: ${input.activation.operationName}`,
+					`step: ${input.activation.stepName}`,
+					`task: ${input.activation.activeTask}`,
+					`agent: ${input.activation.stepAgent ?? "noctis"}`,
+				]),
+				...buildOperationStepSections(input.activation, {
+					missionId: input.missionId,
+					settings: input.settings,
+					workflow,
+					workspaceRoot: input.workspaceRoot,
+				}),
+				buildStepCompletionContract({
+					activation: input.activation,
+					missionId: input.missionId,
+					workflow,
+					workspaceRoot: input.workspaceRoot,
+				}),
+				buildTextSection("user-request", input.prompt, {
+					from: "user",
+					to: "noctis",
+				}),
+			]
+				.filter((section): section is string => section != null)
+				.join("\n\n")
+		) ?? ""
+	);
+};
 
 export const buildWorkerOperationAwarePrompt = (input: {
 	activation: Ff15MissionOperationActivation;
@@ -849,41 +912,47 @@ export const buildWorkerOperationAwarePrompt = (input: {
 	settings?: Ff15OperationPromptSettings;
 	workflow?: Ff15MissionWorkflowState;
 	workspaceRoot: string;
-}): string =>
-	wrapXmlSection(
-		"operation-prompt",
-		[
-			buildPlainSection("workspace-context", [
-				`project_root: ${input.workspaceRoot}`,
-			]),
-			buildPlainSection("tooling-context", [
-				`activate_project: ${input.workspaceRoot}`,
-				`openspec_root: ${input.workspaceRoot}`,
-				`bridge_scripts_dir: ${join(
-					input.workspaceRoot,
-					FF15_WORKSPACE_RUNTIME_DIR_NAME,
-					"bridge"
-				)}`,
-			]),
-			buildPlainSection("workflow-context", [
-				`operation: ${input.activation.operationName}`,
-				`step: ${input.activation.stepName}`,
-				`task: ${input.activation.activeTask}`,
-				`agent: ${input.activation.stepAgent ?? "noctis"}`,
-			]),
-			buildHandoffContextSection(input.handoff),
-			...buildOperationStepSections(input.activation, {
-				missionId: input.missionId,
-				settings: input.settings,
-				workflow: input.workflow ?? createEmptyFf15MissionWorkflowState(),
-				workspaceRoot: input.workspaceRoot,
-			}),
-			buildStepCompletionContract({
-				activation: input.activation,
-				missionId: input.missionId,
-				workspaceRoot: input.workspaceRoot,
-			}),
-		]
-			.filter((section): section is string => section != null)
-			.join("\n\n")
-	) ?? "";
+}): string => {
+	const workflow = input.workflow ?? createEmptyFf15MissionWorkflowState();
+
+	return (
+		wrapXmlSection(
+			"operation-prompt",
+			[
+				buildPlainSection("workspace-context", [
+					`project_root: ${input.workspaceRoot}`,
+				]),
+				buildPlainSection("tooling-context", [
+					`activate_project: ${input.workspaceRoot}`,
+					`openspec_root: ${input.workspaceRoot}`,
+					`bridge_scripts_dir: ${join(
+						input.workspaceRoot,
+						FF15_WORKSPACE_RUNTIME_DIR_NAME,
+						"bridge"
+					)}`,
+				]),
+				buildPlainSection("workflow-context", [
+					`operation: ${input.activation.operationName}`,
+					`step: ${input.activation.stepName}`,
+					`task: ${input.activation.activeTask}`,
+					`agent: ${input.activation.stepAgent ?? "noctis"}`,
+				]),
+				buildHandoffContextSection(input.handoff),
+				...buildOperationStepSections(input.activation, {
+					missionId: input.missionId,
+					settings: input.settings,
+					workflow,
+					workspaceRoot: input.workspaceRoot,
+				}),
+				buildStepCompletionContract({
+					activation: input.activation,
+					missionId: input.missionId,
+					workflow,
+					workspaceRoot: input.workspaceRoot,
+				}),
+			]
+				.filter((section): section is string => section != null)
+				.join("\n\n")
+		) ?? ""
+	);
+};

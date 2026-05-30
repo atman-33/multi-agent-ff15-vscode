@@ -29,6 +29,7 @@ import {
 	type Ff15MissionOperationActivation,
 	type Ff15MissionOperationStep,
 	formatFf15OperationTaskLabel,
+	getOperationStepTaskId,
 	loadMissionOperationDefinition,
 } from "./definition";
 
@@ -137,8 +138,6 @@ const isMissionAgentId = (
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
 	error instanceof Error && error.message.length > 0 ? error.message : fallback;
-
-const getOperationStepTaskId = (stepName: string) => `task-${stepName}`;
 
 const createFollowupStepActivation = (
 	operationDefinition: NonNullable<
@@ -561,7 +560,10 @@ export const createFf15OperationRuntimeProbeService = (
 			);
 		}
 
-		const taskId = getOperationStepTaskId(input.activation.stepName);
+		const taskId = getOperationStepTaskId({
+			stepName: input.activation.stepName,
+			workflow: input.workflow,
+		});
 		await options.missionTransport.sendPrompt({
 			paneId,
 			prompt: buildWorkerOperationAwarePrompt({
@@ -590,7 +592,10 @@ export const createFf15OperationRuntimeProbeService = (
 			return null;
 		}
 
-		const expectedTaskId = getOperationStepTaskId(input.activeStep.name);
+		const expectedTaskId = getOperationStepTaskId({
+			stepName: input.activeStep.name,
+			workflow: input.mission.workflow,
+		});
 		if (input.taskId !== expectedTaskId) {
 			return `Invalid taskId for ${input.activeStep.name}: expected ${expectedTaskId}, received ${input.taskId ?? "<missing>"}`;
 		}

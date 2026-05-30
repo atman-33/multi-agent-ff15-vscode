@@ -341,6 +341,50 @@ describe("ff15 operation definition", () => {
 		}
 	});
 
+	it("uses a distinct task id and output directory for repeated attempts of the same step", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-prompt-retry-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedRichOperationBundle(workspaceRoot);
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:github-issue-openspec-dev"
+			);
+			expect(activation).not.toBeNull();
+
+			const workflow = createCompletedStepWorkflow(
+				"spec-planning",
+				"implement",
+				"task-spec-planning"
+			);
+			const prompt = buildOperationAwarePrompt({
+				activation: activation!,
+				missionId: "mission-1",
+				prompt: "Retry spec planning",
+				workflow,
+				workspaceRoot,
+			});
+
+			const expectedSecondAttemptOutputPath = getWorkspaceMissionOutputFilePath(
+				{
+					fileName: "spec-plan.md",
+					missionId: "mission-1",
+					stepName: "spec-planning",
+					taskId: "task-spec-planning-2",
+					workspaceRoot,
+				}
+			);
+
+			expect(prompt).toContain(expectedSecondAttemptOutputPath);
+			expect(prompt).toContain("task-spec-planning-2");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("resolves bundled output and language placeholders before XML prompt delivery", () => {
 		const workspaceRoot = join(
 			tmpdir(),
