@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { parse } from "yaml";
 import {
 	createEmptyFf15MissionWorkflowState,
+	getWorkspaceMissionOutputFilePath,
 	type Ff15MissionWorkflowStepHistoryEntry,
 	type Ff15MissionWorkflowState,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
@@ -374,11 +375,21 @@ const buildOutputContractSections = (
 	context: Ff15OperationPromptResolutionContext
 ): string[] =>
 	outputContracts
-		.map((outputContract) =>
-			buildTextSection(
+		.map((outputContract) => {
+			const outputPath = getWorkspaceMissionOutputFilePath({
+				fileName: outputContract.name,
+				missionId: context.missionId,
+				stepName: activation.stepName,
+				taskId: getOperationStepTaskId(activation.stepName),
+				workspaceRoot: context.workspaceRoot,
+			});
+
+			return buildTextSection(
 				"output-contract",
 				[
 					`name: ${outputContract.name}`,
+					`path: ${outputPath}`,
+					`Create the file at ${outputPath} using the following format.`,
 					resolveInstructionPlaceholders({
 						content: outputContract.format,
 						definition: activation.definition,
@@ -387,8 +398,8 @@ const buildOutputContractSections = (
 				]
 					.filter((line): line is string => line != null && line.length > 0)
 					.join("\n\n")
-			)
-		)
+			);
+		})
 		.filter((section): section is string => section != null);
 
 const normalizeLanguagePlaceholderValue = (
@@ -435,29 +446,19 @@ const resolveOutputPlaceholderPath = (input: {
 		);
 	}
 
-	const matchingEntries = input.context.workflow.stepHistory.filter(
-		(entry) => entry.fromStep === input.stepName && entry.taskId != null
-	);
-	if (input.selector === "latest") {
-		if (matchingEntries.length === 0) {
-			throw new Error(
-				`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". No completed output recorded for selector "latest".`
-			);
-		}
-	} else if (input.selector.startsWith("task:")) {
-		const taskId = input.selector.slice("task:".length);
-		if (!matchingEntries.some((entry) => entry.taskId === taskId)) {
-			throw new Error(
-				`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". No completed output recorded for selector "${input.selector}".`
-			);
-		}
-	} else {
-		throw new Error(
-			`Unsupported output placeholder selector "${input.selector}" for step "${input.stepName}".`
-		);
-	}
+	const taskId = resolveCompletedTaskId({
+		selector: input.selector,
+		stepName: input.stepName,
+		workflow: input.context.workflow,
+	});
 
-	const outputPath = join(input.context.workspaceRoot, input.fileName);
+	const outputPath = getWorkspaceMissionOutputFilePath({
+		fileName: input.fileName,
+		missionId: input.context.missionId,
+		stepName: input.stepName,
+		taskId,
+		workspaceRoot: input.context.workspaceRoot,
+	});
 	if (!existsSync(outputPath)) {
 		throw new Error(
 			`Could not resolve output placeholder for step "${input.stepName}" and file "${input.fileName}". Missing file at ${outputPath}.`
@@ -465,6 +466,55 @@ const resolveOutputPlaceholderPath = (input: {
 	}
 
 	return outputPath;
+};
+
+const resolveCompletedTaskId = (input: {
+	selector: string;
+	stepName: string;
+	workflow: Ff15MissionWorkflowState;
+}): string => {
+	if (input.selector === "latest") {
+		const latestMatch = [...input.workflow.stepHistory]
+			.reverse()
+			.find(
+				(entry) =>
+					entry.fromStep === input.stepName &&
+					typeof entry.taskId === "string" &&
+					entry.taskId.trim().length > 0
+			);
+
+		if (!latestMatch?.taskId) {
+			throw new Error(
+				`Could not resolve output placeholder for step "${input.stepName}". No completed output recorded for selector "latest".`
+			);
+		}
+
+		return latestMatch.taskId;
+	}
+
+	if (!input.selector.startsWith("task:")) {
+		throw new Error(
+			`Unsupported output placeholder selector "${input.selector}" for step "${input.stepName}".`
+		);
+	}
+
+	const taskId = input.selector.slice("task:".length).trim();
+	if (taskId.length === 0) {
+		throw new Error(
+			`Could not resolve output placeholder for step "${input.stepName}". Output selector must include a task id.`
+		);
+	}
+
+	const explicitMatch = input.workflow.stepHistory.find(
+		(entry) => entry.fromStep === input.stepName && entry.taskId === taskId
+	);
+	if (!explicitMatch) {
+		throw new Error(
+			`Could not resolve output placeholder for step "${input.stepName}" and file selector "${input.selector}". No completed output recorded for selector "${input.selector}".`
+		);
+	}
+
+	return taskId;
 };
 
 const resolveSettingPlaceholderValue = (
