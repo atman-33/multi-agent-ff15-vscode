@@ -8,10 +8,11 @@ import {
 } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createWorkspaceStateFf15MissionsStore,
+	getWorkspaceMissionOutputFilePath,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
 import {
@@ -80,6 +81,44 @@ const seedWorkerDispatchOperation = (workspaceRoot: string) => {
 	);
 };
 
+const seedOutputAwareWorkerDispatchOperation = (workspaceRoot: string) => {
+	const operationsDir = join(
+		workspaceRoot,
+		FF15_WORKSPACE_RUNTIME_DIR_NAME,
+		"operations"
+	);
+	mkdirSync(operationsDir, { recursive: true });
+	writeFileSync(
+		join(operationsDir, "shiritori-smoke-test.yaml"),
+		[
+			"name: shiritori-smoke-test",
+			"initial_step: spec-planning",
+			"",
+			"steps:",
+			"  - name: spec-planning",
+			"    agent: noctis",
+			"    output_contracts:",
+			"      report:",
+			"        - name: spec-plan.md",
+			"          format:",
+			"            inline: |",
+			"              # Spec Plan",
+			"    rules:",
+			"      - condition: Spec plan is ready",
+			"        next: implement",
+			"  - name: implement",
+			"    agent: gladiolus",
+			"    instruction:",
+			"      inline: |",
+			'        Read {{ output("spec-planning", "latest", "spec-plan.md") }} before implementing.',
+			"    rules:",
+			"      - condition: Implementation complete",
+			"        next: COMPLETE",
+		].join("\n"),
+		"utf8"
+	);
+};
+
 const invokeBridge = async ({
 	body,
 	method,
@@ -133,6 +172,451 @@ const invokeBridge = async ({
 	});
 
 describe("createFf15OperationRuntimeProbeService", () => {
+	it("auto-dispatches accepted Noctis-owned follow-up steps through the existing Noctis pane", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedTransitionOperation(workspaceRoot);
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-30T09:00:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:idea-to-prd-and-issues",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Clarify Requirements",
+					currentStep: "clarify-requirements",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-30T08:59:00.000Z",
+						summary: "Runtime already prepared for Noctis follow-up dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-30T09:01:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes: vi.fn().mockResolvedValue({
+						gladiolus: "terminal_1",
+						ignis: "terminal_2",
+						noctis: "terminal_0",
+						prompto: "terminal_3",
+					}),
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "Requirements are settled. Draft the PRD next.",
+						next: "draft-prd",
+						taskId: "task-clarify-requirements",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(200);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						paneId: "terminal_0",
+						prompt: expect.stringContaining("step: draft-prd"),
+						sessionName: "ff15-session",
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining(
+							"previous_step: clarify-requirements"
+						),
+					})
+				);
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError: null,
+						workflow: expect.objectContaining({
+							currentStep: "draft-prd",
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("auto-dispatches worker steps with newly recorded step outputs available to placeholder resolution", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedOutputAwareWorkerDispatchOperation(workspaceRoot);
+			const outputPath = getWorkspaceMissionOutputFilePath({
+				fileName: "spec-plan.md",
+				missionId: "mission-1",
+				stepName: "spec-planning",
+				taskId: "task-spec-planning",
+				workspaceRoot,
+			});
+			mkdirSync(dirname(outputPath), { recursive: true });
+			writeFileSync(outputPath, "---\nchange_name: test-change\n---\n", "utf8");
+
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-30T08:00:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Spec Planning",
+					currentStep: "spec-planning",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-30T07:59:00.000Z",
+						summary: "Runtime already prepared for worker dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const reconcileMissionAgentPanes = vi.fn().mockResolvedValue({
+				gladiolus: "terminal_1",
+				ignis: "terminal_2",
+				noctis: "terminal_0",
+				prompto: "terminal_3",
+			});
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-30T08:01:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes,
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "Spec plan is ready.",
+						next: "implement",
+						taskId: "task-spec-planning",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(200);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						paneId: "terminal_1",
+						prompt: expect.stringContaining(outputPath),
+						sessionName: "ff15-session",
+					})
+				);
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError: null,
+						workflow: expect.objectContaining({
+							currentStep: "implement",
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("rejects a report transition when the current step's required output artifact is missing", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedOutputAwareWorkerDispatchOperation(workspaceRoot);
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-30T08:10:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Spec Planning",
+					currentStep: "spec-planning",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-30T08:09:00.000Z",
+						summary: "Runtime already prepared for worker dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-30T08:11:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes: vi.fn().mockResolvedValue({
+						gladiolus: "terminal_1",
+						ignis: "terminal_2",
+						noctis: "terminal_0",
+						prompto: "terminal_3",
+					}),
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "Spec plan is ready.",
+						next: "implement",
+						taskId: "task-spec-planning",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(400);
+				expect(reportResponse.body).toEqual(
+					expect.objectContaining({
+						error: "Invalid report",
+						missionId: "mission-1",
+					})
+				);
+				expect(sendPrompt).not.toHaveBeenCalled();
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError: expect.stringContaining("Missing required output"),
+						workflow: expect.objectContaining({
+							currentStep: "spec-planning",
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("rejects a report transition when taskId does not match the current workflow step", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
+
+		try {
+			seedOutputAwareWorkerDispatchOperation(workspaceRoot);
+			const outputPath = getWorkspaceMissionOutputFilePath({
+				fileName: "spec-plan.md",
+				missionId: "mission-1",
+				stepName: "spec-planning",
+				taskId: "task-spec-planning",
+				workspaceRoot,
+			});
+			mkdirSync(dirname(outputPath), { recursive: true });
+			writeFileSync(outputPath, "---\nchange_name: test-change\n---\n", "utf8");
+
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-30T08:20:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await store.createMission();
+			await store.updateMission("mission-1", {
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_0",
+					prompto: null,
+				},
+				operationRef: "builtin:shiritori-smoke-test",
+				sessionName: "ff15-session",
+				status: "active",
+				workflow: {
+					activeTask: "Spec Planning",
+					currentStep: "spec-planning",
+					lastReportSummary: null,
+					probe: {
+						checkedAt: "2026-05-30T08:19:00.000Z",
+						summary: "Runtime already prepared for worker dispatch.",
+						verdict: "go",
+					},
+					runtimeStatus: "ready",
+				},
+				workspaceRoot,
+			});
+
+			const sendPrompt = vi.fn().mockResolvedValue(undefined);
+			const service = createFf15OperationRuntimeProbeService({
+				getNow: () => "2026-05-30T08:21:00.000Z",
+				missionsStore: store,
+				missionTransport: {
+					reconcileMissionAgentPanes: vi.fn().mockResolvedValue({
+						gladiolus: "terminal_1",
+						ignis: "terminal_2",
+						noctis: "terminal_0",
+						prompto: "terminal_3",
+					}),
+					sendPrompt,
+				},
+			});
+
+			try {
+				await service.ensureMissionRuntime("mission-1");
+
+				const bridgeDir = join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					FF15_WORKSPACE_BRIDGE_DIR_NAME
+				);
+				const manifest = JSON.parse(
+					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
+				) as {
+					baseUrl: string;
+					token: string;
+				};
+
+				const reportResponse = await invokeBridge({
+					body: {
+						message: "Spec plan is ready.",
+						next: "implement",
+						taskId: "task-clarify-requirements",
+					},
+					method: "POST",
+					token: manifest.token,
+					url: `${manifest.baseUrl}/reports/mission-1`,
+				});
+
+				expect(reportResponse.statusCode).toBe(400);
+				expect(reportResponse.body).toEqual(
+					expect.objectContaining({
+						error: "Invalid report",
+						missionId: "mission-1",
+					})
+				);
+				expect(sendPrompt).not.toHaveBeenCalled();
+				expect(store.getMissionRecord("mission-1")).toEqual(
+					expect.objectContaining({
+						lastError: expect.stringContaining("Invalid taskId"),
+						workflow: expect.objectContaining({
+							currentStep: "spec-planning",
+						}),
+					})
+				);
+			} finally {
+				await service.dispose();
+			}
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("auto-dispatches worker-owned next steps through the existing mission transport after an accepted report", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
 

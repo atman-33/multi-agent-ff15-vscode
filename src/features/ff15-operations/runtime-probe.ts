@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import {
 	createServer,
 	request,
@@ -15,6 +15,7 @@ import {
 } from "../ff15-launch/launch-client";
 import {
 	createEmptyFf15MissionWorkflowState,
+	getWorkspaceMissionOutputFilePath,
 	type Ff15MissionAgentPanes,
 	type Ff15MissionRecord,
 	type Ff15MissionWorkflowProbe,
@@ -88,14 +89,6 @@ export interface Ff15OperationRuntimeProbeService {
 	ensureMissionRuntime: (missionId: string) => Promise<void>;
 }
 
-type Ff15WorkerAgentId = Exclude<Ff15AgentId, "noctis">;
-
-const FF15_WORKER_AGENT_IDS = new Set<Ff15WorkerAgentId>([
-	"gladiolus",
-	"ignis",
-	"prompto",
-]);
-
 const createBridgeManifest = (
 	baseUrl: string,
 	token: string
@@ -134,17 +127,20 @@ const mergeWorkflowState = (
 	};
 };
 
-const isWorkerAgentId = (
+const isMissionAgentId = (
 	value: string | null | undefined
-): value is Ff15WorkerAgentId =>
-	value === "gladiolus" || value === "ignis" || value === "prompto";
+): value is Ff15AgentId =>
+	value === "noctis" ||
+	value === "gladiolus" ||
+	value === "ignis" ||
+	value === "prompto";
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
 	error instanceof Error && error.message.length > 0 ? error.message : fallback;
 
-const getWorkerStepTaskId = (stepName: string) => `task-${stepName}`;
+const getOperationStepTaskId = (stepName: string) => `task-${stepName}`;
 
-const createWorkerStepActivation = (
+const createFollowupStepActivation = (
 	operationDefinition: NonNullable<
 		ReturnType<typeof loadMissionOperationDefinition>
 	>,
@@ -158,7 +154,7 @@ const createWorkerStepActivation = (
 	stepName: step.name,
 });
 
-const getWorkerDispatchActivation = (
+const getFollowupDispatchActivation = (
 	operationDefinition: ReturnType<typeof loadMissionOperationDefinition>,
 	step: Ff15MissionOperationStep | null
 ): Ff15MissionOperationActivation | null => {
@@ -167,11 +163,11 @@ const getWorkerDispatchActivation = (
 	}
 
 	const stepAgent = step?.agent;
-	if (!(step && isWorkerAgentId(stepAgent))) {
+	if (!(step && isMissionAgentId(stepAgent))) {
 		return null;
 	}
 
-	return createWorkerStepActivation(operationDefinition, step);
+	return createFollowupStepActivation(operationDefinition, step);
 };
 
 const createWorkflowStepHistoryEntry = (input: {
@@ -502,10 +498,32 @@ export const createFf15OperationRuntimeProbeService = (
 		});
 	};
 
-	const autoDispatchWorkerStep = async (input: {
+	const handleInvalidReportSubmission = async (input: {
+		errorMessage: string;
+		mission: Ff15MissionRecord;
+		reportMessage: string | null;
+		response: ServerResponse;
+	}) => {
+		await persistMissionReportState({
+			lastError: input.errorMessage,
+			mission: input.mission,
+			patch: {
+				lastReportSummary: input.reportMessage,
+				runtimeStatus: "ready",
+			},
+		});
+		respondJson(input.response, 400, {
+			details: input.errorMessage,
+			error: "Invalid report",
+			missionId: input.mission.id,
+		});
+	};
+
+	const autoDispatchFollowupStep = async (input: {
 		activation: Ff15MissionOperationActivation;
 		handoff: Ff15MissionWorkflowStepHistoryEntry | null;
 		mission: Ff15MissionRecord;
+		workflow: Ff15MissionWorkflowState;
 	}) => {
 		if (!options.missionTransport) {
 			return null;
@@ -531,8 +549,8 @@ export const createFf15OperationRuntimeProbeService = (
 				workspaceRoot,
 			});
 		const stepAgent = input.activation.stepAgent;
-		if (!(input.activation.step && isWorkerAgentId(stepAgent))) {
-			throw new Error("Worker handoff requires a worker-owned step.");
+		if (!(input.activation.step && isMissionAgentId(stepAgent))) {
+			throw new Error("Follow-up dispatch requires an FF15-owned step.");
 		}
 
 		const paneId = reconciledAgentPanes[stepAgent];
@@ -543,14 +561,14 @@ export const createFf15OperationRuntimeProbeService = (
 			);
 		}
 
-		const taskId = getWorkerStepTaskId(input.activation.stepName);
+		const taskId = getOperationStepTaskId(input.activation.stepName);
 		await options.missionTransport.sendPrompt({
 			paneId,
 			prompt: buildWorkerOperationAwarePrompt({
 				activation: input.activation,
 				handoff: input.handoff,
 				missionId: input.mission.id,
-				workflow: input.mission.workflow,
+				workflow: input.workflow,
 				workspaceRoot,
 			}),
 			sessionName,
@@ -561,6 +579,41 @@ export const createFf15OperationRuntimeProbeService = (
 			agentPanes: reconciledAgentPanes,
 			taskId,
 		};
+	};
+
+	const validateReportSubmission = (input: {
+		activeStep: Ff15MissionOperationStep | null;
+		mission: Ff15MissionRecord;
+		taskId: string | null;
+	}): string | null => {
+		if (!input.activeStep) {
+			return null;
+		}
+
+		const expectedTaskId = getOperationStepTaskId(input.activeStep.name);
+		if (input.taskId !== expectedTaskId) {
+			return `Invalid taskId for ${input.activeStep.name}: expected ${expectedTaskId}, received ${input.taskId ?? "<missing>"}`;
+		}
+
+		if (!input.mission.workspaceRoot) {
+			return `Mission workspace root is unavailable for ${input.activeStep.name}.`;
+		}
+
+		for (const contract of input.activeStep.outputContracts) {
+			const outputPath = getWorkspaceMissionOutputFilePath({
+				fileName: contract.name,
+				missionId: input.mission.id,
+				stepName: input.activeStep.name,
+				taskId: expectedTaskId,
+				workspaceRoot: input.mission.workspaceRoot,
+			});
+
+			if (!existsSync(outputPath)) {
+				return `Missing required output for ${input.activeStep.name}: ${outputPath}`;
+			}
+		}
+
+		return null;
 	};
 
 	const handleValidatedReportTransition = async (input: {
@@ -592,25 +645,35 @@ export const createFf15OperationRuntimeProbeService = (
 		const stepHistory = handoff
 			? [...input.mission.workflow.stepHistory, handoff]
 			: input.mission.workflow.stepHistory;
-		const workerActivation = getWorkerDispatchActivation(
+		const followupActivation = getFollowupDispatchActivation(
 			input.operationDefinition,
 			nextStep
 		);
+		const nextWorkflow = mergeWorkflowState(input.mission.workflow, {
+			activeTask: nextStep
+				? formatFf15OperationTaskLabel(nextStep.name)
+				: input.mission.workflow.activeTask,
+			currentStep: nextStepName,
+			lastReportSummary: input.reportMessage,
+			runtimeStatus: "ready",
+			stepHistory,
+		});
 		let agentPanes: Ff15MissionAgentPanes | undefined;
 		let lastError: string | null = null;
 
-		if (workerActivation) {
+		if (followupActivation) {
 			try {
-				const dispatch = await autoDispatchWorkerStep({
-					activation: workerActivation,
+				const dispatch = await autoDispatchFollowupStep({
+					activation: followupActivation,
 					handoff,
 					mission: input.mission,
+					workflow: nextWorkflow,
 				});
 				agentPanes = dispatch?.agentPanes;
 			} catch (error) {
 				lastError = `Automatic dispatch failed: ${getErrorMessage(
 					error,
-					"Worker handoff failed."
+					"Follow-up dispatch failed."
 				)}`;
 			}
 		}
@@ -619,15 +682,7 @@ export const createFf15OperationRuntimeProbeService = (
 			agentPanes,
 			lastError,
 			mission: input.mission,
-			patch: {
-				activeTask: nextStep
-					? formatFf15OperationTaskLabel(nextStep.name)
-					: input.mission.workflow.activeTask,
-				currentStep: nextStepName,
-				lastReportSummary: input.reportMessage,
-				runtimeStatus: "ready",
-				stepHistory,
-			},
+			patch: nextWorkflow,
 		});
 		respondAcknowledgedReport(input.response, input.mission.id, nextStepName);
 	};
@@ -717,6 +772,21 @@ export const createFf15OperationRuntimeProbeService = (
 				mission,
 				reportMessage,
 				requestedNext,
+				response,
+			});
+			return;
+		}
+
+		const reportValidationError = validateReportSubmission({
+			activeStep,
+			mission,
+			taskId,
+		});
+		if (reportValidationError) {
+			await handleInvalidReportSubmission({
+				errorMessage: reportValidationError,
+				mission,
+				reportMessage,
 				response,
 			});
 			return;

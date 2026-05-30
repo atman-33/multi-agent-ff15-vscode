@@ -15,6 +15,7 @@ export const FF15_WORKSPACE_RUNTIME_DIR_NAME = ".ff15";
 
 const FF15_MISSIONS_DIR_NAME = "missions";
 const FF15_MISSION_FILE_NAME = "mission.json";
+const FF15_MISSION_OUTPUTS_DIR_NAME = "outputs";
 const FF15_MISSION_SCHEMA_VERSION = 1;
 
 export type Ff15MissionStatus = "active" | "draft" | "error" | "sending";
@@ -340,7 +341,7 @@ const normalizeSnapshot = (value: unknown): Ff15MissionsStoreSnapshot => {
 	};
 };
 
-const getWorkspaceMissionsDir = (workspaceRoot: string): string =>
+export const getWorkspaceMissionsDir = (workspaceRoot: string): string =>
 	join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME, FF15_MISSIONS_DIR_NAME);
 
 const getWorkspaceMissionFilePath = (
@@ -353,10 +354,40 @@ const getWorkspaceMissionFilePath = (
 		FF15_MISSION_FILE_NAME
 	);
 
-const getWorkspaceMissionDir = (
+export const getWorkspaceMissionDir = (
 	workspaceRoot: string,
 	missionId: string
 ): string => join(getWorkspaceMissionsDir(workspaceRoot), missionId);
+
+export const getWorkspaceMissionTaskOutputDir = (
+	workspaceRoot: string,
+	missionId: string,
+	stepName: string,
+	taskId: string
+): string =>
+	join(
+		getWorkspaceMissionDir(workspaceRoot, missionId),
+		FF15_MISSION_OUTPUTS_DIR_NAME,
+		stepName,
+		taskId
+	);
+
+export const getWorkspaceMissionOutputFilePath = (input: {
+	workspaceRoot: string;
+	missionId: string;
+	stepName: string;
+	taskId: string;
+	fileName: string;
+}): string =>
+	join(
+		getWorkspaceMissionTaskOutputDir(
+			input.workspaceRoot,
+			input.missionId,
+			input.stepName,
+			input.taskId
+		),
+		input.fileName
+	);
 
 const persistMissionRecordToWorkspace = (
 	workspaceRoot: string,

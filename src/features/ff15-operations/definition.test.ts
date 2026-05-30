@@ -6,10 +6,11 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	createEmptyFf15MissionWorkflowState,
+	getWorkspaceMissionOutputFilePath,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
 import {
@@ -160,6 +161,26 @@ const createCompletedStepWorkflow = (
 	return workflow;
 };
 
+const writeMissionOutputFile = (input: {
+	content: string;
+	fileName: string;
+	missionId: string;
+	stepName: string;
+	taskId: string;
+	workspaceRoot: string;
+}): string => {
+	const outputPath = getWorkspaceMissionOutputFilePath({
+		fileName: input.fileName,
+		missionId: input.missionId,
+		stepName: input.stepName,
+		taskId: input.taskId,
+		workspaceRoot: input.workspaceRoot,
+	});
+	mkdirSync(dirname(outputPath), { recursive: true });
+	writeFileSync(outputPath, input.content, "utf8");
+	return outputPath;
+};
+
 describe("ff15 operation definition", () => {
 	it("loads rich active-step content from workspace-local operation assets", () => {
 		const workspaceRoot = join(
@@ -217,6 +238,43 @@ describe("ff15 operation definition", () => {
 		}
 	});
 
+	it("loads bundled spec-planning operations with a local git fallback when origin is unavailable", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-local-planning-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot, {
+				operationFileName: "idea-to-openspec-dev.yaml",
+			});
+
+			const definition = loadMissionOperationDefinition(
+				workspaceRoot,
+				"builtin:idea-to-openspec-dev"
+			);
+			const specPlanningStep =
+				definition?.steps.find((step) => step.name === "spec-planning") ?? null;
+
+			expect(specPlanningStep?.instruction).toContain(
+				"continue without blocking on the missing remote"
+			);
+			expect(specPlanningStep?.instruction).toContain(
+				"Prefer branching from `origin/main` when it is available; otherwise branch from the current local branch or `HEAD`"
+			);
+			expect(specPlanningStep?.rules).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						condition: "Cannot proceed with planning safely",
+						next: "ABORT",
+					}),
+				])
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("builds an XML operation prompt for the active Noctis step", () => {
 		const workspaceRoot = join(tmpdir(), `ff15-prompt-${crypto.randomUUID()}`);
 
@@ -256,6 +314,15 @@ describe("ff15 operation definition", () => {
 			expect(prompt).toContain("<policy>");
 			expect(prompt).toContain("Follow repository coding standards.");
 			expect(prompt).toContain("<output-contract>");
+			expect(prompt).toContain(
+				getWorkspaceMissionOutputFilePath({
+					fileName: "spec-plan.md",
+					missionId: "mission-1",
+					stepName: "spec-planning",
+					taskId: "task-spec-planning",
+					workspaceRoot,
+				})
+			);
 			expect(prompt).toContain("Include the accepted plan.");
 			expect(prompt).toContain("<step-completion-contract>");
 			expect(prompt).toContain(
@@ -282,11 +349,14 @@ describe("ff15 operation definition", () => {
 
 		try {
 			seedBundledPromptResolutionOperation(workspaceRoot);
-			writeFileSync(
-				join(workspaceRoot, "requirements-brief.md"),
-				"# Requirements Brief\n",
-				"utf8"
-			);
+			const expectedOutputPath = writeMissionOutputFile({
+				content: "# Requirements Brief\n",
+				fileName: "requirements-brief.md",
+				missionId: "mission-1",
+				stepName: "clarify-requirements",
+				taskId: "task-clarify-requirements",
+				workspaceRoot,
+			});
 
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
@@ -310,7 +380,7 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 			});
 
-			expect(prompt).toContain(join(workspaceRoot, "requirements-brief.md"));
+			expect(prompt).toContain(expectedOutputPath);
 			expect(prompt).not.toContain(
 				'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}'
 			);
@@ -369,11 +439,14 @@ describe("ff15 operation definition", () => {
 						'{{ output("clarify-requirements", "latest", "missing-output.md") }}'
 					),
 			});
-			writeFileSync(
-				join(workspaceRoot, "missing-output.md"),
-				"# Missing Output\n",
-				"utf8"
-			);
+			writeMissionOutputFile({
+				content: "# Missing Output\n",
+				fileName: "missing-output.md",
+				missionId: "mission-1",
+				stepName: "clarify-requirements",
+				taskId: "task-clarify-requirements",
+				workspaceRoot,
+			});
 
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
@@ -414,11 +487,14 @@ describe("ff15 operation definition", () => {
 						'2. Confirm the execution root at `{{ root("execution_root") }}`. Then read `.opencode/skills/write-a-prd/SKILL.md`. In this step, stop after drafting the PRD and do not post the GitHub issue yet.'
 					),
 			});
-			writeFileSync(
-				join(workspaceRoot, "requirements-brief.md"),
-				"# Requirements Brief\n",
-				"utf8"
-			);
+			writeMissionOutputFile({
+				content: "# Requirements Brief\n",
+				fileName: "requirements-brief.md",
+				missionId: "mission-1",
+				stepName: "clarify-requirements",
+				taskId: "task-clarify-requirements",
+				workspaceRoot,
+			});
 
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
@@ -456,11 +532,14 @@ describe("ff15 operation definition", () => {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
 				operationFileName: "github-issue-openspec-dev.yaml",
 			});
-			writeFileSync(
-				join(workspaceRoot, "spec-plan.md"),
-				"---\nchange_name: test-change\n---\n",
-				"utf8"
-			);
+			const expectedOutputPath = writeMissionOutputFile({
+				content: "---\nchange_name: test-change\n---\n",
+				fileName: "spec-plan.md",
+				missionId: "mission-1",
+				stepName: "spec-planning",
+				taskId: "task-spec-planning",
+				workspaceRoot,
+			});
 
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
@@ -481,7 +560,7 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 			});
 
-			expect(prompt).toContain(join(workspaceRoot, "spec-plan.md"));
+			expect(prompt).toContain(expectedOutputPath);
 			expect(prompt).not.toContain(
 				'{{ output("spec-planning", "latest", "spec-plan.md") }}'
 			);
