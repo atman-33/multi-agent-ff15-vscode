@@ -69,12 +69,6 @@ const Route = () => {
 
 	return (
 		<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-1.5">
-			<div className="flex items-center gap-3">
-				<h1 className="font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
-					Missions
-				</h1>
-			</div>
-
 			<SidebarActionButton
 				onClick={() => {
 					vscode.postMessage({ command: "ff15-missions.create" });

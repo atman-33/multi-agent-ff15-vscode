@@ -255,6 +255,8 @@ describe("createFf15MissionSessionController", () => {
 				showErrorMessage: vi.fn(),
 				terminateMissionSession,
 			});
+			const onDidChangeMissionSnapshot = vi.fn();
+			controller.onDidChangeMissionSnapshot(onDidChangeMissionSnapshot);
 
 			const snapshot = await controller.deleteMission("mission-1");
 
@@ -266,6 +268,7 @@ describe("createFf15MissionSessionController", () => {
 				activeMissionId: null,
 				missions: [],
 			});
+			expect(onDidChangeMissionSnapshot).toHaveBeenCalledWith(snapshot);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

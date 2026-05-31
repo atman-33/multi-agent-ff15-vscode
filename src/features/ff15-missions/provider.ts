@@ -1,5 +1,6 @@
 import type {
 	CancellationToken,
+	Disposable,
 	Uri,
 	WebviewView,
 	WebviewViewProvider,
@@ -22,6 +23,9 @@ interface Ff15MissionSendController {
 interface Ff15MissionSessionController {
 	createMission: () => Promise<Ff15MissionsStoreSnapshot>;
 	deleteMission: (missionId: string) => Promise<Ff15MissionsStoreSnapshot>;
+	onDidChangeMissionSnapshot: (
+		listener: (snapshot: Ff15MissionsStoreSnapshot) => void
+	) => Disposable;
 	selectMission: (missionId: string) => Promise<Ff15MissionsStoreSnapshot>;
 }
 
@@ -38,6 +42,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 	private readonly missionsStore: Ff15MissionsStore;
 	private readonly missionSendController: Ff15MissionSendController;
 	private readonly missionSessionController: Ff15MissionSessionController;
+	private readonly missionSessionSubscription: Disposable;
 	private readonly missionWorkbenchController: Ff15MissionWorkbenchController;
 	private view?: WebviewView;
 
@@ -55,6 +60,11 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 			createMission: () => missionsStore.createMission(),
 			deleteMission: (missionId: string) =>
 				missionsStore.deleteMission(missionId),
+			onDidChangeMissionSnapshot: () => ({
+				dispose: () => {
+					return;
+				},
+			}),
 			selectMission: (missionId: string) =>
 				missionsStore.selectMission(missionId),
 		};
@@ -62,6 +72,10 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 			controllers.missionWorkbenchController ?? {
 				showMission: () => Promise.resolve(),
 			};
+		this.missionSessionSubscription =
+			this.missionSessionController.onDidChangeMissionSnapshot((snapshot) => {
+				this.postSnapshot(snapshot);
+			});
 	}
 
 	resolveWebviewView(
@@ -85,10 +99,8 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			switch (message.command) {
 				case "ff15-missions.create": {
-					this.postSnapshot(
-						await this.openMissionWorkbench(
-							await this.missionSessionController.createMission()
-						)
+					await this.openMissionWorkbench(
+						await this.missionSessionController.createMission()
 					);
 					return;
 				}
@@ -97,9 +109,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 						return;
 					}
 
-					this.postSnapshot(
-						await this.missionSessionController.deleteMission(message.missionId)
-					);
+					await this.missionSessionController.deleteMission(message.missionId);
 					return;
 				}
 				case "ff15-missions.ready": {
@@ -128,12 +138,8 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 						return;
 					}
 
-					this.postSnapshot(
-						await this.openMissionWorkbench(
-							await this.missionSessionController.selectMission(
-								message.missionId
-							)
-						)
+					await this.openMissionWorkbench(
+						await this.missionSessionController.selectMission(message.missionId)
 					);
 					return;
 				}

@@ -1,3 +1,4 @@
+import type { Disposable } from "vscode";
 import type {
 	Ff15LaunchClient,
 	Ff15PaneLaunchPlanEntry,
@@ -64,6 +65,23 @@ const buildMissionAttachArgs = (input: {
 export const createFf15MissionSessionController = (
 	dependencies: Ff15MissionTerminalControllerDependencies
 ) => {
+	const missionSnapshotListeners = new Set<
+		(snapshot: Ff15MissionsStoreSnapshot) => void
+	>();
+
+	const notifyMissionSnapshotChanged = (
+		snapshot: Ff15MissionsStoreSnapshot
+	) => {
+		for (const listener of missionSnapshotListeners) {
+			listener(snapshot);
+		}
+	};
+
+	const notifyAndReturn = (snapshot: Ff15MissionsStoreSnapshot) => {
+		notifyMissionSnapshotChanged(snapshot);
+		return snapshot;
+	};
+
 	const openMissionSession = async (
 		missionId: string
 	): Promise<Ff15MissionsStoreSnapshot> => {
@@ -76,10 +94,12 @@ export const createFf15MissionSessionController = (
 			mission.workspaceRoot ?? dependencies.getWorkspaceRoot();
 		if (!workspaceRoot) {
 			await dependencies.showErrorMessage(MISSING_MISSION_WORKSPACE_MESSAGE);
-			return dependencies.missionsStore.updateMission(missionId, {
-				lastError: MISSING_MISSION_WORKSPACE_MESSAGE,
-				status: "error",
-			});
+			return notifyAndReturn(
+				await dependencies.missionsStore.updateMission(missionId, {
+					lastError: MISSING_MISSION_WORKSPACE_MESSAGE,
+					status: "error",
+				})
+			);
 		}
 
 		const sessionName =
@@ -89,12 +109,14 @@ export const createFf15MissionSessionController = (
 			await dependencies.ensureCommandAvailable(ZELLIJ_EXECUTABLE);
 		} catch {
 			await dependencies.showErrorMessage(MISSING_MISSION_ZELLIJ_MESSAGE);
-			return dependencies.missionsStore.updateMission(missionId, {
-				lastError: MISSING_MISSION_ZELLIJ_MESSAGE,
-				sessionName,
-				status: "error",
-				workspaceRoot,
-			});
+			return notifyAndReturn(
+				await dependencies.missionsStore.updateMission(missionId, {
+					lastError: MISSING_MISSION_ZELLIJ_MESSAGE,
+					sessionName,
+					status: "error",
+					workspaceRoot,
+				})
+			);
 		}
 
 		const launchClient = dependencies.getLaunchClient();
@@ -106,12 +128,14 @@ export const createFf15MissionSessionController = (
 		} catch {
 			const message = launchClient.getMissingDependencyMessage();
 			await dependencies.showErrorMessage(message);
-			return dependencies.missionsStore.updateMission(missionId, {
-				lastError: message,
-				sessionName,
-				status: "error",
-				workspaceRoot,
-			});
+			return notifyAndReturn(
+				await dependencies.missionsStore.updateMission(missionId, {
+					lastError: message,
+					sessionName,
+					status: "error",
+					workspaceRoot,
+				})
+			);
 		}
 
 		try {
@@ -140,28 +164,41 @@ export const createFf15MissionSessionController = (
 				agentPanes = mission.agentPanes;
 			}
 
-			return dependencies.missionsStore.updateMission(missionId, {
-				agentPanes,
-				lastError: null,
-				sessionName,
-				status: "active",
-				workspaceRoot,
-			});
+			return notifyAndReturn(
+				await dependencies.missionsStore.updateMission(missionId, {
+					agentPanes,
+					lastError: null,
+					sessionName,
+					status: "active",
+					workspaceRoot,
+				})
+			);
 		} catch (error) {
 			const message = getErrorMessage(error, MISSION_LAUNCH_FAILED_MESSAGE);
 			await dependencies.showErrorMessage(message);
-			return dependencies.missionsStore.updateMission(missionId, {
-				lastError: message,
-				sessionName,
-				status: "error",
-				workspaceRoot,
-			});
+			return notifyAndReturn(
+				await dependencies.missionsStore.updateMission(missionId, {
+					lastError: message,
+					sessionName,
+					status: "error",
+					workspaceRoot,
+				})
+			);
 		}
 	};
 
 	return {
-		createMission(): Promise<Ff15MissionsStoreSnapshot> {
-			return dependencies.missionsStore.createMission();
+		createMission: async (): Promise<Ff15MissionsStoreSnapshot> =>
+			notifyAndReturn(await dependencies.missionsStore.createMission()),
+		onDidChangeMissionSnapshot: (
+			listener: (snapshot: Ff15MissionsStoreSnapshot) => void
+		): Disposable => {
+			missionSnapshotListeners.add(listener);
+			return {
+				dispose: () => {
+					missionSnapshotListeners.delete(listener);
+				},
+			};
 		},
 		async deleteMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
 			const mission = dependencies.missionsStore.getMissionRecord(missionId);
@@ -190,11 +227,15 @@ export const createFf15MissionSessionController = (
 				}
 			}
 
-			return dependencies.missionsStore.deleteMission(missionId);
+			return notifyAndReturn(
+				await dependencies.missionsStore.deleteMission(missionId)
+			);
 		},
 		openMissionSession,
-		selectMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
-			return dependencies.missionsStore.selectMission(missionId);
+		async selectMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
+			return notifyAndReturn(
+				await dependencies.missionsStore.selectMission(missionId)
+			);
 		},
 	};
 };
