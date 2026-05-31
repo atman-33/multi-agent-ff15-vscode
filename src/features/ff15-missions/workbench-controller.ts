@@ -37,6 +37,7 @@ interface Ff15MissionSendController {
 
 interface Ff15MissionSessionController {
 	deleteMission: (missionId: string) => Promise<unknown>;
+	isMissionTerminalReady?: (missionId: string) => boolean;
 	openMissionSession: (missionId: string) => Promise<unknown>;
 	selectMission: (missionId: string) => Promise<unknown>;
 }
@@ -47,6 +48,7 @@ interface WorkbenchMissionState {
 	operationRef: string | null;
 	sessionName: string | null;
 	status: Ff15MissionStatus;
+	terminalReady: boolean;
 	title: string;
 	workflow: Ff15MissionWorkflowState;
 	workspaceRoot: string | null;
@@ -82,7 +84,8 @@ const EMPTY_CATALOG: Ff15MissionWorkbenchCatalog = {
 };
 
 const toMissionState = (
-	mission: ReturnType<Ff15MissionsStore["getMissionRecord"]>
+	mission: ReturnType<Ff15MissionsStore["getMissionRecord"]>,
+	terminalReady: boolean
 ): WorkbenchMissionState | null => {
 	if (!mission) {
 		return null;
@@ -94,6 +97,7 @@ const toMissionState = (
 		operationRef: mission.operationRef,
 		sessionName: mission.sessionName,
 		status: mission.status,
+		terminalReady,
 		title: mission.title,
 		workflow: mission.workflow,
 		workspaceRoot: mission.workspaceRoot,
@@ -119,7 +123,11 @@ export const createFf15MissionWorkbenchController = (
 		}
 
 		return {
-			mission: toMissionState(mission),
+			mission: toMissionState(
+				mission,
+				options.missionSessionController.isMissionTerminalReady?.(missionId) ??
+					false
+			),
 			operations: await options.loadOperationsCatalog(mission.workspaceRoot),
 		};
 	};

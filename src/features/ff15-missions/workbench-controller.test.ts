@@ -255,7 +255,11 @@ describe("createFf15MissionWorkbenchController", () => {
 
 	it("opens the mission terminal only from the explicit workbench action", async () => {
 		const missionPanel = createPanelDouble();
-		const openMissionSession = vi.fn().mockResolvedValue(undefined);
+		let terminalReady = false;
+		const openMissionSession = vi.fn().mockImplementation(() => {
+			terminalReady = true;
+			return Promise.resolve(undefined);
+		});
 		const controller = createFf15MissionWorkbenchController({
 			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
 			extensionUri: { fsPath: "C:/extension" } as never,
@@ -268,6 +272,7 @@ describe("createFf15MissionWorkbenchController", () => {
 			},
 			missionSessionController: {
 				deleteMission: vi.fn(),
+				isMissionTerminalReady: () => terminalReady,
 				openMissionSession,
 				selectMission: vi.fn(),
 			},
@@ -307,6 +312,14 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 
 		expect(openMissionSession).toHaveBeenCalledWith("mission-1");
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenLastCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				mission: expect.objectContaining({
+					terminalReady: true,
+				}),
+			}),
+		});
 	});
 
 	it("publishes runtime probe state transitions for an operation-backed mission when the workbench becomes ready", async () => {

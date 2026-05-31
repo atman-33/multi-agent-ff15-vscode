@@ -68,6 +68,7 @@ export const createFf15MissionSessionController = (
 	const missionSnapshotListeners = new Set<
 		(snapshot: Ff15MissionsStoreSnapshot) => void
 	>();
+	const readyMissionIds = new Set<string>();
 
 	const notifyMissionSnapshotChanged = (
 		snapshot: Ff15MissionsStoreSnapshot
@@ -164,6 +165,8 @@ export const createFf15MissionSessionController = (
 				agentPanes = mission.agentPanes;
 			}
 
+			readyMissionIds.add(missionId);
+
 			return notifyAndReturn(
 				await dependencies.missionsStore.updateMission(missionId, {
 					agentPanes,
@@ -227,10 +230,14 @@ export const createFf15MissionSessionController = (
 				}
 			}
 
+			readyMissionIds.delete(missionId);
+
 			return notifyAndReturn(
 				await dependencies.missionsStore.deleteMission(missionId)
 			);
 		},
+		isMissionTerminalReady: (missionId: string) =>
+			readyMissionIds.has(missionId),
 		openMissionSession,
 		async selectMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
 			return notifyAndReturn(

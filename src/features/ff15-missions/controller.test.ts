@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Ff15LaunchClient } from "../ff15-launch/launch-client";
 import {
 	createFf15MissionSendController,
+	MISSION_TERMINAL_NOT_READY_MESSAGE,
 	MISSING_WORKSPACE_MESSAGE,
 	MISSING_ZELLIJ_MESSAGE,
 } from "./controller";
@@ -319,10 +320,6 @@ describe("createFf15MissionSendController", () => {
 			prompt: "Investigate the regression",
 		});
 
-		expect(ensureCommandAvailable).not.toHaveBeenCalled();
-		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
-		expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
-		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
 		expect(snapshot.missions).toEqual([
 			expect.objectContaining({
 				id: "mission-1",
@@ -330,6 +327,53 @@ describe("createFf15MissionSendController", () => {
 				status: "draft",
 			}),
 		]);
+		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+		expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
+		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
+	});
+
+	it("stores a mission-scoped error when the mission terminal has not been launched yet", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-05-26T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn(),
+			sendPrompt: vi.fn(),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			isMissionTerminalReady: () => false,
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				lastError: MISSION_TERMINAL_NOT_READY_MESSAGE,
+				status: "draft",
+			}),
+		]);
+		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+		expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
+		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
 	});
 
 	it("activates operation workflow state and sends an operation-aware prompt for the first operation-backed send", async () => {

@@ -25,6 +25,8 @@ export const MISSING_OPERATION_SELECTION_MESSAGE =
 	"Select an operation before sending a mission prompt.";
 export const MISSION_SEND_FAILED_MESSAGE =
 	"FF15 could not deliver the prompt to Noctis.";
+export const MISSION_TERMINAL_NOT_READY_MESSAGE =
+	"Launch Terminal before sending a prompt to Noctis.";
 
 interface Ff15MissionTransport {
 	ensureMissionSession: (input: {
@@ -46,6 +48,7 @@ interface CreateFf15MissionSendControllerDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
 	getLaunchClient: () => Ff15LaunchClient;
 	getWorkspaceRoot: () => string | undefined;
+	isMissionTerminalReady?: (missionId: string) => boolean;
 	missionTransport: Ff15MissionTransport;
 	missionsStore: Ff15MissionsStore;
 	resolveRuntimeContext?: (input: { workspaceRoot: string }) => {
@@ -232,6 +235,24 @@ const requireOperationSelection = (input: {
 	});
 };
 
+const requireMissionTerminalReady = (input: {
+	isMissionTerminalReady?: (missionId: string) => boolean;
+	missionId: string;
+	missionsStore: Ff15MissionsStore;
+}) => {
+	if (!input.isMissionTerminalReady) {
+		return null;
+	}
+
+	if (!input.isMissionTerminalReady(input.missionId)) {
+		return input.missionsStore.updateMission(input.missionId, {
+			lastError: MISSION_TERMINAL_NOT_READY_MESSAGE,
+		});
+	}
+
+	return null;
+};
+
 const deliverMissionPrompt = async (input: {
 	currentMission: ReturnType<Ff15MissionsStore["getMissionRecord"]>;
 	currentWorkflow: ReturnType<typeof createEmptyFf15MissionWorkflowState>;
@@ -347,6 +368,15 @@ export const createFf15MissionSendController = (
 		});
 		if (operationSelectionError) {
 			return operationSelectionError;
+		}
+
+		const terminalReadyError = await requireMissionTerminalReady({
+			isMissionTerminalReady: dependencies.isMissionTerminalReady,
+			missionId: input.missionId,
+			missionsStore: dependencies.missionsStore,
+		});
+		if (terminalReadyError) {
+			return terminalReadyError;
 		}
 
 		const currentWorkflow =

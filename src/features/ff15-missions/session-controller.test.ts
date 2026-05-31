@@ -190,6 +190,7 @@ describe("createFf15MissionSessionController", () => {
 				showErrorMessage: vi.fn(),
 				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
 			});
+			expect(controller.isMissionTerminalReady("mission-1")).toBe(false);
 
 			const snapshot = await controller.openMissionSession("mission-1");
 
@@ -217,6 +218,7 @@ describe("createFf15MissionSessionController", () => {
 					workspaceRoot,
 				}),
 			]);
+			expect(controller.isMissionTerminalReady("mission-1")).toBe(true);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

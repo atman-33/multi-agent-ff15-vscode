@@ -103,7 +103,8 @@ const resolveRuntimeContext = () => {
 
 export const createVsCodeFf15MissionSendController = (
 	missionsStore: Ff15MissionsStore,
-	missionTransport: Ff15MissionTransport = createFf15MissionZellijTransport()
+	missionTransport: Ff15MissionTransport = createFf15MissionZellijTransport(),
+	isMissionTerminalReady?: (missionId: string) => boolean
 ) => {
 	const getLaunchClient = createGetLaunchClient();
 
@@ -111,6 +112,7 @@ export const createVsCodeFf15MissionSendController = (
 		ensureCommandAvailable,
 		getLaunchClient,
 		getWorkspaceRoot: () => resolveRuntimeContext()?.executionRoot,
+		isMissionTerminalReady,
 		missionTransport,
 		missionsStore,
 		resolveRuntimeContext: ({ workspaceRoot }) =>

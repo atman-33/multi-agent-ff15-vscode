@@ -26,6 +26,7 @@ interface MissionWorkbenchMission {
 	operationRef: string | null;
 	sessionName: string | null;
 	status: "active" | "draft" | "error" | "sending";
+	terminalReady: boolean;
 	title: string;
 	workflow: {
 		activeTask: string | null;
@@ -65,6 +66,8 @@ const RUNTIME_STATUS_LABELS = {
 
 const OPERATION_REQUIRED_MESSAGE =
 	"Choose a supported operation to unlock prompt delivery to Noctis.";
+const TERMINAL_REQUIRED_MESSAGE =
+	"Launch Terminal before sending a prompt to Noctis.";
 
 const MISSION_STATUS_LABELS: Record<MissionWorkbenchMission["status"], string> =
 	{
@@ -156,6 +159,10 @@ const getComposerStatusMessage = ({
 		return draft.trim().length > 0
 			? "Choose a supported operation before sending this message to Noctis."
 			: OPERATION_REQUIRED_MESSAGE;
+	}
+
+	if (!mission.terminalReady) {
+		return `${terminalActionLabel} before sending a message to Noctis.`;
 	}
 
 	if (mission.lastError) {
@@ -297,7 +304,7 @@ const MissionWorkbenchHeader = ({
 					Operation {selectedOperation?.name ?? "Choose below"}
 				</span>
 				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1">
-					Session {mission.sessionName ? "Attached" : "Not attached"}
+					Session {mission.terminalReady ? "Attached" : "Not attached"}
 				</span>
 				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1">
 					Probe {probeVerdictLabel}
@@ -616,10 +623,20 @@ const PromptComposerPanel = ({
 	onDraftChange,
 	onSend,
 }: PromptComposerPanelProps) => {
-	const footerMessage = hasDeliverableOperation
-		? (mission.lastError ??
-			"Prompt delivery stays mission-scoped and preserves this workbench context.")
-		: OPERATION_REQUIRED_MESSAGE;
+	let footerMessage = OPERATION_REQUIRED_MESSAGE;
+	if (hasDeliverableOperation) {
+		footerMessage = mission.terminalReady
+			? (mission.lastError ??
+				"Prompt delivery stays mission-scoped and preserves this workbench context.")
+			: TERMINAL_REQUIRED_MESSAGE;
+	}
+
+	let statusBadgeLabel = "Operation Required";
+	if (hasDeliverableOperation) {
+		statusBadgeLabel = mission.terminalReady
+			? MISSION_STATUS_LABELS[mission.status]
+			: "Launch Required";
+	}
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -650,14 +667,12 @@ const PromptComposerPanel = ({
 							<span
 								className={cn(
 									"w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em]",
-									hasDeliverableOperation
+									hasDeliverableOperation && mission.terminalReady
 										? "border-emerald-500/30 bg-emerald-500/12 text-emerald-200"
 										: "border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/12 text-[color:var(--vscode-warningForeground,#fbbf24)]"
 								)}
 							>
-								{hasDeliverableOperation
-									? MISSION_STATUS_LABELS[mission.status]
-									: "Operation Required"}
+								{statusBadgeLabel}
 							</span>
 							<span className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] text-xs">
 								{footerMessage}
@@ -781,12 +796,13 @@ const Route = () => {
 	const composerActionDisabled =
 		composerDisabled ||
 		!hasDeliverableOperation ||
+		!mission?.terminalReady ||
 		draft.trim().length === 0 ||
 		mission?.status === "sending";
 	const composerActionLabel = retryingErroredMission
 		? "Retry Delivery"
 		: "Send to Noctis";
-	const terminalActionLabel = mission?.sessionName
+	const terminalActionLabel = mission?.terminalReady
 		? "Reopen Terminal"
 		: "Launch Terminal";
 	const runtimeStatusLabel = getRuntimeStatusLabel(mission);
@@ -797,9 +813,13 @@ const Route = () => {
 		mission,
 		terminalActionLabel,
 	});
-	const composerPlaceholder = hasDeliverableOperation
-		? `Draft a message for ${mission?.title ?? "this mission"}...`
-		: "Choose a supported operation before drafting a delivery for Noctis.";
+	let composerPlaceholder =
+		"Choose a supported operation before drafting a delivery for Noctis.";
+	if (hasDeliverableOperation) {
+		composerPlaceholder = mission?.terminalReady
+			? `Draft a message for ${mission?.title ?? "this mission"}...`
+			: "Launch Terminal before sending a delivery to Noctis.";
+	}
 	const hasCatalogEntries =
 		state.operations.supported.length > 0 ||
 		state.operations.unsupported.length > 0;
