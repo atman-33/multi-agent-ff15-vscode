@@ -19,10 +19,12 @@ describe("Ff15ProjectsViewProvider", () => {
 	it("renders the Projects page and posts resolved projects context", async () => {
 		const resolverSnapshot = {
 			activeProjects: ["project-a"],
+			configVersion: 3,
 			error: null,
 			openspec: {
 				mode: "project",
 				path: "C:/workspace/openspec",
+				sourceProjectId: "project-a",
 			},
 			sourceKind: "agents",
 			sourcePath: "C:/workspace/.agents/harness",

@@ -10,15 +10,18 @@ import { parse } from "yaml";
 
 export type Ff15ProjectsContextSourceKind = "agents" | "ff15";
 export type Ff15ProjectsContextOpenspecMode = "project" | "harness";
+export type Ff15ProjectsContextConfigVersion = 2 | 3;
 
 export interface Ff15ProjectsContextReadySnapshot {
 	status: "ready";
 	sourceKind: Ff15ProjectsContextSourceKind;
 	sourcePath: string;
+	configVersion: Ff15ProjectsContextConfigVersion;
 	activeProjects: string[];
 	openspec: {
 		mode: Ff15ProjectsContextOpenspecMode;
 		path: string;
+		sourceProjectId: string | null;
 	};
 	error: null;
 }
@@ -27,10 +30,12 @@ export interface Ff15ProjectsContextErrorSnapshot {
 	status: "error";
 	sourceKind: Ff15ProjectsContextSourceKind | null;
 	sourcePath: string | null;
+	configVersion: null;
 	activeProjects: string[];
 	openspec: {
 		mode: null;
 		path: null;
+		sourceProjectId: null;
 	};
 	error: string;
 }
@@ -40,7 +45,7 @@ export type Ff15ProjectsContextSnapshot =
 	| Ff15ProjectsContextErrorSnapshot;
 
 const BOOTSTRAP_CONFIG_CONTENT = [
-	"version: 2",
+	"version: 3",
 	"",
 	"active_projects:",
 	"  - default",
@@ -117,6 +122,7 @@ const loadHarnessSnapshot = (input: {
 		const harnessOwnerRoot = getHarnessOwnerRoot(input.harnessRoot);
 		const configPath = join(input.harnessRoot, "config", "agent-harness.yaml");
 		const configRecord = parseYamlRecord(configPath);
+		const configVersion = getConfigVersion(configRecord.version);
 		const activeProjects = getStringArray(configRecord.active_projects);
 		const openspecRecord = getRecord(configRecord.openspec, "openspec");
 		const openspecMode = getOpenspecMode(openspecRecord.mode);
@@ -126,12 +132,10 @@ const loadHarnessSnapshot = (input: {
 				openspecRecord.project_id,
 				"openspec.project_id"
 			);
-			const openspecProjectPath = join(
-				input.harnessRoot,
-				"projects",
-				`${openspecProjectId}.yaml`
-			);
-			const openspecProjectRecord = parseYamlRecord(openspecProjectPath);
+			const openspecProjectRecord = parseProjectProfileRecord({
+				harnessRoot: input.harnessRoot,
+				projectId: openspecProjectId,
+			});
 			const openspecRoot = getNonEmptyString(
 				openspecProjectRecord.openspec_root,
 				"openspec_root"
@@ -139,10 +143,12 @@ const loadHarnessSnapshot = (input: {
 
 			return {
 				activeProjects,
+				configVersion,
 				error: null,
 				openspec: {
 					mode: "project",
 					path: resolve(harnessOwnerRoot, openspecRoot, "openspec"),
+					sourceProjectId: openspecProjectId,
 				},
 				sourceKind: input.sourceKind,
 				sourcePath: input.harnessRoot,
@@ -152,10 +158,12 @@ const loadHarnessSnapshot = (input: {
 
 		return {
 			activeProjects,
+			configVersion,
 			error: null,
 			openspec: {
 				mode: "harness",
 				path: join(harnessOwnerRoot, "openspec"),
+				sourceProjectId: null,
 			},
 			sourceKind: input.sourceKind,
 			sourcePath: input.harnessRoot,
@@ -202,6 +210,36 @@ const parseYamlRecord = (path: string): Record<string, unknown> => {
 	}
 
 	return parsed as Record<string, unknown>;
+};
+
+const parseProjectProfileRecord = (input: {
+	harnessRoot: string;
+	projectId: string;
+}) => {
+	const profilePath = join(
+		input.harnessRoot,
+		"projects",
+		`${input.projectId}.yaml`
+	);
+	if (!existsSync(profilePath)) {
+		throw new Error(
+			`Missing profile for openspec.project_id '${input.projectId}' at ${profilePath}.`
+		);
+	}
+
+	return parseYamlRecord(profilePath);
+};
+
+const getConfigVersion = (value: unknown): Ff15ProjectsContextConfigVersion => {
+	if (value === 2 || value === "2") {
+		return 2;
+	}
+
+	if (value === 3 || value === "3") {
+		return 3;
+	}
+
+	throw new Error("Expected version to be 2 or 3.");
 };
 
 const getRecord = (value: unknown, key: string): Record<string, unknown> => {
@@ -265,10 +303,12 @@ const buildErrorSnapshot = (input: {
 
 	return {
 		activeProjects: [],
+		configVersion: null,
 		error: message,
 		openspec: {
 			mode: null,
 			path: null,
+			sourceProjectId: null,
 		},
 		sourceKind: input.sourceKind,
 		sourcePath: input.sourcePath,

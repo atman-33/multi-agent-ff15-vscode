@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -22,7 +28,7 @@ describe("resolveFf15ProjectsContext", () => {
 			writeFile(
 				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
 				[
-					"version: 2",
+					"version: 3",
 					"active_projects:",
 					"  - primary",
 					"openspec:",
@@ -77,8 +83,55 @@ describe("resolveFf15ProjectsContext", () => {
 			expect(snapshot.sourceKind).toBe("agents");
 			expect(snapshot.sourcePath).toBe(agentsHarnessRoot);
 			expect(snapshot.activeProjects).toEqual(["primary"]);
+			expect(snapshot.configVersion).toBe(3);
 			expect(snapshot.openspec.mode).toBe("project");
 			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
+			expect(snapshot.openspec.sourceProjectId).toBe("primary");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("supports v2 config while using a non-active openspec.project_id", () => {
+		const workspaceRoot = createTmpWorkspace();
+		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+
+		try {
+			writeFile(
+				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				[
+					"version: 2",
+					"active_projects:",
+					"  - primary",
+					"openspec:",
+					"  mode: project",
+					"  project_id: context-only",
+					"",
+				].join("\n")
+			);
+			writeFile(
+				join(agentsHarnessRoot, "projects", "context-only.yaml"),
+				[
+					"id: context-only",
+					"openspec_root: .",
+					"repos:",
+					"  - id: extension",
+					"    root: .",
+					"",
+				].join("\n")
+			);
+
+			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
+
+			expect(snapshot.status).toBe("ready");
+			if (snapshot.status !== "ready") {
+				throw new Error("Expected ready projects context snapshot.");
+			}
+
+			expect(snapshot.configVersion).toBe(2);
+			expect(snapshot.activeProjects).toEqual(["primary"]);
+			expect(snapshot.openspec.mode).toBe("project");
+			expect(snapshot.openspec.sourceProjectId).toBe("context-only");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -98,8 +151,10 @@ describe("resolveFf15ProjectsContext", () => {
 			expect(snapshot.sourceKind).toBe("ff15");
 			expect(snapshot.sourcePath).toBe(join(workspaceRoot, ".ff15", "harness"));
 			expect(snapshot.activeProjects).toEqual(["default"]);
+			expect(snapshot.configVersion).toBe(3);
 			expect(snapshot.openspec.mode).toBe("project");
 			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
+			expect(snapshot.openspec.sourceProjectId).toBe("default");
 			expect(
 				existsSync(
 					join(
@@ -121,6 +176,113 @@ describe("resolveFf15ProjectsContext", () => {
 					join(workspaceRoot, ".ff15", "harness", "projects", "_template.yaml")
 				)
 			).toBe(true);
+			expect(
+				readFileSync(
+					join(
+						workspaceRoot,
+						".ff15",
+						"harness",
+						"config",
+						"agent-harness.yaml"
+					),
+					"utf8"
+				)
+			).toContain("version: 3");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("returns explicit error when project-mode profile is missing", () => {
+		const workspaceRoot = createTmpWorkspace();
+		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+
+		try {
+			writeFile(
+				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				[
+					"version: 3",
+					"active_projects:",
+					"  - primary",
+					"openspec:",
+					"  mode: project",
+					"  project_id: missing-profile",
+					"",
+				].join("\n")
+			);
+
+			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
+
+			expect(snapshot.status).toBe("error");
+			if (snapshot.status !== "error") {
+				throw new Error("Expected error projects context snapshot.");
+			}
+
+			expect(snapshot.error).toContain("missing-profile");
+			expect(snapshot.error).toContain("openspec.project_id");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("returns explicit error for unsupported config version", () => {
+		const workspaceRoot = createTmpWorkspace();
+		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+
+		try {
+			writeFile(
+				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				[
+					"version: 1",
+					"active_projects:",
+					"  - primary",
+					"openspec:",
+					"  mode: harness",
+					"",
+				].join("\n")
+			);
+
+			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
+
+			expect(snapshot.status).toBe("error");
+			if (snapshot.status !== "error") {
+				throw new Error("Expected error projects context snapshot.");
+			}
+
+			expect(snapshot.error).toContain("version");
+			expect(snapshot.error).toContain("2 or 3");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("resolves harness mode from owner root and clears sourceProjectId", () => {
+		const workspaceRoot = createTmpWorkspace();
+		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+
+		try {
+			writeFile(
+				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				[
+					"version: 3",
+					"active_projects:",
+					"  - primary",
+					"openspec:",
+					"  mode: harness",
+					"",
+				].join("\n")
+			);
+
+			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
+
+			expect(snapshot.status).toBe("ready");
+			if (snapshot.status !== "ready") {
+				throw new Error("Expected ready projects context snapshot.");
+			}
+
+			expect(snapshot.openspec.mode).toBe("harness");
+			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
+			expect(snapshot.openspec.sourceProjectId).toBeNull();
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

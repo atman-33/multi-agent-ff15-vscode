@@ -32,10 +32,12 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	}) => Ff15ProjectsContextSnapshot;
 	private latestSnapshot: Ff15ProjectsContextSnapshot = {
 		activeProjects: [],
+		configVersion: null,
 		error: "Unable to resolve workspace root for Projects view.",
 		openspec: {
 			mode: null,
 			path: null,
+			sourceProjectId: null,
 		},
 		sourceKind: null,
 		sourcePath: null,
@@ -86,10 +88,12 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		if (!workspaceRoot) {
 			return {
 				activeProjects: [],
+				configVersion: null,
 				error: "Unable to resolve workspace root for Projects view.",
 				openspec: {
 					mode: null,
 					path: null,
+					sourceProjectId: null,
 				},
 				sourceKind: null,
 				sourcePath: null,

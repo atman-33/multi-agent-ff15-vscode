@@ -6,10 +6,12 @@ type ProjectsSnapshot =
 			status: "ready";
 			sourceKind: "agents" | "ff15";
 			sourcePath: string;
+			configVersion: 2 | 3;
 			activeProjects: string[];
 			openspec: {
 				mode: "project" | "harness";
 				path: string;
+				sourceProjectId: string | null;
 			};
 			error: null;
 	  }
@@ -17,20 +19,24 @@ type ProjectsSnapshot =
 			status: "error";
 			sourceKind: "agents" | "ff15" | null;
 			sourcePath: string | null;
+			configVersion: null;
 			activeProjects: string[];
 			openspec: {
 				mode: null;
 				path: null;
+				sourceProjectId: null;
 			};
 			error: string;
 	  };
 
 const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 	activeProjects: [],
+	configVersion: null,
 	error: "Waiting for Projects context...",
 	openspec: {
 		mode: null,
 		path: null,
+		sourceProjectId: null,
 	},
 	sourceKind: null,
 	sourcePath: null,
@@ -89,6 +95,9 @@ const Route = () => {
 					<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
 						{snapshot.sourcePath ?? "-"}
 					</div>
+					<div className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
+						Config Version: {snapshot.configVersion ?? "-"}
+					</div>
 				</div>
 
 				<div className="rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-2 text-sm">
@@ -118,6 +127,9 @@ const Route = () => {
 					</div>
 					<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
 						{snapshot.openspec.path ?? "-"}
+					</div>
+					<div className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
+						Source Project: {snapshot.openspec.sourceProjectId ?? "-"}
 					</div>
 				</div>
 			</div>
