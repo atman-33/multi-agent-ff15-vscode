@@ -1,4 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { vscode } from "@/lib/vscode";
 import {
 	buildDraftFromSnapshot,
@@ -193,26 +194,30 @@ const Route = () => {
 							{availableProfiles.length > 0 ? (
 								availableProfiles.map((profile) => {
 									const checked = draft.activeProjects.includes(profile.id);
+									const checkboxId = `active-project-${profile.id}`;
 									return (
 										<label
 											className="flex cursor-pointer items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] px-3 py-2"
+											htmlFor={checkboxId}
 											key={profile.id}
 										>
-											<input
+											<Checkbox
 												checked={checked}
+												className="mt-0.5 shrink-0"
 												disabled={inputsDisabled}
-												onChange={(event) => {
-													const nextActiveProjects = event.target.checked
-														? [...draft.activeProjects, profile.id]
-														: draft.activeProjects.filter(
-																(projectId) => projectId !== profile.id
-															);
+												id={checkboxId}
+												onCheckedChange={(nextCheckedState) => {
+													const nextActiveProjects =
+														nextCheckedState === true
+															? [...draft.activeProjects, profile.id]
+															: draft.activeProjects.filter(
+																	(projectId) => projectId !== profile.id
+																);
 													updateDraft({
 														...draft,
 														activeProjects: nextActiveProjects,
 													});
 												}}
-												type="checkbox"
 											/>
 											<div className="min-w-0 flex-1">
 												<div className="font-medium text-[color:var(--vscode-foreground)] text-sm">
