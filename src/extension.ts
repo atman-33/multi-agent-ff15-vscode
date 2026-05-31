@@ -1,7 +1,6 @@
 import { commands, type ExtensionContext, window } from "vscode";
 import { FF15_OPEN_SETTINGS_COMMAND_ID } from "./config/extension-ids";
 import { materializeBundledFf15WorkspaceTemplateFiles } from "./features/ff15-agents/materialize";
-import { Ff15LaunchViewProvider } from "./features/ff15-launch/provider";
 import { resolveActiveWorkspaceRoot } from "./features/ff15-launch/workspace-root";
 import { loadBundledOperationsCatalog } from "./features/ff15-operations/catalog";
 import { createFf15OperationRuntimeProbeService } from "./features/ff15-operations/runtime-probe";
@@ -30,9 +29,6 @@ export const activate = (context: ExtensionContext) => {
 		});
 	}
 
-	const ff15LaunchViewProvider = new Ff15LaunchViewProvider(
-		context.extensionUri
-	);
 	const ff15MissionsStore = createWorkspaceStateFf15MissionsStore(
 		context.workspaceState,
 		{
@@ -84,16 +80,12 @@ export const activate = (context: ExtensionContext) => {
 	);
 	context.subscriptions.push(
 		window.registerWebviewViewProvider(
-			Ff15LaunchViewProvider.viewId,
-			ff15LaunchViewProvider
+			Ff15ProjectsViewProvider.viewId,
+			ff15ProjectsViewProvider
 		),
 		window.registerWebviewViewProvider(
 			Ff15MissionsViewProvider.viewId,
 			ff15MissionsViewProvider
-		),
-		window.registerWebviewViewProvider(
-			Ff15ProjectsViewProvider.viewId,
-			ff15ProjectsViewProvider
 		),
 		window.registerWebviewViewProvider(
 			Ff15SettingsViewProvider.viewId,

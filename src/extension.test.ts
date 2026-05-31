@@ -25,12 +25,6 @@ vi.mock("vscode", () => ({
 	},
 }));
 
-vi.mock("./features/ff15-launch/provider", () => ({
-	Ff15LaunchViewProvider: class {
-		static readonly viewId = "multi-agent-ff15-vscode.launchView";
-	},
-}));
-
 vi.mock("./features/ff15-agents/materialize", () => ({
 	materializeBundledFf15WorkspaceTemplateFiles,
 }));
@@ -70,7 +64,7 @@ describe("activate", () => {
 		resolveActiveWorkspaceRoot.mockReturnValue("c:/workspace");
 	});
 
-	it("registers the FF15 launch, missions, settings views, and settings command", () => {
+	it("registers the FF15 projects, missions, settings views, and settings command", () => {
 		const context = {
 			extensionUri: {
 				fsPath: "c:/extension",
@@ -104,7 +98,7 @@ describe("activate", () => {
 
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
 			1,
-			"multi-agent-ff15-vscode.launchView",
+			"multi-agent-ff15-vscode.projectsView",
 			expect.anything()
 		);
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
@@ -114,11 +108,6 @@ describe("activate", () => {
 		);
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
 			3,
-			"multi-agent-ff15-vscode.projectsView",
-			expect.anything()
-		);
-		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
-			4,
 			"multi-agent-ff15-vscode.settingsView",
 			expect.anything()
 		);
@@ -126,7 +115,7 @@ describe("activate", () => {
 			"multi-agent-ff15-vscode.openSettings",
 			expect.any(Function)
 		);
-		expect(context.subscriptions).toHaveLength(5);
+		expect(context.subscriptions).toHaveLength(4);
 	});
 
 	it("skips workspace agent materialization when no workspace root is available", () => {

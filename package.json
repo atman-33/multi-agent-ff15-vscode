@@ -52,20 +52,14 @@
     "views": {
       "multi-agent-ff15-vscode": [
         {
-          "id": "multi-agent-ff15-vscode.launchView",
-          "name": "Launch",
+          "id": "multi-agent-ff15-vscode.projectsView",
+          "name": "Projects",
           "type": "webview",
           "icon": ""
         },
         {
           "id": "multi-agent-ff15-vscode.missionsView",
           "name": "Missions",
-          "type": "webview",
-          "icon": ""
-        },
-        {
-          "id": "multi-agent-ff15-vscode.projectsView",
-          "name": "Projects",
           "type": "webview",
           "icon": ""
         },
