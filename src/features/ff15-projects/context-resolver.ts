@@ -10,7 +10,7 @@ import { parse } from "yaml";
 
 export type Ff15ProjectsContextSourceKind = "agents" | "ff15";
 export type Ff15ProjectsContextOpenspecMode = "project" | "harness";
-export type Ff15ProjectsContextConfigVersion = 2 | 3;
+export type Ff15ProjectsContextConfigVersion = number | string | null;
 
 export interface Ff15ProjectsContextReadySnapshot {
 	status: "ready";
@@ -231,15 +231,11 @@ const parseProjectProfileRecord = (input: {
 };
 
 const getConfigVersion = (value: unknown): Ff15ProjectsContextConfigVersion => {
-	if (value === 2 || value === "2") {
-		return 2;
+	if (typeof value === "number" || typeof value === "string") {
+		return value;
 	}
 
-	if (value === 3 || value === "3") {
-		return 3;
-	}
-
-	throw new Error("Expected version to be 2 or 3.");
+	return null;
 };
 
 const getRecord = (value: unknown, key: string): Record<string, unknown> => {

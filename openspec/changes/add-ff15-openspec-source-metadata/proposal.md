@@ -4,7 +4,7 @@ Projects context resolution currently exposes mode/path but does not carry expli
 
 ## What Changes
 
-- Extend FF15 Projects context resolver to accept both v2 and v3 config versions while treating v3 as the bootstrap/write baseline.
+- Extend FF15 Projects context resolver to preserve config version metadata without hard-coding acceptance to specific versions, while keeping v3 as the bootstrap/write baseline.
 - Keep `openspec.project_id` independent from `active_projects` in `project` mode and preserve strict profile existence validation.
 - Emit openspec source metadata (`sourceProjectId`) in resolver snapshots when `openspec.mode=project`.
 - Preserve `harness` mode behavior by resolving openspec path from the owning harness root and setting source project metadata to `null`.

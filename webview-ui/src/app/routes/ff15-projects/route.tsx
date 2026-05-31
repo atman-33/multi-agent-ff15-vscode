@@ -6,7 +6,7 @@ type ProjectsSnapshot =
 			status: "ready";
 			sourceKind: "agents" | "ff15";
 			sourcePath: string;
-			configVersion: 2 | 3;
+			configVersion: number | string | null;
 			activeProjects: string[];
 			openspec: {
 				mode: "project" | "harness";

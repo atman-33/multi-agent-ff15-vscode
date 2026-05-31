@@ -225,7 +225,7 @@ describe("resolveFf15ProjectsContext", () => {
 		}
 	});
 
-	it("returns explicit error for unsupported config version", () => {
+	it("preserves non-v2/v3 config versions without failing resolution", () => {
 		const workspaceRoot = createTmpWorkspace();
 		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
 
@@ -244,13 +244,13 @@ describe("resolveFf15ProjectsContext", () => {
 
 			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
 
-			expect(snapshot.status).toBe("error");
-			if (snapshot.status !== "error") {
-				throw new Error("Expected error projects context snapshot.");
+			expect(snapshot.status).toBe("ready");
+			if (snapshot.status !== "ready") {
+				throw new Error("Expected ready projects context snapshot.");
 			}
 
-			expect(snapshot.error).toContain("version");
-			expect(snapshot.error).toContain("2 or 3");
+			expect(snapshot.configVersion).toBe(1);
+			expect(snapshot.openspec.mode).toBe("harness");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

@@ -1,11 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: Resolver reads both v2 and v3 session config versions
-Projects context resolver SHALL accept `agent-harness.yaml` version values `2` and `3`, and MUST reject other values with an explicit error.
+### Requirement: Resolver preserves config version metadata without strict gating
+Projects context resolver SHALL preserve `agent-harness.yaml` version metadata when it is present, and MUST NOT fail solely because the version differs from previously known values.
 
-#### Scenario: v3 config is resolved successfully
+#### Scenario: known version is resolved successfully
 - **WHEN** resolver loads a harness config with `version: 3`
 - **THEN** it returns a ready snapshot with `configVersion=3`
+
+#### Scenario: future version is preserved without failure
+- **WHEN** resolver loads a harness config with `version: 4`
+- **THEN** it returns a ready snapshot with `configVersion=4`
 
 ### Requirement: `openspec.project_id` is independent from `active_projects`
 In `openspec.mode=project`, resolver SHALL resolve openspec from `openspec.project_id` regardless of whether that project id appears in `active_projects`, as long as the profile exists.
@@ -33,7 +37,7 @@ Ready snapshots SHALL include openspec source metadata so consumers can distingu
 - **THEN** snapshot includes `openspec.sourceProjectId=null`
 
 ### Requirement: Bootstrap emits v3 baseline config
-When resolver bootstraps `.ff15/harness/config/agent-harness.yaml`, it SHALL write `version: 3` while remaining able to read v2 configs.
+When resolver bootstraps `.ff15/harness/config/agent-harness.yaml`, it SHALL write `version: 3` while remaining tolerant of other version values during read.
 
 #### Scenario: bootstrap creates v3 config file
 - **WHEN** neither `.agents/harness` nor `.ff15/harness` exists and bootstrap runs
