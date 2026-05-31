@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
@@ -59,34 +58,28 @@ const Route = () => {
 				Open Projects Editor
 			</SidebarActionButton>
 
-			<Card className="gap-0 overflow-hidden border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] py-0 text-[color:var(--vscode-foreground)] shadow-none">
-				<CardContent className="grid gap-0 px-0">
-					<div className="px-3 py-3 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-							Source
-						</div>
-						<div className="mt-1 break-all font-medium leading-5">
-							{sourceSummary}
-						</div>
-					</div>
-					<div className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_8%,transparent)] border-t px-3 py-3 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-							Active
-						</div>
-						<div className="mt-1 break-all font-medium leading-5">
-							{activeProjectsSummary}
-						</div>
-					</div>
-					<div className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_8%,transparent)] border-t px-3 py-3 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-							OpenSpec
-						</div>
-						<div className="mt-1 break-all font-medium leading-5">
-							{openSpecSummary}
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+			<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 px-1 text-[color:var(--vscode-foreground)] text-sm">
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+					Source
+				</div>
+				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+					{sourceSummary}
+				</div>
+
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+					Active
+				</div>
+				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+					{activeProjectsSummary}
+				</div>
+
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+					OpenSpec
+				</div>
+				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+					{openSpecSummary}
+				</div>
+			</div>
 
 			<div className="grid gap-2">
 				{warningProfiles.length > 0 ? (

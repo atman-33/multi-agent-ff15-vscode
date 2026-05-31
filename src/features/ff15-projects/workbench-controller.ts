@@ -13,6 +13,7 @@ export const FF15_PROJECTS_WORKBENCH_PANEL_VIEW_TYPE =
 	"multi-agent-ff15-vscode.projectsWorkbench";
 
 export interface Ff15ProjectsWorkbenchController {
+	onDidChangeProjectsContext: (listener: () => void) => Disposable;
 	showProjectsEditor: (workspaceRoot: string) => Promise<void>;
 }
 
@@ -131,9 +132,16 @@ export const createFf15ProjectsWorkbenchController = (
 	let lastAcceptedDraft: Ff15ProjectsContextDraft | undefined;
 	let lastAcceptedSnapshot: Ff15ProjectsContextSnapshot | undefined;
 	let latestDraft: Ff15ProjectsContextDraft | undefined;
+	const projectsContextChangeListeners = new Set<() => void>();
 	let panel: WebviewPanel | undefined;
 	let pendingSaveTimer: ReturnType<typeof setTimeout> | undefined;
 	let queuedExternalSnapshot: Ff15ProjectsContextSnapshot | undefined;
+
+	const notifyProjectsContextChanged = () => {
+		for (const listener of projectsContextChangeListeners) {
+			listener();
+		}
+	};
 
 	const clearPendingSave = () => {
 		if (!pendingSaveTimer) {
@@ -185,6 +193,7 @@ export const createFf15ProjectsWorkbenchController = (
 		);
 		latestDraft = lastAcceptedDraft;
 		queuedExternalSnapshot = undefined;
+		notifyProjectsContextChanged();
 	};
 
 	const postAcceptedSnapshot = async (
@@ -423,6 +432,14 @@ export const createFf15ProjectsWorkbenchController = (
 	};
 
 	return {
+		onDidChangeProjectsContext: (listener: () => void) => {
+			projectsContextChangeListeners.add(listener);
+			return {
+				dispose: () => {
+					projectsContextChangeListeners.delete(listener);
+				},
+			};
+		},
 		showProjectsEditor: async (workspaceRoot: string) => {
 			activeWorkspaceRoot = workspaceRoot;
 

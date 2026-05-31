@@ -154,6 +154,8 @@ describe("createFf15ProjectsWorkbenchController", () => {
 			saveProjectsContext,
 			watchProjectsContext: watcherDouble.watchProjectsContext,
 		});
+		const onDidChangeProjectsContext = vi.fn();
+		controller.onDidChangeProjectsContext(onDidChangeProjectsContext);
 
 		await controller.showProjectsEditor("C:/workspace");
 
@@ -196,6 +198,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 			message: "Projects saved.",
 			state: "saved",
 		});
+		expect(onDidChangeProjectsContext).toHaveBeenCalledTimes(2);
 	});
 
 	it("auto-refreshes the Projects editor when watched files change and no draft is pending", async () => {

@@ -1,5 +1,6 @@
 import type {
 	CancellationToken,
+	Disposable,
 	Uri,
 	WebviewView,
 	WebviewViewProvider,
@@ -30,6 +31,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	private readonly extensionUri: Uri;
 	private readonly getWorkspaceRoot: () => string | undefined;
 	private readonly projectsWorkbenchController: Ff15ProjectsWorkbenchController;
+	private readonly projectsWorkbenchSubscription: Disposable;
 	private readonly resolveProjectsContext: (input: {
 		workspaceRoot: string;
 	}) => Ff15ProjectsContextSnapshot;
@@ -58,10 +60,19 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 			dependencies.getWorkspaceRoot ?? resolveActiveWorkspaceRoot;
 		this.projectsWorkbenchController =
 			dependencies.projectsWorkbenchController ?? {
+				onDidChangeProjectsContext: () => ({
+					dispose: () => {
+						return;
+					},
+				}),
 				showProjectsEditor: () => Promise.resolve(),
 			};
 		this.resolveProjectsContext =
 			dependencies.resolveProjectsContext ?? resolveFf15ProjectsContext;
+		this.projectsWorkbenchSubscription =
+			this.projectsWorkbenchController.onDidChangeProjectsContext(() => {
+				this.postSnapshot(this.resolveSnapshot());
+			});
 	}
 
 	resolveWebviewView(

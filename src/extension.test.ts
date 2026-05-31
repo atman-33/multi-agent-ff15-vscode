@@ -11,6 +11,7 @@ const {
 	missionsViewProviderConstructor: vi.fn(),
 	projectsViewProviderConstructor: vi.fn(),
 	projectsWorkbenchControllerFactory: vi.fn(() => ({
+		onDidChangeProjectsContext: vi.fn(() => ({ dispose: vi.fn() })),
 		showProjectsEditor: vi.fn(),
 	})),
 	resolveActiveWorkspaceRoot: vi.fn(() => "c:/workspace"),
