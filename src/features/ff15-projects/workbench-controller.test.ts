@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ViewColumn } from "vscode";
 import {
 	createFf15ProjectsWorkbenchController,
@@ -34,27 +34,60 @@ const createPanelDouble = () => {
 	};
 };
 
+const createReadySnapshot = (overrides: Record<string, unknown> = {}) =>
+	({
+		activeProjects: ["project-a"],
+		configVersion: 3,
+		error: null,
+		openspec: {
+			mode: "project",
+			path: "C:/workspace/project-a/openspec",
+			sourceProjectId: "project-a",
+		},
+		profiles: [
+			{ id: "project-a", warnings: [] },
+			{ id: "project-b", warnings: [] },
+		],
+		sourceKind: "agents",
+		sourcePath: "C:/workspace/.agents/harness",
+		status: "ready",
+		...overrides,
+	}) as const;
+
+const getMessageHandler = (panelDouble: ReturnType<typeof createPanelDouble>) =>
+	panelDouble.panel.webview.onDidReceiveMessage.mock.calls[0]?.[0] as
+		| ((message: {
+				command: string;
+				draft?: unknown;
+				resolution?: "discard-local" | "keep-local" | "reload";
+		  }) => Promise<void>)
+		| undefined;
+
+const createWatcherDouble = () => {
+	let onChange: (() => void | Promise<void>) | undefined;
+
+	return {
+		trigger: async () => {
+			await onChange?.();
+		},
+		watchProjectsContext: vi.fn(
+			(input: { onChange: () => void | Promise<void> }) => {
+				onChange = input.onChange;
+				return { dispose: vi.fn() };
+			}
+		),
+	};
+};
+
+afterEach(() => {
+	vi.useRealTimers();
+});
+
 describe("createFf15ProjectsWorkbenchController", () => {
 	it("creates and reuses the Projects editor panel", async () => {
 		const panelDouble = createPanelDouble();
 		const createWebviewPanel = vi.fn().mockReturnValue(panelDouble.panel);
-		const snapshot = {
-			activeProjects: ["project-a"],
-			configVersion: 3,
-			error: null,
-			openspec: {
-				mode: "project",
-				path: "C:/workspace/project-a/openspec",
-				sourceProjectId: "project-a",
-			},
-			profiles: [
-				{ id: "project-a", warnings: [] },
-				{ id: "project-b", warnings: [] },
-			],
-			sourceKind: "agents",
-			sourcePath: "C:/workspace/.agents/harness",
-			status: "ready",
-		} as const;
+		const snapshot = createReadySnapshot();
 		const controller = createFf15ProjectsWorkbenchController({
 			createWebviewPanel,
 			extensionUri: { fsPath: "C:/extension" } as never,
@@ -64,6 +97,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 					'<div id="root" data-page="ff15-projects-workbench"></div>'
 				),
 			resolveProjectsContext: vi.fn().mockReturnValue(snapshot),
+			watchProjectsContext: vi.fn().mockReturnValue({ dispose: vi.fn() }),
 		});
 
 		await controller.showProjectsEditor("C:/workspace");
@@ -96,34 +130,18 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		vi.useFakeTimers();
 
 		const panelDouble = createPanelDouble();
-		const initialSnapshot = {
-			activeProjects: ["project-a"],
-			configVersion: 3,
-			error: null,
-			openspec: {
-				mode: "project",
-				path: "C:/workspace/project-a/openspec",
-				sourceProjectId: "project-a",
-			},
-			profiles: [
-				{ id: "project-a", warnings: [] },
-				{ id: "project-b", warnings: [] },
-			],
-			sourceKind: "agents",
-			sourcePath: "C:/workspace/.agents/harness",
-			status: "ready",
-		} as const;
-		const savedSnapshot = {
-			...initialSnapshot,
+		const initialSnapshot = createReadySnapshot();
+		const savedSnapshot = createReadySnapshot({
 			activeProjects: ["project-b"],
 			openspec: {
 				mode: "project",
 				path: "C:/workspace/project-b/openspec",
 				sourceProjectId: "project-b",
 			},
-		} as const;
+		});
 		const resolveProjectsContext = vi.fn().mockReturnValue(initialSnapshot);
 		const saveProjectsContext = vi.fn().mockReturnValue(savedSnapshot);
+		const watcherDouble = createWatcherDouble();
 		const controller = createFf15ProjectsWorkbenchController({
 			createWebviewPanel: vi.fn().mockReturnValue(panelDouble.panel),
 			extensionUri: { fsPath: "C:/extension" } as never,
@@ -134,14 +152,12 @@ describe("createFf15ProjectsWorkbenchController", () => {
 				),
 			resolveProjectsContext,
 			saveProjectsContext,
+			watchProjectsContext: watcherDouble.watchProjectsContext,
 		});
 
 		await controller.showProjectsEditor("C:/workspace");
 
-		const onDidReceiveMessage = panelDouble.panel.webview.onDidReceiveMessage
-			.mock.calls[0]?.[0] as
-			| ((message: { command: string; draft?: unknown }) => Promise<void>)
-			| undefined;
+		const onDidReceiveMessage = getMessageHandler(panelDouble);
 
 		await onDidReceiveMessage?.({
 			command: "ff15-projects-workbench.updateDraft",
@@ -179,6 +195,249 @@ describe("createFf15ProjectsWorkbenchController", () => {
 			command: "ff15-projects-workbench.save-status",
 			message: "Projects saved.",
 			state: "saved",
+		});
+	});
+
+	it("auto-refreshes the Projects editor when watched files change and no draft is pending", async () => {
+		const panelDouble = createPanelDouble();
+		const initialSnapshot = createReadySnapshot();
+		const externalSnapshot = createReadySnapshot({
+			activeProjects: ["project-b"],
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/project-b/openspec",
+				sourceProjectId: "project-b",
+			},
+		});
+		const resolveProjectsContext = vi
+			.fn()
+			.mockReturnValueOnce(initialSnapshot)
+			.mockReturnValue(externalSnapshot);
+		const watcherDouble = createWatcherDouble();
+		const controller = createFf15ProjectsWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(panelDouble.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			renderWebviewContent: vi
+				.fn()
+				.mockReturnValue(
+					'<div id="root" data-page="ff15-projects-workbench"></div>'
+				),
+			resolveProjectsContext,
+			watchProjectsContext: watcherDouble.watchProjectsContext,
+		});
+
+		await controller.showProjectsEditor("C:/workspace");
+		await watcherDouble.trigger();
+
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects-workbench.state",
+			snapshot: externalSnapshot,
+		});
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects-workbench.save-status",
+			message: "Projects reloaded from external changes.",
+			state: "saved",
+		});
+	});
+
+	it("reloads the queued external snapshot after a conflict", async () => {
+		vi.useFakeTimers();
+
+		const panelDouble = createPanelDouble();
+		const initialSnapshot = createReadySnapshot();
+		const externalSnapshot = createReadySnapshot({
+			activeProjects: ["project-b"],
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/project-b/openspec",
+				sourceProjectId: "project-b",
+			},
+		});
+		const resolveProjectsContext = vi
+			.fn()
+			.mockReturnValueOnce(initialSnapshot)
+			.mockReturnValue(externalSnapshot);
+		const saveProjectsContext = vi.fn();
+		const watcherDouble = createWatcherDouble();
+		const controller = createFf15ProjectsWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(panelDouble.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			renderWebviewContent: vi
+				.fn()
+				.mockReturnValue(
+					'<div id="root" data-page="ff15-projects-workbench"></div>'
+				),
+			resolveProjectsContext,
+			saveProjectsContext,
+			watchProjectsContext: watcherDouble.watchProjectsContext,
+		});
+
+		await controller.showProjectsEditor("C:/workspace");
+		const onDidReceiveMessage = getMessageHandler(panelDouble);
+		await onDidReceiveMessage?.({
+			command: "ff15-projects-workbench.updateDraft",
+			draft: {
+				activeProjects: ["project-b"],
+				openspec: { mode: "project", projectId: "project-b" },
+			},
+		});
+
+		await watcherDouble.trigger();
+		await vi.advanceTimersByTimeAsync(400);
+
+		expect(saveProjectsContext).not.toHaveBeenCalled();
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			active: true,
+			command: "ff15-projects-workbench.conflict",
+			message:
+				"External Projects changes detected. Choose how to resolve them before applying the new state.",
+		});
+
+		await onDidReceiveMessage?.({
+			command: "ff15-projects-workbench.resolveConflict",
+			resolution: "reload",
+		});
+
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects-workbench.state",
+			snapshot: externalSnapshot,
+		});
+	});
+
+	it("discards the local draft and restores the last accepted snapshot without applying the queued external state", async () => {
+		vi.useFakeTimers();
+
+		const panelDouble = createPanelDouble();
+		const initialSnapshot = createReadySnapshot();
+		const externalSnapshot = createReadySnapshot({
+			activeProjects: ["project-b"],
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/project-b/openspec",
+				sourceProjectId: "project-b",
+			},
+		});
+		const resolveProjectsContext = vi
+			.fn()
+			.mockReturnValueOnce(initialSnapshot)
+			.mockReturnValue(externalSnapshot);
+		const saveProjectsContext = vi.fn();
+		const watcherDouble = createWatcherDouble();
+		const controller = createFf15ProjectsWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(panelDouble.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			renderWebviewContent: vi
+				.fn()
+				.mockReturnValue(
+					'<div id="root" data-page="ff15-projects-workbench"></div>'
+				),
+			resolveProjectsContext,
+			saveProjectsContext,
+			watchProjectsContext: watcherDouble.watchProjectsContext,
+		});
+
+		await controller.showProjectsEditor("C:/workspace");
+		const onDidReceiveMessage = getMessageHandler(panelDouble);
+		await onDidReceiveMessage?.({
+			command: "ff15-projects-workbench.updateDraft",
+			draft: {
+				activeProjects: ["project-b"],
+				openspec: { mode: "project", projectId: "project-b" },
+			},
+		});
+
+		await watcherDouble.trigger();
+		await onDidReceiveMessage?.({
+			command: "ff15-projects-workbench.resolveConflict",
+			resolution: "discard-local",
+		});
+
+		expect(saveProjectsContext).not.toHaveBeenCalled();
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects-workbench.state",
+			snapshot: initialSnapshot,
+		});
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects-workbench.save-status",
+			message: "Local Projects edits discarded.",
+			state: "saved",
+		});
+	});
+
+	it("keeps the local draft only after an explicit keep-local choice and then resumes save", async () => {
+		vi.useFakeTimers();
+
+		const panelDouble = createPanelDouble();
+		const initialSnapshot = createReadySnapshot();
+		const externalSnapshot = createReadySnapshot({
+			activeProjects: ["project-b"],
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/project-b/openspec",
+				sourceProjectId: "project-b",
+			},
+		});
+		const savedSnapshot = createReadySnapshot({
+			activeProjects: ["project-c"],
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/project-c/openspec",
+				sourceProjectId: "project-c",
+			},
+			profiles: [
+				{ id: "project-a", warnings: [] },
+				{ id: "project-b", warnings: [] },
+				{ id: "project-c", warnings: [] },
+			],
+		});
+		const resolveProjectsContext = vi
+			.fn()
+			.mockReturnValueOnce(initialSnapshot)
+			.mockReturnValue(externalSnapshot);
+		const saveProjectsContext = vi.fn().mockReturnValue(savedSnapshot);
+		const watcherDouble = createWatcherDouble();
+		const controller = createFf15ProjectsWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(panelDouble.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			renderWebviewContent: vi
+				.fn()
+				.mockReturnValue(
+					'<div id="root" data-page="ff15-projects-workbench"></div>'
+				),
+			resolveProjectsContext,
+			saveProjectsContext,
+			watchProjectsContext: watcherDouble.watchProjectsContext,
+		});
+
+		await controller.showProjectsEditor("C:/workspace");
+		const onDidReceiveMessage = getMessageHandler(panelDouble);
+		const localDraft = {
+			activeProjects: ["project-c"],
+			openspec: { mode: "project", projectId: "project-c" },
+		} as const;
+		await onDidReceiveMessage?.({
+			command: "ff15-projects-workbench.updateDraft",
+			draft: localDraft,
+		});
+
+		await watcherDouble.trigger();
+		await vi.advanceTimersByTimeAsync(400);
+
+		expect(saveProjectsContext).not.toHaveBeenCalled();
+
+		await onDidReceiveMessage?.({
+			command: "ff15-projects-workbench.resolveConflict",
+			resolution: "keep-local",
+		});
+		await vi.advanceTimersByTimeAsync(400);
+
+		expect(saveProjectsContext).toHaveBeenCalledWith({
+			draft: localDraft,
+			workspaceRoot: "C:/workspace",
+		});
+		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects-workbench.state",
+			snapshot: savedSnapshot,
 		});
 	});
 });

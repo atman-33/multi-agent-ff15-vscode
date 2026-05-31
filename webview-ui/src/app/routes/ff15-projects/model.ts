@@ -41,7 +41,7 @@ export interface ProjectsDraft {
 	};
 }
 
-export type SaveState = "error" | "idle" | "saved" | "saving";
+export type SaveState = "conflict" | "error" | "idle" | "saved" | "saving";
 
 export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 	activeProjects: [],
@@ -104,6 +104,8 @@ export const getSaveStateColor = (state: SaveState) => {
 	switch (state) {
 		case "error":
 			return "text-[color:var(--vscode-errorForeground,#f87171)]";
+		case "conflict":
+			return "text-[color:var(--vscode-warningForeground,#fbbf24)]";
 		case "saved":
 			return "text-[color:var(--vscode-testing-iconPassed,#4ade80)]";
 		case "saving":

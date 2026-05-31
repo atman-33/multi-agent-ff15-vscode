@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { vscode } from "@/lib/vscode";
 import {
 	buildDraftFromSnapshot,
@@ -11,9 +11,56 @@ import {
 	type SaveState,
 } from "../ff15-projects/model";
 
+const applyStateMessage = (input: {
+	payload: { snapshot?: ProjectsSnapshot };
+	setConflictMessage: (message: string | null) => void;
+	setDraft: Dispatch<SetStateAction<ProjectsDraft>>;
+	setSnapshot: (snapshot: ProjectsSnapshot) => void;
+}) => {
+	const nextSnapshot = input.payload.snapshot ?? EMPTY_SNAPSHOT;
+	input.setSnapshot(nextSnapshot);
+	input.setConflictMessage(null);
+	input.setDraft((currentDraft) =>
+		buildDraftFromSnapshot(nextSnapshot, currentDraft)
+	);
+};
+
+const applyConflictMessage = (input: {
+	payload: { active?: boolean; message?: string };
+	setConflictMessage: (message: string | null) => void;
+	setSaveMessage: (message: string) => void;
+	setSaveState: (state: SaveState) => void;
+}) => {
+	input.setConflictMessage(
+		input.payload.active
+			? (input.payload.message ?? "External Projects changes detected.")
+			: null
+	);
+
+	if (!input.payload.active) {
+		return;
+	}
+
+	input.setSaveMessage(
+		input.payload.message ??
+			"External Projects changes detected. Resolve the conflict to continue."
+	);
+	input.setSaveState("conflict");
+};
+
+const applySaveStatusMessage = (input: {
+	payload: { message?: string; state?: SaveState };
+	setSaveMessage: (message: string) => void;
+	setSaveState: (state: SaveState) => void;
+}) => {
+	input.setSaveMessage(input.payload.message ?? "Projects status updated.");
+	input.setSaveState(input.payload.state ?? "idle");
+};
+
 const Route = () => {
 	const [snapshot, setSnapshot] = useState<ProjectsSnapshot>(EMPTY_SNAPSHOT);
 	const [draft, setDraft] = useState<ProjectsDraft>(EMPTY_DRAFT);
+	const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 	const [saveMessage, setSaveMessage] = useState<string>(
 		"Waiting for Projects context..."
 	);
@@ -24,16 +71,29 @@ const Route = () => {
 			const payload = event.data;
 			switch (payload?.command) {
 				case "ff15-projects-workbench.state": {
-					const nextSnapshot = payload.snapshot ?? EMPTY_SNAPSHOT;
-					setSnapshot(nextSnapshot);
-					setDraft((currentDraft) =>
-						buildDraftFromSnapshot(nextSnapshot, currentDraft)
-					);
+					applyStateMessage({
+						payload,
+						setConflictMessage,
+						setDraft,
+						setSnapshot,
+					});
+					return;
+				}
+				case "ff15-projects-workbench.conflict": {
+					applyConflictMessage({
+						payload,
+						setConflictMessage,
+						setSaveMessage,
+						setSaveState,
+					});
 					return;
 				}
 				case "ff15-projects-workbench.save-status": {
-					setSaveMessage(payload.message ?? "Projects status updated.");
-					setSaveState(payload.state ?? "idle");
+					applySaveStatusMessage({
+						payload,
+						setSaveMessage,
+						setSaveState,
+					});
 					return;
 				}
 				default:
@@ -57,11 +117,21 @@ const Route = () => {
 		});
 	};
 
+	const resolveConflict = (
+		resolution: "discard-local" | "keep-local" | "reload"
+	) => {
+		vscode.postMessage({
+			command: "ff15-projects-workbench.resolveConflict",
+			resolution,
+		});
+	};
+
 	const availableProfiles =
 		snapshot.status === "ready" ? snapshot.profiles : [];
 	const warningProfiles = availableProfiles.filter(
 		(profile) => profile.warnings.length > 0
 	);
+	const inputsDisabled = snapshot.status !== "ready" || conflictMessage != null;
 
 	return (
 		<div className="mx-auto flex h-full max-w-4xl flex-col gap-4 px-6 py-5">
@@ -78,6 +148,40 @@ const Route = () => {
 			<div className={`text-xs ${getSaveStateColor(saveState)}`}>
 				{saveMessage}
 			</div>
+
+			{conflictMessage ? (
+				<div className="rounded-xl border border-[color:var(--vscode-warningForeground,#fbbf24)]/40 bg-[color:var(--vscode-warningForeground,#fbbf24)]/10 px-4 py-3 text-sm">
+					<div className="font-medium text-[color:var(--vscode-warningForeground,#fbbf24)]">
+						External change conflict
+					</div>
+					<p className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.82))] text-xs leading-5">
+						{conflictMessage}
+					</p>
+					<div className="mt-3 flex flex-wrap gap-2">
+						<button
+							className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-3 py-1 text-xs"
+							onClick={() => resolveConflict("reload")}
+							type="button"
+						>
+							Reload
+						</button>
+						<button
+							className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-3 py-1 text-xs"
+							onClick={() => resolveConflict("discard-local")}
+							type="button"
+						>
+							Discard local
+						</button>
+						<button
+							className="rounded-md border border-[color:var(--vscode-textLink-foreground,#60a5fa)] bg-[color:color-mix(in_srgb,var(--vscode-textLink-foreground,#60a5fa)_14%,transparent)] px-3 py-1 text-xs"
+							onClick={() => resolveConflict("keep-local")}
+							type="button"
+						>
+							Keep local
+						</button>
+					</div>
+				</div>
+			) : null}
 
 			<div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
 				<div className="grid gap-3">
@@ -96,7 +200,7 @@ const Route = () => {
 										>
 											<input
 												checked={checked}
-												disabled={snapshot.status !== "ready"}
+												disabled={inputsDisabled}
 												onChange={(event) => {
 													const nextActiveProjects = event.target.checked
 														? [...draft.activeProjects, profile.id]
@@ -141,7 +245,7 @@ const Route = () => {
 							</span>
 							<select
 								className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] px-2 py-1 text-[color:var(--vscode-input-foreground)]"
-								disabled={snapshot.status !== "ready"}
+								disabled={inputsDisabled}
 								onChange={(event) => {
 									const mode = event.target.value as "project" | "harness";
 									updateDraft({
@@ -165,7 +269,7 @@ const Route = () => {
 								</span>
 								<select
 									className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] px-2 py-1 text-[color:var(--vscode-input-foreground)]"
-									disabled={snapshot.status !== "ready"}
+									disabled={inputsDisabled}
 									onChange={(event) => {
 										updateDraft({
 											...draft,
