@@ -6,7 +6,7 @@ export interface SidebarListItemButtonProps
 	active?: boolean;
 	badge?: React.ReactNode;
 	description?: React.ReactNode;
-	title: React.ReactNode;
+	label: React.ReactNode;
 }
 
 export const SidebarListItemButton = ({
@@ -14,7 +14,7 @@ export const SidebarListItemButton = ({
 	badge,
 	className,
 	description,
-	title,
+	label,
 	type,
 	...rest
 }: SidebarListItemButtonProps) => (
@@ -31,7 +31,7 @@ export const SidebarListItemButton = ({
 	>
 		<div className="flex items-start justify-between gap-3">
 			<div className="min-w-0 flex-1">
-				<div className="truncate font-medium text-sm leading-5">{title}</div>
+				<div className="truncate font-medium text-sm leading-5">{label}</div>
 				{description ? (
 					<div className="mt-1 truncate text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.58))] uppercase tracking-[0.12em]">
 						{description}
