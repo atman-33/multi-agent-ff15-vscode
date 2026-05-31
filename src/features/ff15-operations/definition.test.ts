@@ -288,17 +288,23 @@ describe("ff15 operation definition", () => {
 
 			const prompt = buildOperationAwarePrompt({
 				activation: activation!,
+				activeProjects: ["frontend", "backend"],
 				missionId: "mission-1",
+				openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
 				prompt: "Draft the first response",
 				workspaceRoot,
 			});
 
 			expect(prompt).toContain("<operation-prompt>");
 			expect(prompt).toContain("<workspace-context>");
-			expect(prompt).toContain(`project_root: ${workspaceRoot}`);
+			expect(prompt).toContain(`execution_root: ${workspaceRoot}`);
 			expect(prompt).toContain("<tooling-context>");
-			expect(prompt).toContain(`activate_project: ${workspaceRoot}`);
-			expect(prompt).toContain(`openspec_root: ${workspaceRoot}`);
+			expect(prompt).toContain("active_projects:\n  - frontend\n  - backend");
+			expect(prompt).toContain(
+				`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+			);
+			expect(prompt).not.toContain("activate_project:");
+			expect(prompt).not.toContain("project_root:");
 			expect(prompt).toContain("<workflow-context>");
 			expect(prompt).toContain("operation: github-issue-openspec-dev");
 			expect(prompt).toContain("step: spec-planning");
@@ -336,6 +342,39 @@ describe("ff15 operation definition", () => {
 			expect(prompt).toContain("task-spec-planning");
 			expect(prompt).toContain('<user-request from="user" to="noctis">');
 			expect(prompt).toContain("Draft the first response");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("uses a resolved openspec root in tooling context when provided", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-openspec-root-${crypto.randomUUID()}`
+		);
+		const openspecRoot = join(workspaceRoot, "selected-project", "openspec");
+
+		try {
+			seedRichOperationBundle(workspaceRoot);
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:github-issue-openspec-dev"
+			);
+			expect(activation).not.toBeNull();
+
+			const prompt = buildOperationAwarePrompt({
+				activation: activation!,
+				activeProjects: ["frontend", "backend"],
+				missionId: "mission-1",
+				openspecRoot,
+				prompt: "Use the resolved OpenSpec root",
+				workspaceRoot,
+			});
+
+			expect(prompt).toContain(`execution_root: ${workspaceRoot}`);
+			expect(prompt).toContain("active_projects:\n  - frontend\n  - backend");
+			expect(prompt).toContain(`openspec_root: ${openspecRoot}`);
+			expect(prompt).not.toContain(`openspec_root: ${workspaceRoot}\n`);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -594,8 +633,10 @@ describe("ff15 operation definition", () => {
 
 			const prompt = buildWorkerOperationAwarePrompt({
 				activation: activation!,
+				activeProjects: ["frontend", "backend"],
 				handoff: null,
 				missionId: "mission-1",
+				openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
 				workflow: createCompletedStepWorkflow(
 					"spec-planning",
 					"implement",
@@ -605,6 +646,11 @@ describe("ff15 operation definition", () => {
 			});
 
 			expect(prompt).toContain(expectedOutputPath);
+			expect(prompt).toContain(`execution_root: ${workspaceRoot}`);
+			expect(prompt).toContain("active_projects:\n  - frontend\n  - backend");
+			expect(prompt).toContain(
+				`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+			);
 			expect(prompt).not.toContain(
 				'{{ output("spec-planning", "latest", "spec-plan.md") }}'
 			);

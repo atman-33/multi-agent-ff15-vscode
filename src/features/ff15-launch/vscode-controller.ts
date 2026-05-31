@@ -12,8 +12,18 @@ import {
 } from "./layout";
 import { launchZellijTerminal } from "./launch-terminal";
 import { resolveActiveWorkspaceRoot } from "./workspace-root";
+import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 
 export const createVsCodeFf15LaunchController = (extensionUri: Uri) => {
+	const resolveRuntimeContext = () => {
+		const workspaceRoot = resolveActiveWorkspaceRoot();
+		if (!workspaceRoot) {
+			return;
+		}
+
+		return resolveFf15ProjectRuntimeContext({ workspaceRoot });
+	};
+
 	const getLaunchClient = () =>
 		createFf15LaunchClient(
 			resolveFf15LaunchClientId(
@@ -37,7 +47,7 @@ export const createVsCodeFf15LaunchController = (extensionUri: Uri) => {
 				paneLaunchPlan,
 				workspaceRoot,
 			}),
-		getWorkspaceRoot: resolveActiveWorkspaceRoot,
+		getWorkspaceRoot: () => resolveRuntimeContext()?.executionRoot,
 		launchTerminal: launchZellijTerminal,
 		showErrorMessage: window.showErrorMessage,
 	});

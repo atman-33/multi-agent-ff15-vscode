@@ -110,6 +110,12 @@ interface Ff15OperationPromptResolutionContext {
 	workspaceRoot: string;
 }
 
+const normalizeActiveProjects = (activeProjects?: string[]): string[] =>
+	(activeProjects ?? []).filter(
+		(activeProject): activeProject is string =>
+			typeof activeProject === "string" && activeProject.trim().length > 0
+	);
+
 const getOperationFileName = (operationRef: string): string | null =>
 	FF15_BUNDLED_OPERATION_DEFINITIONS.find(
 		(operationDefinition) => operationDefinition.ref === operationRef
@@ -307,6 +313,34 @@ const buildTextSection = (
 
 const buildPlainSection = (tagName: string, lines: string[]): string | null =>
 	buildTextSection(tagName, lines.filter((line) => line.length > 0).join("\n"));
+
+const buildToolingContextLines = (input: {
+	activeProjects?: string[];
+	openspecRoot?: string | null;
+	workspaceRoot: string;
+}): string[] => {
+	const activeProjects = normalizeActiveProjects(input.activeProjects);
+	const openspecRoot =
+		typeof input.openspecRoot === "string" &&
+		input.openspecRoot.trim().length > 0
+			? input.openspecRoot
+			: null;
+
+	return [
+		...(activeProjects.length === 0
+			? ["active_projects: []"]
+			: [
+					"active_projects:",
+					...activeProjects.map((activeProject) => `  - ${activeProject}`),
+				]),
+		...(openspecRoot ? [`openspec_root: ${openspecRoot}`] : []),
+		`bridge_scripts_dir: ${join(
+			input.workspaceRoot,
+			FF15_WORKSPACE_RUNTIME_DIR_NAME,
+			"bridge"
+		)}`,
+	];
+};
 
 const readFrontmatterValue = (
 	source: string,
@@ -852,7 +886,9 @@ export const loadMissionOperationActivation = (
 
 export const buildOperationAwarePrompt = (input: {
 	activation: Ff15MissionOperationActivation;
+	activeProjects?: string[];
 	missionId: string;
+	openspecRoot?: string | null;
 	prompt: string;
 	settings?: Ff15OperationPromptSettings;
 	workflow?: Ff15MissionWorkflowState;
@@ -865,17 +901,16 @@ export const buildOperationAwarePrompt = (input: {
 			"operation-prompt",
 			[
 				buildPlainSection("workspace-context", [
-					`project_root: ${input.workspaceRoot}`,
+					`execution_root: ${input.workspaceRoot}`,
 				]),
-				buildPlainSection("tooling-context", [
-					`activate_project: ${input.workspaceRoot}`,
-					`openspec_root: ${input.workspaceRoot}`,
-					`bridge_scripts_dir: ${join(
-						input.workspaceRoot,
-						FF15_WORKSPACE_RUNTIME_DIR_NAME,
-						"bridge"
-					)}`,
-				]),
+				buildPlainSection(
+					"tooling-context",
+					buildToolingContextLines({
+						activeProjects: input.activeProjects,
+						openspecRoot: input.openspecRoot,
+						workspaceRoot: input.workspaceRoot,
+					})
+				),
 				buildPlainSection("workflow-context", [
 					`operation: ${input.activation.operationName}`,
 					`step: ${input.activation.stepName}`,
@@ -907,8 +942,10 @@ export const buildOperationAwarePrompt = (input: {
 
 export const buildWorkerOperationAwarePrompt = (input: {
 	activation: Ff15MissionOperationActivation;
+	activeProjects?: string[];
 	handoff: Ff15MissionWorkflowStepHistoryEntry | null;
 	missionId: string;
+	openspecRoot?: string | null;
 	settings?: Ff15OperationPromptSettings;
 	workflow?: Ff15MissionWorkflowState;
 	workspaceRoot: string;
@@ -920,17 +957,16 @@ export const buildWorkerOperationAwarePrompt = (input: {
 			"operation-prompt",
 			[
 				buildPlainSection("workspace-context", [
-					`project_root: ${input.workspaceRoot}`,
+					`execution_root: ${input.workspaceRoot}`,
 				]),
-				buildPlainSection("tooling-context", [
-					`activate_project: ${input.workspaceRoot}`,
-					`openspec_root: ${input.workspaceRoot}`,
-					`bridge_scripts_dir: ${join(
-						input.workspaceRoot,
-						FF15_WORKSPACE_RUNTIME_DIR_NAME,
-						"bridge"
-					)}`,
-				]),
+				buildPlainSection(
+					"tooling-context",
+					buildToolingContextLines({
+						activeProjects: input.activeProjects,
+						openspecRoot: input.openspecRoot,
+						workspaceRoot: input.workspaceRoot,
+					})
+				),
 				buildPlainSection("workflow-context", [
 					`operation: ${input.activation.operationName}`,
 					`step: ${input.activation.stepName}`,

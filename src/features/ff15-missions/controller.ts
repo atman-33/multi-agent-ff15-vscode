@@ -46,6 +46,11 @@ interface CreateFf15MissionSendControllerDependencies {
 	getWorkspaceRoot: () => string | undefined;
 	missionTransport: Ff15MissionTransport;
 	missionsStore: Ff15MissionsStore;
+	resolveRuntimeContext?: (input: { workspaceRoot: string }) => {
+		activeProjects: string[];
+		executionRoot: string;
+		openspecRoot: string | null;
+	};
 }
 
 const getNoctisPaneLaunchPlanEntry = (
@@ -66,8 +71,10 @@ const shouldReuseOperationWorkflowStep = (
 	!stepName.startsWith("probe:");
 
 const activateOperationWorkflow = (input: {
+	activeProjects?: string[];
 	missionId: string;
 	operationRef: string;
+	openspecRoot?: string | null;
 	prompt: string;
 	workflow: ReturnType<typeof createEmptyFf15MissionWorkflowState>;
 	workspaceRoot: string;
@@ -101,7 +108,9 @@ const activateOperationWorkflow = (input: {
 				...activation,
 				activeTask,
 			},
+			activeProjects: input.activeProjects,
 			missionId: input.missionId,
+			openspecRoot: input.openspecRoot,
 			prompt: input.prompt,
 			workflow: input.workflow,
 			workspaceRoot: input.workspaceRoot,
@@ -125,6 +134,11 @@ const prepareMissionSend = async (
 	  }
 	| {
 			paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry;
+			runtimeContext: {
+				activeProjects: string[];
+				executionRoot: string;
+				openspecRoot: string | null;
+			};
 			sessionName: string;
 			workspaceRoot: string;
 	  }
@@ -139,14 +153,22 @@ const prepareMissionSend = async (
 		};
 	}
 
+	const runtimeContext = dependencies.resolveRuntimeContext?.({
+		workspaceRoot,
+	}) ?? {
+		activeProjects: [],
+		executionRoot: workspaceRoot,
+		openspecRoot: null,
+	};
+
 	const sessionName =
 		currentMission?.sessionName ??
-		deriveMissionSessionName(workspaceRoot, input.missionId);
+		deriveMissionSessionName(runtimeContext.executionRoot, input.missionId);
 	await dependencies.missionsStore.updateMission(input.missionId, {
 		lastError: null,
 		sessionName,
 		status: "sending",
-		workspaceRoot,
+		workspaceRoot: runtimeContext.executionRoot,
 	});
 
 	try {
@@ -156,7 +178,7 @@ const prepareMissionSend = async (
 			result: await dependencies.missionsStore.updateMission(input.missionId, {
 				lastError: MISSING_ZELLIJ_MESSAGE,
 				status: "error",
-				workspaceRoot,
+				workspaceRoot: runtimeContext.executionRoot,
 			}),
 		};
 	}
@@ -170,7 +192,7 @@ const prepareMissionSend = async (
 			result: await dependencies.missionsStore.updateMission(input.missionId, {
 				lastError: launchClient.getMissingDependencyMessage(),
 				status: "error",
-				workspaceRoot,
+				workspaceRoot: runtimeContext.executionRoot,
 			}),
 		};
 	}
@@ -181,15 +203,16 @@ const prepareMissionSend = async (
 			result: await dependencies.missionsStore.updateMission(input.missionId, {
 				lastError: MISSING_NOCTIS_PLAN_MESSAGE,
 				status: "error",
-				workspaceRoot,
+				workspaceRoot: runtimeContext.executionRoot,
 			}),
 		};
 	}
 
 	return {
 		paneLaunchPlanEntry,
+		runtimeContext,
 		sessionName,
-		workspaceRoot,
+		workspaceRoot: runtimeContext.executionRoot,
 	};
 };
 
@@ -239,7 +262,8 @@ export const createFf15MissionSendController = (
 			return preparedSend.result;
 		}
 
-		const { paneLaunchPlanEntry, sessionName, workspaceRoot } = preparedSend;
+		const { paneLaunchPlanEntry, runtimeContext, sessionName, workspaceRoot } =
+			preparedSend;
 
 		try {
 			const { agentPanes: resolvedAgentPanes, paneId } =
@@ -259,7 +283,9 @@ export const createFf15MissionSendController = (
 			const operationWorkflowActivation =
 				currentMission?.operationRef && workspaceRoot
 					? activateOperationWorkflow({
+							activeProjects: runtimeContext.activeProjects,
 							missionId: input.missionId,
+							openspecRoot: runtimeContext.openspecRoot,
 							operationRef: currentMission.operationRef,
 							prompt,
 							workflow: currentWorkflow,
