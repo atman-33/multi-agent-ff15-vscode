@@ -157,7 +157,7 @@ describe("createFf15MissionWorkbenchController", () => {
 			},
 			createdAt: "2026-05-27T00:00:00.000Z",
 			id: "mission-1",
-			lastError: null,
+			lastError: "Select an operation before sending a mission prompt.",
 			operationRef: null,
 			schemaVersion: 1 as const,
 			sessionName: "ff15-1",
@@ -170,7 +170,14 @@ describe("createFf15MissionWorkbenchController", () => {
 		const missionsStore = {
 			getMissionRecord: vi.fn(() => record),
 			updateMission: vi.fn(
-				(_missionId: string, patch: { operationRef?: string }) => {
+				(
+					_missionId: string,
+					patch: { lastError?: string | null; operationRef?: string }
+				) => {
+					if (patch.lastError === null) {
+						record.lastError = null;
+					}
+
 					if (typeof patch.operationRef === "string") {
 						record.operationRef = patch.operationRef;
 					}
@@ -232,6 +239,7 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		expect(missionsStore.updateMission).toHaveBeenCalledTimes(1);
 		expect(missionsStore.updateMission).toHaveBeenCalledWith("mission-1", {
+			lastError: null,
 			operationRef: "builtin:noctis-autonomous",
 		});
 		expect(record.operationRef).toBe("builtin:noctis-autonomous");

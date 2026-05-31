@@ -205,6 +205,7 @@ export const createFf15MissionWorkbenchController = (
 		}
 
 		await options.missionsStore.updateMission(missionId, {
+			lastError: null,
 			operationRef: message.operationRef,
 		});
 		await postStateWithRuntimeProbe(missionId, panel);

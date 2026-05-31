@@ -62,6 +62,15 @@ const createAgentPanes = (noctisPaneId: string | null) => ({
 	noctis: noctisPaneId,
 });
 
+const selectMissionOperation = (
+	missionsStore: ReturnType<typeof createWorkspaceStateFf15MissionsStore>,
+	missionId = "mission-1",
+	operationRef = "builtin:noctis-autonomous"
+) =>
+	missionsStore.updateMission(missionId, {
+		operationRef,
+	});
+
 const seedWorkspaceOperation = (workspaceRoot: string) => {
 	const facetsDir = join(
 		workspaceRoot,
@@ -205,6 +214,7 @@ const seedPersistedMission = async (
 	await seedStore.updateMission("mission-1", {
 		agentPanes: createAgentPanes("terminal_7"),
 		lastError: null,
+		operationRef: "builtin:noctis-autonomous",
 		sessionName: "ff15-session",
 		status: "active",
 		workspaceRoot,
@@ -219,6 +229,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchClient = createLaunchClient();
@@ -277,6 +288,50 @@ describe("createFf15MissionSendController", () => {
 		);
 	});
 
+	it("rejects prompt delivery until an operation is selected", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-05-26T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+		expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
+		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				lastError: "Select an operation before sending a mission prompt.",
+				status: "draft",
+			}),
+		]);
+	});
+
 	it("activates operation workflow state and sends an operation-aware prompt for the first operation-backed send", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 		const openspecRoot = join(workspaceRoot, "selected-project", "openspec");
@@ -293,6 +348,7 @@ describe("createFf15MissionSendController", () => {
 				getWorkspaceRoot: () => workspaceRoot,
 			});
 			await missionsStore.createMission();
+			await selectMissionOperation(missionsStore);
 			await missionsStore.updateMission("mission-1", {
 				operationRef: "builtin:github-issue-openspec-dev",
 				workflow: {
@@ -654,6 +710,7 @@ describe("createFf15MissionSendController", () => {
 				getWorkspaceRoot: () => workspaceRoot,
 			});
 			await missionsStore.createMission();
+			await selectMissionOperation(missionsStore);
 
 			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 			const launchClient = createLaunchClient();
@@ -724,6 +781,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchClient = createLaunchClient();
@@ -768,6 +826,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchClient = createLaunchClient();
@@ -817,6 +876,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi
 			.fn()
