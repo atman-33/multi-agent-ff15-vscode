@@ -584,7 +584,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 			);
 
 			const workspaceRoot =
-				getActiveWorkspaceRoot() ?? deletedMission.workspaceRoot;
+				deletedMission.workspaceRoot ?? getActiveWorkspaceRoot();
 			if (workspaceRoot) {
 				deleteMissionRecordFromWorkspace(workspaceRoot, missionId);
 			}

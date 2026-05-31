@@ -20,6 +20,8 @@ import { createFf15MissionZellijTransport } from "./transport";
 
 type Ff15MissionTransport = ReturnType<typeof createFf15MissionZellijTransport>;
 
+const MISSING_ZELLIJ_SESSION_ERROR_PATTERN = /\bnot found\b/i;
+
 const runZellijCommand = (input: {
 	args: string[];
 	cwd?: string;
@@ -50,6 +52,33 @@ const runZellijCommand = (input: {
 			);
 		});
 	});
+
+const isMissingZellijSessionError = (error: unknown): boolean => {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	return MISSING_ZELLIJ_SESSION_ERROR_PATTERN.test(error.message);
+};
+
+export const terminateZellijMissionSession = (input: {
+	runCommand?: typeof runZellijCommand;
+	sessionName: string;
+	workspaceRoot?: string;
+}): Promise<void> => {
+	const runCommand = input.runCommand ?? runZellijCommand;
+
+	return runCommand({
+		args: ["delete-session", "--force", input.sessionName],
+		cwd: input.workspaceRoot,
+	}).catch((error) => {
+		if (isMissingZellijSessionError(error)) {
+			return;
+		}
+
+		throw error;
+	});
+};
 
 const createGetLaunchClient = () => () =>
 	createFf15LaunchClient(
@@ -116,9 +145,9 @@ export const createVsCodeFf15MissionSessionController = (
 			}),
 		showErrorMessage: window.showErrorMessage,
 		terminateMissionSession: ({ sessionName, workspaceRoot }) =>
-			runZellijCommand({
-				args: ["kill-session", sessionName],
-				cwd: workspaceRoot,
+			terminateZellijMissionSession({
+				sessionName,
+				workspaceRoot,
 			}),
 	});
 };
