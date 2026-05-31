@@ -1,4 +1,12 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { vscode } from "@/lib/vscode";
 import {
 	buildDraftFromSnapshot,
@@ -10,6 +18,8 @@ import {
 	type ProjectsSnapshot,
 	type SaveState,
 } from "../ff15-projects/model";
+
+const EMPTY_PROJECT_SELECT_VALUE = "__none__";
 
 const applyStateMessage = (input: {
 	payload: { snapshot?: ProjectsSnapshot };
@@ -132,6 +142,8 @@ const Route = () => {
 		(profile) => profile.warnings.length > 0
 	);
 	const inputsDisabled = snapshot.status !== "ready" || conflictMessage != null;
+	const selectedOpenSpecProjectId =
+		draft.openspec.projectId ?? EMPTY_PROJECT_SELECT_VALUE;
 
 	return (
 		<div className="mx-auto flex h-full max-w-4xl flex-col gap-4 px-6 py-5">
@@ -193,26 +205,30 @@ const Route = () => {
 							{availableProfiles.length > 0 ? (
 								availableProfiles.map((profile) => {
 									const checked = draft.activeProjects.includes(profile.id);
+									const checkboxId = `active-project-${profile.id}`;
 									return (
 										<label
 											className="flex cursor-pointer items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] px-3 py-2"
+											htmlFor={checkboxId}
 											key={profile.id}
 										>
-											<input
+											<Checkbox
 												checked={checked}
+												className="mt-0.5 shrink-0"
 												disabled={inputsDisabled}
-												onChange={(event) => {
-													const nextActiveProjects = event.target.checked
-														? [...draft.activeProjects, profile.id]
-														: draft.activeProjects.filter(
-																(projectId) => projectId !== profile.id
-															);
+												id={checkboxId}
+												onCheckedChange={(nextCheckedState) => {
+													const nextActiveProjects =
+														nextCheckedState === true
+															? [...draft.activeProjects, profile.id]
+															: draft.activeProjects.filter(
+																	(projectId) => projectId !== profile.id
+																);
 													updateDraft({
 														...draft,
 														activeProjects: nextActiveProjects,
 													});
 												}}
-												type="checkbox"
 											/>
 											<div className="min-w-0 flex-1">
 												<div className="font-medium text-[color:var(--vscode-foreground)] text-sm">
@@ -239,15 +255,17 @@ const Route = () => {
 						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
 							OpenSpec
 						</div>
-						<label className="mt-2 flex flex-col gap-1 text-xs">
-							<span className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] uppercase tracking-[0.12em]">
+						<div className="mt-2 flex flex-col gap-1 text-xs">
+							<label
+								className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] uppercase tracking-[0.12em]"
+								htmlFor="openspec-mode"
+							>
 								Mode
-							</span>
-							<select
-								className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] px-2 py-1 text-[color:var(--vscode-input-foreground)]"
+							</label>
+							<Select
 								disabled={inputsDisabled}
-								onChange={(event) => {
-									const mode = event.target.value as "project" | "harness";
+								onValueChange={(value) => {
+									const mode = value as "project" | "harness";
 									updateDraft({
 										...draft,
 										openspec: {
@@ -258,37 +276,66 @@ const Route = () => {
 								}}
 								value={draft.openspec.mode}
 							>
-								<option value="project">project</option>
-								<option value="harness">harness</option>
-							</select>
-						</label>
+								<SelectTrigger
+									className="w-full border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
+									id="openspec-mode"
+								>
+									<SelectValue placeholder="Select mode" />
+								</SelectTrigger>
+								<SelectContent
+									align="start"
+									className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
+									position="popper"
+								>
+									<SelectItem value="project">project</SelectItem>
+									<SelectItem value="harness">harness</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 						{draft.openspec.mode === "project" ? (
-							<label className="mt-2 flex flex-col gap-1 text-xs">
-								<span className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] uppercase tracking-[0.12em]">
+							<div className="mt-2 flex flex-col gap-1 text-xs">
+								<label
+									className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] uppercase tracking-[0.12em]"
+									htmlFor="openspec-project"
+								>
 									Project
-								</span>
-								<select
-									className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] px-2 py-1 text-[color:var(--vscode-input-foreground)]"
+								</label>
+								<Select
 									disabled={inputsDisabled}
-									onChange={(event) => {
+									onValueChange={(value) => {
 										updateDraft({
 											...draft,
 											openspec: {
 												...draft.openspec,
-												projectId: event.target.value || null,
+												projectId:
+													value === EMPTY_PROJECT_SELECT_VALUE ? null : value,
 											},
 										});
 									}}
-									value={draft.openspec.projectId ?? ""}
+									value={selectedOpenSpecProjectId}
 								>
-									<option value="">Select a project</option>
-									{availableProfiles.map((profile) => (
-										<option key={profile.id} value={profile.id}>
-											{profile.id}
-										</option>
-									))}
-								</select>
-							</label>
+									<SelectTrigger
+										className="w-full border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
+										id="openspec-project"
+									>
+										<SelectValue placeholder="Select a project" />
+									</SelectTrigger>
+									<SelectContent
+										align="start"
+										className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
+										position="popper"
+									>
+										<SelectItem value={EMPTY_PROJECT_SELECT_VALUE}>
+											Select a project
+										</SelectItem>
+										{availableProfiles.map((profile) => (
+											<SelectItem key={profile.id} value={profile.id}>
+												{profile.id}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
 						) : null}
 						<div className="mt-3 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs leading-5">
 							Resolved Path: {snapshot.openspec.path ?? "-"}

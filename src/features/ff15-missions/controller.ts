@@ -9,6 +9,8 @@ import {
 	loadMissionOperationActivation,
 } from "../ff15-operations/definition";
 import {
+	isGeneratedMissionTitle,
+	normalizeMissionTitle,
 	createEmptyFf15MissionAgentPanes,
 	createEmptyFf15MissionWorkflowState,
 	type Ff15MissionAgentPanes,
@@ -21,8 +23,12 @@ export const MISSING_ZELLIJ_MESSAGE =
 	"Messaging Noctis requires `zellij` on PATH.";
 export const MISSING_NOCTIS_PLAN_MESSAGE =
 	"FF15 could not resolve a Noctis launch plan for the selected client.";
+export const MISSING_OPERATION_SELECTION_MESSAGE =
+	"Select an operation before sending a mission prompt.";
 export const MISSION_SEND_FAILED_MESSAGE =
 	"FF15 could not deliver the prompt to Noctis.";
+export const MISSION_TERMINAL_NOT_READY_MESSAGE =
+	"Launch Terminal before sending a prompt to Noctis.";
 
 interface Ff15MissionTransport {
 	ensureMissionSession: (input: {
@@ -44,6 +50,7 @@ interface CreateFf15MissionSendControllerDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
 	getLaunchClient: () => Ff15LaunchClient;
 	getWorkspaceRoot: () => string | undefined;
+	isMissionTerminalReady?: (missionId: string) => boolean;
 	missionTransport: Ff15MissionTransport;
 	missionsStore: Ff15MissionsStore;
 	resolveRuntimeContext?: (input: { workspaceRoot: string }) => {
@@ -216,6 +223,137 @@ const prepareMissionSend = async (
 	};
 };
 
+const requireOperationSelection = (input: {
+	mission: ReturnType<Ff15MissionsStore["getMissionRecord"]>;
+	missionId: string;
+	missionsStore: Ff15MissionsStore;
+}) => {
+	if (input.mission?.operationRef) {
+		return null;
+	}
+
+	return input.missionsStore.updateMission(input.missionId, {
+		lastError: MISSING_OPERATION_SELECTION_MESSAGE,
+	});
+};
+
+const deriveMissionTitleFromPrompt = (input: {
+	currentMission: ReturnType<Ff15MissionsStore["getMissionRecord"]>;
+	prompt: string;
+}) => {
+	if (!input.currentMission) {
+		return null;
+	}
+
+	if (!isGeneratedMissionTitle(input.currentMission.title)) {
+		return null;
+	}
+
+	return normalizeMissionTitle(input.prompt);
+};
+
+const requireMissionTerminalReady = (input: {
+	isMissionTerminalReady?: (missionId: string) => boolean;
+	missionId: string;
+	missionsStore: Ff15MissionsStore;
+}) => {
+	if (!input.isMissionTerminalReady) {
+		return null;
+	}
+
+	if (!input.isMissionTerminalReady(input.missionId)) {
+		return input.missionsStore.updateMission(input.missionId, {
+			lastError: MISSION_TERMINAL_NOT_READY_MESSAGE,
+		});
+	}
+
+	return null;
+};
+
+const deliverMissionPrompt = async (input: {
+	currentMission: ReturnType<Ff15MissionsStore["getMissionRecord"]>;
+	currentWorkflow: ReturnType<typeof createEmptyFf15MissionWorkflowState>;
+	dependencies: CreateFf15MissionSendControllerDependencies;
+	missionId: string;
+	paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry;
+	prompt: string;
+	runtimeContext: {
+		activeProjects: string[];
+		executionRoot: string;
+		openspecRoot: string | null;
+	};
+	sessionName: string;
+	workspaceRoot: string;
+}) => {
+	let agentPanes =
+		input.currentMission?.agentPanes ?? createEmptyFf15MissionAgentPanes();
+	const derivedTitle = deriveMissionTitleFromPrompt({
+		currentMission: input.currentMission,
+		prompt: input.prompt,
+	});
+
+	try {
+		const { agentPanes: resolvedAgentPanes, paneId } =
+			await input.dependencies.missionTransport.ensureMissionSession({
+				allowCreateNoctisPane: input.currentMission?.sessionName == null,
+				agentPanes,
+				missionId: input.missionId,
+				paneLaunchPlanEntry: input.paneLaunchPlanEntry,
+				sessionName: input.sessionName,
+				workspaceRoot: input.workspaceRoot,
+			});
+		agentPanes = resolvedAgentPanes ?? {
+			...agentPanes,
+			noctis: paneId,
+		};
+
+		const operationWorkflowActivation = input.currentMission?.operationRef
+			? activateOperationWorkflow({
+					activeProjects: input.runtimeContext.activeProjects,
+					missionId: input.missionId,
+					openspecRoot: input.runtimeContext.openspecRoot,
+					operationRef: input.currentMission.operationRef,
+					prompt: input.prompt,
+					workflow: input.currentWorkflow,
+					workspaceRoot: input.workspaceRoot,
+				})
+			: null;
+		if (operationWorkflowActivation) {
+			await input.dependencies.missionsStore.updateMission(input.missionId, {
+				agentPanes,
+				lastError: null,
+				sessionName: input.sessionName,
+				status: "sending",
+				workflow: operationWorkflowActivation.workflow,
+				workspaceRoot: input.workspaceRoot,
+			});
+		}
+
+		await input.dependencies.missionTransport.sendPrompt({
+			paneId,
+			prompt: operationWorkflowActivation?.prompt ?? input.prompt,
+			sessionName: input.sessionName,
+		});
+
+		return input.dependencies.missionsStore.updateMission(input.missionId, {
+			agentPanes,
+			lastError: null,
+			sessionName: input.sessionName,
+			status: "active",
+			...(derivedTitle ? { title: derivedTitle } : {}),
+			workspaceRoot: input.workspaceRoot,
+		});
+	} catch (error) {
+		return input.dependencies.missionsStore.updateMission(input.missionId, {
+			agentPanes,
+			lastError: getErrorMessage(error, MISSION_SEND_FAILED_MESSAGE),
+			sessionName: input.sessionName,
+			status: "error",
+			workspaceRoot: input.workspaceRoot,
+		});
+	}
+};
+
 export const deriveMissionSessionName = (
 	workspaceRoot: string,
 	missionId: string
@@ -245,10 +383,26 @@ export const createFf15MissionSendController = (
 		const currentMission = dependencies.missionsStore.getMissionRecord(
 			input.missionId
 		);
+		const operationSelectionError = await requireOperationSelection({
+			mission: currentMission,
+			missionId: input.missionId,
+			missionsStore: dependencies.missionsStore,
+		});
+		if (operationSelectionError) {
+			return operationSelectionError;
+		}
+
+		const terminalReadyError = await requireMissionTerminalReady({
+			isMissionTerminalReady: dependencies.isMissionTerminalReady,
+			missionId: input.missionId,
+			missionsStore: dependencies.missionsStore,
+		});
+		if (terminalReadyError) {
+			return terminalReadyError;
+		}
+
 		const currentWorkflow =
 			currentMission?.workflow ?? createEmptyFf15MissionWorkflowState();
-		let agentPanes =
-			currentMission?.agentPanes ?? createEmptyFf15MissionAgentPanes();
 
 		const preparedSend = await prepareMissionSend(
 			dependencies,
@@ -265,65 +419,16 @@ export const createFf15MissionSendController = (
 		const { paneLaunchPlanEntry, runtimeContext, sessionName, workspaceRoot } =
 			preparedSend;
 
-		try {
-			const { agentPanes: resolvedAgentPanes, paneId } =
-				await dependencies.missionTransport.ensureMissionSession({
-					allowCreateNoctisPane: currentMission?.sessionName == null,
-					agentPanes,
-					missionId: input.missionId,
-					paneLaunchPlanEntry,
-					sessionName,
-					workspaceRoot,
-				});
-			agentPanes = resolvedAgentPanes ?? {
-				...agentPanes,
-				noctis: paneId,
-			};
-
-			const operationWorkflowActivation =
-				currentMission?.operationRef && workspaceRoot
-					? activateOperationWorkflow({
-							activeProjects: runtimeContext.activeProjects,
-							missionId: input.missionId,
-							openspecRoot: runtimeContext.openspecRoot,
-							operationRef: currentMission.operationRef,
-							prompt,
-							workflow: currentWorkflow,
-							workspaceRoot,
-						})
-					: null;
-			if (operationWorkflowActivation) {
-				await dependencies.missionsStore.updateMission(input.missionId, {
-					agentPanes,
-					lastError: null,
-					sessionName,
-					status: "sending",
-					workflow: operationWorkflowActivation.workflow,
-					workspaceRoot,
-				});
-			}
-
-			await dependencies.missionTransport.sendPrompt({
-				paneId,
-				prompt: operationWorkflowActivation?.prompt ?? prompt,
-				sessionName,
-			});
-
-			return dependencies.missionsStore.updateMission(input.missionId, {
-				agentPanes,
-				lastError: null,
-				sessionName,
-				status: "active",
-				workspaceRoot,
-			});
-		} catch (error) {
-			return dependencies.missionsStore.updateMission(input.missionId, {
-				agentPanes,
-				lastError: getErrorMessage(error, MISSION_SEND_FAILED_MESSAGE),
-				sessionName,
-				status: "error",
-				workspaceRoot,
-			});
-		}
+		return deliverMissionPrompt({
+			currentMission,
+			currentWorkflow,
+			dependencies,
+			missionId: input.missionId,
+			paneLaunchPlanEntry,
+			prompt,
+			runtimeContext,
+			sessionName,
+			workspaceRoot,
+		});
 	},
 });

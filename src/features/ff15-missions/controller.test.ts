@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Ff15LaunchClient } from "../ff15-launch/launch-client";
 import {
 	createFf15MissionSendController,
+	MISSION_TERMINAL_NOT_READY_MESSAGE,
 	MISSING_WORKSPACE_MESSAGE,
 	MISSING_ZELLIJ_MESSAGE,
 } from "./controller";
@@ -61,6 +62,15 @@ const createAgentPanes = (noctisPaneId: string | null) => ({
 	...createEmptyFf15MissionAgentPanes(),
 	noctis: noctisPaneId,
 });
+
+const selectMissionOperation = (
+	missionsStore: ReturnType<typeof createWorkspaceStateFf15MissionsStore>,
+	missionId = "mission-1",
+	operationRef = "builtin:noctis-autonomous"
+) =>
+	missionsStore.updateMission(missionId, {
+		operationRef,
+	});
 
 const seedWorkspaceOperation = (workspaceRoot: string) => {
 	const facetsDir = join(
@@ -205,6 +215,7 @@ const seedPersistedMission = async (
 	await seedStore.updateMission("mission-1", {
 		agentPanes: createAgentPanes("terminal_7"),
 		lastError: null,
+		operationRef: "builtin:noctis-autonomous",
 		sessionName: "ff15-session",
 		status: "active",
 		workspaceRoot,
@@ -219,6 +230,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchClient = createLaunchClient();
@@ -277,6 +289,229 @@ describe("createFf15MissionSendController", () => {
 		);
 	});
 
+	it("promotes the first prompt into the mission title when the default title is still in place", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-01T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the customer onboarding regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				title: "Investigate the customer onboarding regression",
+			}),
+		]);
+		expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+			expect.objectContaining({
+				title: "Investigate the customer onboarding regression",
+			})
+		);
+	});
+
+	it("keeps a manually renamed mission title when the first prompt is sent", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-01T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await missionsStore.updateMission("mission-1", {
+			title: "Customer onboarding handoff",
+		});
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the customer onboarding regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				title: "Customer onboarding handoff",
+			}),
+		]);
+		expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+			expect.objectContaining({
+				title: "Customer onboarding handoff",
+			})
+		);
+	});
+
+	it("normalizes and truncates the first prompt before promoting it into the mission title", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-01T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt:
+				"  Investigate\n\n the   regression in onboarding and confirm whether the retry path still duplicates follow-up prompts across sessions  ",
+		});
+
+		const title = missionsStore.getMissionRecord("mission-1")?.title;
+		expect(title).toBeDefined();
+		expect(title).toHaveLength(80);
+		expect(title).not.toContain("\n");
+		expect(title).not.toContain("  ");
+		expect(title?.startsWith("Investigate the regression in onboarding")).toBe(
+			true
+		);
+	});
+
+	it("rejects prompt delivery until an operation is selected", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-05-26T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				lastError: "Select an operation before sending a mission prompt.",
+				status: "draft",
+			}),
+		]);
+		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+		expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
+		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
+	});
+
+	it("stores a mission-scoped error when the mission terminal has not been launched yet", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-05-26T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn(),
+			sendPrompt: vi.fn(),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			isMissionTerminalReady: () => false,
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				lastError: MISSION_TERMINAL_NOT_READY_MESSAGE,
+				status: "draft",
+			}),
+		]);
+		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+		expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
+		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
+	});
+
 	it("activates operation workflow state and sends an operation-aware prompt for the first operation-backed send", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 		const openspecRoot = join(workspaceRoot, "selected-project", "openspec");
@@ -293,6 +528,7 @@ describe("createFf15MissionSendController", () => {
 				getWorkspaceRoot: () => workspaceRoot,
 			});
 			await missionsStore.createMission();
+			await selectMissionOperation(missionsStore);
 			await missionsStore.updateMission("mission-1", {
 				operationRef: "builtin:github-issue-openspec-dev",
 				workflow: {
@@ -654,6 +890,7 @@ describe("createFf15MissionSendController", () => {
 				getWorkspaceRoot: () => workspaceRoot,
 			});
 			await missionsStore.createMission();
+			await selectMissionOperation(missionsStore);
 
 			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 			const launchClient = createLaunchClient();
@@ -724,6 +961,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchClient = createLaunchClient();
@@ -768,6 +1006,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
 		const launchClient = createLaunchClient();
@@ -817,6 +1056,7 @@ describe("createFf15MissionSendController", () => {
 			getNow: () => "2026-05-26T00:10:00.000Z",
 		});
 		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
 
 		const ensureCommandAvailable = vi
 			.fn()

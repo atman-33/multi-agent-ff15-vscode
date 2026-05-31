@@ -20,7 +20,7 @@ export const SidebarListItemButton = ({
 }: SidebarListItemButtonProps) => (
 	<button
 		className={cn(
-			"w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
+			"w-full cursor-pointer rounded-lg border px-3 py-2.5 text-left transition-colors",
 			active
 				? "border-[color:var(--vscode-button-background,#0e7490)]/40 bg-[color:var(--vscode-button-background,#0e7490)]/12 text-[color:var(--vscode-foreground)]"
 				: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_78%,transparent)] text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)]",

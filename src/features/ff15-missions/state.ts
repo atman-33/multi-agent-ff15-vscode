@@ -12,11 +12,13 @@ import { FF15_AGENT_IDS, type Ff15AgentId } from "../ff15-launch/launch-client";
 export const FF15_MISSIONS_STATE_STORAGE_KEY =
 	"multi-agent-ff15-vscode.missionsState";
 export const FF15_WORKSPACE_RUNTIME_DIR_NAME = ".ff15";
+export const FF15_MISSION_TITLE_MAX_LENGTH = 80;
 
 const FF15_MISSIONS_DIR_NAME = "missions";
 const FF15_MISSION_FILE_NAME = "mission.json";
 const FF15_MISSION_OUTPUTS_DIR_NAME = "outputs";
 const FF15_MISSION_SCHEMA_VERSION = 1;
+const GENERATED_MISSION_TITLE_PATTERN = /^Mission \d+$/;
 
 export type Ff15MissionStatus = "active" | "draft" | "error" | "sending";
 export type Ff15MissionAgentPanes = Record<Ff15AgentId, string | null>;
@@ -74,6 +76,7 @@ export interface Ff15MissionRecordPatch {
 	operationRef?: string | null;
 	sessionName?: string | null;
 	status?: Ff15MissionStatus;
+	title?: string;
 	workflow?: Partial<Ff15MissionWorkflowState>;
 	workspaceRoot?: string | null;
 }
@@ -127,6 +130,21 @@ export const createEmptyFf15MissionWorkflowState =
 		runtimeStatus: null,
 		stepHistory: [],
 	});
+
+export const createGeneratedMissionTitle = (missionNumber: number): string =>
+	`Mission ${missionNumber}`;
+
+export const isGeneratedMissionTitle = (title: string): boolean =>
+	GENERATED_MISSION_TITLE_PATTERN.test(title.trim());
+
+export const normalizeMissionTitle = (value: string): string | null => {
+	const normalized = value.replace(/\s+/g, " ").trim();
+	if (normalized.length === 0) {
+		return null;
+	}
+
+	return normalized.slice(0, FF15_MISSION_TITLE_MAX_LENGTH).trimEnd();
+};
 
 const isMissionSummary = (value: unknown): value is Ff15MissionSummary => {
 	if (!value || typeof value !== "object") {
@@ -553,7 +571,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 				operationRef: null,
 				sessionName: null,
 				status: "draft",
-				title: `Mission ${missionNumber}`,
+				title: createGeneratedMissionTitle(missionNumber),
 				updatedAt: createdAt,
 				workspaceRoot,
 				agentPanes: createEmptyFf15MissionAgentPanes(),
@@ -584,7 +602,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 			);
 
 			const workspaceRoot =
-				getActiveWorkspaceRoot() ?? deletedMission.workspaceRoot;
+				deletedMission.workspaceRoot ?? getActiveWorkspaceRoot();
 			if (workspaceRoot) {
 				deleteMissionRecordFromWorkspace(workspaceRoot, missionId);
 			}
@@ -623,12 +641,17 @@ export const createWorkspaceStateFf15MissionsStore = (
 				}
 
 				didUpdate = true;
+				const normalizedTitle =
+					typeof patch.title === "string"
+						? normalizeMissionTitle(patch.title)
+						: undefined;
 				const updatedMission: Ff15MissionRecord = {
 					...mission,
 					...patch,
 					agentPanes: patch.agentPanes
 						? normalizeAgentPanes(patch.agentPanes)
 						: mission.agentPanes,
+					title: normalizedTitle ?? mission.title,
 					workflow: patch.workflow
 						? mergeWorkflowState(mission.workflow, patch.workflow)
 						: mission.workflow,

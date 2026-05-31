@@ -15,9 +15,16 @@ describe("Ff15MissionsViewProvider", () => {
 				prompt?: string;
 		  }) => void | Promise<void>)
 		| undefined;
+	let missionSnapshotListener:
+		| ((snapshot: {
+				activeMissionId: string | null;
+				missions: unknown[];
+		  }) => void)
+		| undefined;
 
 	beforeEach(() => {
 		messageHandler = undefined;
+		missionSnapshotListener = undefined;
 	});
 
 	it("renders the FF15 missions page and posts the initial mission snapshot", () => {
@@ -94,9 +101,22 @@ describe("Ff15MissionsViewProvider", () => {
 			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
 		};
 		const missionSessionController = {
-			createMission: vi.fn().mockResolvedValue(createdSnapshot),
-			deleteMission: vi.fn().mockResolvedValue(deletedSnapshot),
-			selectMission: vi.fn().mockResolvedValue(selectedSnapshot),
+			createMission: vi.fn().mockImplementation(() => {
+				missionSnapshotListener?.(createdSnapshot);
+				return createdSnapshot;
+			}),
+			deleteMission: vi.fn().mockImplementation(() => {
+				missionSnapshotListener?.(deletedSnapshot);
+				return deletedSnapshot;
+			}),
+			onDidChangeMissionSnapshot: vi.fn((listener) => {
+				missionSnapshotListener = listener;
+				return { dispose: vi.fn() };
+			}),
+			selectMission: vi.fn().mockImplementation(() => {
+				missionSnapshotListener?.(selectedSnapshot);
+				return selectedSnapshot;
+			}),
 		};
 		const missionWorkbenchController = {
 			showMission: vi.fn(),
@@ -158,6 +178,72 @@ describe("Ff15MissionsViewProvider", () => {
 			snapshot: selectedSnapshot,
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(4, {
+			command: "ff15-missions.state",
+			snapshot: deletedSnapshot,
+		});
+	});
+
+	it("refreshes the sidebar snapshot when the mission session controller reports an external change", () => {
+		const initialSnapshot = {
+			activeMissionId: null,
+			missions: [],
+		};
+		const deletedSnapshot = {
+			activeMissionId: null,
+			missions: [
+				{
+					createdAt: "2026-05-25T00:00:00.000Z",
+					id: "mission-1",
+					lastError: null,
+					sessionName: null,
+					status: "draft",
+					title: "Mission 1",
+					updatedAt: "2026-05-25T00:00:00.000Z",
+					workspaceRoot: null,
+				},
+			],
+		};
+		const missionsStore = {
+			getSnapshot: vi.fn().mockReturnValue(initialSnapshot),
+		};
+		const provider = new Ff15MissionsViewProvider(
+			{} as never,
+			missionsStore as never,
+			{
+				missionSessionController: {
+					createMission: vi.fn(),
+					deleteMission: vi.fn(),
+					onDidChangeMissionSnapshot: vi.fn((listener) => {
+						missionSnapshotListener = listener;
+						return { dispose: vi.fn() };
+					}),
+					selectMission: vi.fn(),
+				} as never,
+			}
+		);
+		const webviewView = {
+			webview: {
+				html: "",
+				localResourceRoots: [],
+				options: undefined,
+				postMessage: vi.fn(),
+				onDidReceiveMessage: vi.fn((listener) => {
+					messageHandler = listener;
+					return { dispose: vi.fn() };
+				}),
+			},
+		};
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
+			command: "ff15-missions.state",
+			snapshot: initialSnapshot,
+		});
+
+		missionSnapshotListener?.(deletedSnapshot);
+
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
 			snapshot: deletedSnapshot,
 		});

@@ -137,6 +137,67 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 		);
 	});
 
+	it("persists renamed mission titles through the existing mission store", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const update = vi.fn().mockResolvedValue(undefined);
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update,
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-06-01T00:00:00.000Z")
+					.mockReturnValueOnce("2026-06-01T00:01:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission();
+			const snapshot = await store.updateMission("mission-1", {
+				title: "Customer onboarding handoff",
+			} as never);
+
+			const missionFilePath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1",
+				"mission.json"
+			);
+
+			expect(snapshot).toEqual({
+				activeMissionId: "mission-1",
+				missions: [
+					{
+						createdAt: "2026-06-01T00:00:00.000Z",
+						id: "mission-1",
+						lastError: null,
+						sessionName: null,
+						status: "draft",
+						title: "Customer onboarding handoff",
+						updatedAt: "2026-06-01T00:01:00.000Z",
+						workspaceRoot,
+					},
+				],
+			});
+			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
+				expect.objectContaining({
+					title: "Customer onboarding handoff",
+					workspaceRoot,
+				})
+			);
+			expect(update).toHaveBeenCalledWith(
+				FF15_MISSIONS_STATE_STORAGE_KEY,
+				snapshot
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("persists the canonical mission runtime under .ff15 when a workspace root is available", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 
@@ -244,6 +305,52 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 				})
 			);
 			expect(existsSync(otherMissionFilePath)).toBe(false);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+			rmSync(otherWorkspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("deletes a mission from its persisted workspace root even after the active workspace changes", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+		const otherWorkspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+		let activeWorkspaceRoot = workspaceRoot;
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi.fn().mockReturnValue("2026-05-28T00:00:00.000Z"),
+				getWorkspaceRoot: () => activeWorkspaceRoot,
+			});
+
+			await store.createMission();
+			activeWorkspaceRoot = otherWorkspaceRoot;
+
+			const deletedSnapshot = await store.deleteMission("mission-1");
+			const missionPath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1"
+			);
+			const otherMissionPath = join(
+				otherWorkspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1"
+			);
+
+			expect(deletedSnapshot).toEqual({
+				activeMissionId: null,
+				missions: [],
+			});
+			expect(existsSync(missionPath)).toBe(false);
+			expect(existsSync(otherMissionPath)).toBe(false);
+			expect(store.getMissionRecord("mission-1")).toBeNull();
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 			rmSync(otherWorkspaceRoot, { force: true, recursive: true });

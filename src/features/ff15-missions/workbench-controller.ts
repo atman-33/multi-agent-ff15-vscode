@@ -37,7 +37,9 @@ interface Ff15MissionSendController {
 
 interface Ff15MissionSessionController {
 	deleteMission: (missionId: string) => Promise<unknown>;
+	isMissionTerminalReady?: (missionId: string) => boolean;
 	openMissionSession: (missionId: string) => Promise<unknown>;
+	renameMission?: (missionId: string, title: string) => Promise<unknown>;
 	selectMission: (missionId: string) => Promise<unknown>;
 }
 
@@ -47,6 +49,7 @@ interface WorkbenchMissionState {
 	operationRef: string | null;
 	sessionName: string | null;
 	status: Ff15MissionStatus;
+	terminalReady: boolean;
 	title: string;
 	workflow: Ff15MissionWorkflowState;
 	workspaceRoot: string | null;
@@ -82,7 +85,8 @@ const EMPTY_CATALOG: Ff15MissionWorkbenchCatalog = {
 };
 
 const toMissionState = (
-	mission: ReturnType<Ff15MissionsStore["getMissionRecord"]>
+	mission: ReturnType<Ff15MissionsStore["getMissionRecord"]>,
+	terminalReady: boolean
 ): WorkbenchMissionState | null => {
 	if (!mission) {
 		return null;
@@ -94,6 +98,7 @@ const toMissionState = (
 		operationRef: mission.operationRef,
 		sessionName: mission.sessionName,
 		status: mission.status,
+		terminalReady,
 		title: mission.title,
 		workflow: mission.workflow,
 		workspaceRoot: mission.workspaceRoot,
@@ -119,15 +124,21 @@ export const createFf15MissionWorkbenchController = (
 		}
 
 		return {
-			mission: toMissionState(mission),
+			mission: toMissionState(
+				mission,
+				options.missionSessionController.isMissionTerminalReady?.(missionId) ??
+					false
+			),
 			operations: await options.loadOperationsCatalog(mission.workspaceRoot),
 		};
 	};
 
 	const postState = async (missionId: string, panel: WebviewPanel) => {
+		const state = await buildState(missionId);
+		panel.title = state.mission?.title ?? "Mission Workbench";
 		await panel.webview.postMessage({
 			command: "ff15-mission-workbench.state",
-			state: await buildState(missionId),
+			state,
 		});
 	};
 
@@ -205,15 +216,43 @@ export const createFf15MissionWorkbenchController = (
 		}
 
 		await options.missionsStore.updateMission(missionId, {
+			lastError: null,
 			operationRef: message.operationRef,
 		});
 		await postStateWithRuntimeProbe(missionId, panel);
 	};
 
+	const handleRenameTitleMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { title?: unknown }
+	) => {
+		if (typeof message.title !== "string") {
+			return;
+		}
+
+		if (options.missionSessionController.renameMission) {
+			await options.missionSessionController.renameMission(
+				missionId,
+				message.title
+			);
+		} else {
+			await options.missionsStore.updateMission(missionId, {
+				title: message.title,
+			});
+		}
+		await postState(missionId, panel);
+	};
+
 	const handlePanelMessage = async (
 		missionId: string,
 		panel: WebviewPanel,
-		message: { command?: string; operationRef?: unknown; prompt?: unknown }
+		message: {
+			command?: string;
+			operationRef?: unknown;
+			prompt?: unknown;
+			title?: unknown;
+		}
 	) => {
 		switch (message.command) {
 			case "ff15-mission-workbench.ready": {
@@ -238,6 +277,10 @@ export const createFf15MissionWorkbenchController = (
 			}
 			case "ff15-mission-workbench.select-operation": {
 				await handleSelectOperationMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.rename-title": {
+				await handleRenameTitleMessage(missionId, panel, message);
 				return;
 			}
 			default:

@@ -42,14 +42,15 @@ export const activate = (context: ExtensionContext) => {
 		}
 	);
 	const ff15MissionTransport = createFf15MissionZellijTransport();
-	const ff15MissionSendController = createVsCodeFf15MissionSendController(
-		ff15MissionsStore,
-		ff15MissionTransport
-	);
 	const ff15MissionSessionController = createVsCodeFf15MissionSessionController(
 		context.extensionUri,
 		ff15MissionsStore,
 		ff15MissionTransport
+	);
+	const ff15MissionSendController = createVsCodeFf15MissionSendController(
+		ff15MissionsStore,
+		ff15MissionTransport,
+		ff15MissionSessionController.isMissionTerminalReady
 	);
 	const ff15OperationRuntimeProbeService =
 		createFf15OperationRuntimeProbeService({

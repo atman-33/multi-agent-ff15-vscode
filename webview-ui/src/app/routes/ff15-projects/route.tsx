@@ -33,26 +33,23 @@ const Route = () => {
 	const warningProfiles = availableProfiles.filter(
 		(profile) => profile.warnings.length > 0
 	);
-	let activeProjectsSummary = "Projects context unavailable.";
+	const sourceSummary = formatSourceKind(snapshot.sourceKind);
+	let activeProjectsSummary = "-";
 	if (snapshot.activeProjects.length > 0) {
 		activeProjectsSummary = snapshot.activeProjects.join(", ");
 	} else if (snapshot.status === "ready") {
-		activeProjectsSummary = "No active projects selected.";
+		activeProjectsSummary = "No active projects";
+	}
+
+	let openSpecSummary = "-";
+	if (snapshot.openspec.mode === "project") {
+		openSpecSummary = `project: ${snapshot.openspec.sourceProjectId ?? "-"}`;
+	} else if (snapshot.openspec.mode === "harness") {
+		openSpecSummary = "harness";
 	}
 
 	return (
 		<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-2">
-			<div className="flex items-center gap-3">
-				<h1 className="font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
-					Projects
-				</h1>
-			</div>
-
-			<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] text-xs leading-5">
-				Review the current harness source here. Open the editor when you need to
-				change active projects or OpenSpec resolution.
-			</div>
-
 			<SidebarActionButton
 				onClick={() => {
 					vscode.postMessage({ command: "ff15-projects.open-editor" });
@@ -61,49 +58,30 @@ const Route = () => {
 				Open Projects Editor
 			</SidebarActionButton>
 
+			<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 px-1 text-[color:var(--vscode-foreground)] text-sm">
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+					Source
+				</div>
+				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+					{sourceSummary}
+				</div>
+
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+					Active
+				</div>
+				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+					{activeProjectsSummary}
+				</div>
+
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+					OpenSpec
+				</div>
+				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+					{openSpecSummary}
+				</div>
+			</div>
+
 			<div className="grid gap-2">
-				<div className="rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-2 text-sm">
-					<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-						Source
-					</div>
-					<div className="mt-1 font-medium text-[color:var(--vscode-foreground)]">
-						{formatSourceKind(snapshot.sourceKind)}
-					</div>
-					<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-						{snapshot.sourcePath ?? "-"}
-					</div>
-					<div className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-						Config Version: {snapshot.configVersion ?? "-"}
-					</div>
-				</div>
-
-				<div className="rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-2 text-sm">
-					<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-						Active Projects
-					</div>
-					<div className="mt-1 text-[color:var(--vscode-foreground)] text-sm leading-5">
-						{activeProjectsSummary}
-					</div>
-					<div className="mt-2 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-						Profiles Available: {availableProfiles.length}
-					</div>
-				</div>
-
-				<div className="rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-2 text-sm">
-					<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-						OpenSpec
-					</div>
-					<div className="mt-1 text-[color:var(--vscode-foreground)] text-sm">
-						Mode: {snapshot.openspec.mode ?? "-"}
-					</div>
-					<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs leading-5">
-						{snapshot.openspec.path ?? "-"}
-					</div>
-					<div className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-						Resolved Project: {snapshot.openspec.sourceProjectId ?? "-"}
-					</div>
-				</div>
-
 				{warningProfiles.length > 0 ? (
 					<div className="rounded-lg border border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/10 px-3 py-2 text-sm">
 						<div className="text-[10px] text-[color:var(--vscode-warningForeground,#fbbf24)] uppercase tracking-[0.14em]">
