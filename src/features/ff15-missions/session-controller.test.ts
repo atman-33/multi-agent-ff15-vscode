@@ -160,6 +160,62 @@ describe("createFf15MissionSessionController", () => {
 		}
 	});
 
+	it("renames a mission and notifies mission snapshot listeners", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-06-01T00:10:00.000Z")
+					.mockReturnValueOnce("2026-06-01T00:11:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getLaunchClient: createLaunchClient,
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal: vi.fn().mockResolvedValue(undefined),
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage: vi.fn(),
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+			const onDidChangeMissionSnapshot = vi.fn();
+			controller.onDidChangeMissionSnapshot(onDidChangeMissionSnapshot);
+
+			const snapshot = await controller.renameMission(
+				"mission-1",
+				"Customer onboarding handoff"
+			);
+
+			expect(snapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					title: "Customer onboarding handoff",
+					workspaceRoot,
+				}),
+			]);
+			expect(onDidChangeMissionSnapshot).toHaveBeenCalledWith(snapshot);
+			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					title: "Customer onboarding handoff",
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("opens a mission terminal only when explicitly requested", async () => {
 		const workspaceRoot = createWorkspaceRoot();
 

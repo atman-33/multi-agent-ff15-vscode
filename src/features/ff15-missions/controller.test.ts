@@ -289,6 +289,142 @@ describe("createFf15MissionSendController", () => {
 		);
 	});
 
+	it("promotes the first prompt into the mission title when the default title is still in place", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-01T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the customer onboarding regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				title: "Investigate the customer onboarding regression",
+			}),
+		]);
+		expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+			expect.objectContaining({
+				title: "Investigate the customer onboarding regression",
+			})
+		);
+	});
+
+	it("keeps a manually renamed mission title when the first prompt is sent", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-01T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await missionsStore.updateMission("mission-1", {
+			title: "Customer onboarding handoff",
+		});
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		const snapshot = await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the customer onboarding regression",
+		});
+
+		expect(snapshot.missions).toEqual([
+			expect.objectContaining({
+				id: "mission-1",
+				title: "Customer onboarding handoff",
+			}),
+		]);
+		expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+			expect.objectContaining({
+				title: "Customer onboarding handoff",
+			})
+		);
+	});
+
+	it("normalizes and truncates the first prompt before promoting it into the mission title", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-01T00:10:00.000Z",
+		});
+		await missionsStore.createMission();
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt:
+				"  Investigate\n\n the   regression in onboarding and confirm whether the retry path still duplicates follow-up prompts across sessions  ",
+		});
+
+		const title = missionsStore.getMissionRecord("mission-1")?.title;
+		expect(title).toBeDefined();
+		expect(title).toHaveLength(80);
+		expect(title).not.toContain("\n");
+		expect(title).not.toContain("  ");
+		expect(title?.startsWith("Investigate the regression in onboarding")).toBe(
+			true
+		);
+	});
+
 	it("rejects prompt delivery until an operation is selected", async () => {
 		const { storage } = createStorage();
 		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {

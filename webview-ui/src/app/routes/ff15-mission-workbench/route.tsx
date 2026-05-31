@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
-import { SearchIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, SearchIcon } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 interface MissionWorkbenchCatalogEntry {
@@ -265,29 +265,97 @@ interface MissionWorkbenchHeaderProps {
 	mission: MissionWorkbenchMission;
 	onConfirmDelete: () => void;
 	onOpenTerminal: () => void;
+	onRenameTitle: () => void;
+	onStartTitleEdit: () => void;
+	onTitleDraftChange: (value: string) => void;
+	onTitleEditKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+	isEditingTitle: boolean;
 	pendingDelete: boolean;
 	probeVerdictLabel: string;
+	renameActionDisabled: boolean;
 	runtimeStatusLabel: string;
 	selectedOperation: MissionWorkbenchCatalogEntry | null;
 	terminalActionLabel: string;
+	titleDraft: string;
 }
 
 const MissionWorkbenchHeader = ({
 	mission,
 	onConfirmDelete,
 	onOpenTerminal,
+	onRenameTitle,
+	onStartTitleEdit,
+	onTitleDraftChange,
+	onTitleEditKeyDown,
+	isEditingTitle,
 	pendingDelete,
 	probeVerdictLabel,
+	renameActionDisabled,
 	runtimeStatusLabel,
 	selectedOperation,
 	terminalActionLabel,
+	titleDraft,
 }: MissionWorkbenchHeaderProps) => (
-	<div className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--vscode-editor-background)_92%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_16%,transparent))] px-5 py-4">
-		<div className="flex min-w-0 flex-1 flex-col gap-3">
+	<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--vscode-editor-background)_92%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_16%,transparent))] px-5 py-4">
+		<div className="flex min-w-0 flex-col gap-4">
+			<div className="flex min-w-0 flex-col gap-1.5">
+				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em]">
+					Mission Name
+				</div>
+				{isEditingTitle ? (
+					<div className="flex min-w-0 items-center gap-2">
+						<Input
+							aria-label="Mission title"
+							autoFocus
+							className="h-11 min-w-0 flex-1 rounded-2xl border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_78%,transparent)] px-4 text-[color:var(--vscode-foreground)] text-base"
+							onChange={(event) => {
+								onTitleDraftChange(event.target.value);
+							}}
+							onKeyDown={onTitleEditKeyDown}
+							placeholder="Rename this mission"
+							value={titleDraft}
+						/>
+						<SidebarActionButton
+							aria-label="Save mission title"
+							className="h-11 w-11 rounded-2xl px-0"
+							disabled={renameActionDisabled}
+							onClick={onRenameTitle}
+						>
+							<CheckIcon className="h-4 w-4" />
+						</SidebarActionButton>
+					</div>
+				) : (
+					<div className="flex min-w-0 items-center gap-2">
+						<h1 className="min-w-0 flex-1 truncate font-semibold text-[color:var(--vscode-foreground)] text-xl tracking-[0.03em]">
+							{mission.title}
+						</h1>
+						<SidebarActionButton
+							aria-label="Edit mission title"
+							className="h-11 w-11 rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-0 text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_84%,transparent)]"
+							onClick={onStartTitleEdit}
+						>
+							<PencilIcon className="h-4 w-4" />
+						</SidebarActionButton>
+					</div>
+				)}
+			</div>
+
 			<div className="flex flex-wrap items-center gap-2">
-				<h1 className="font-semibold text-[color:var(--vscode-foreground)] text-xl tracking-[0.03em]">
-					{mission.title}
-				</h1>
+				<SidebarActionButton
+					className="h-8 w-auto px-4 text-xs"
+					onClick={onOpenTerminal}
+				>
+					{terminalActionLabel}
+				</SidebarActionButton>
+				<SidebarActionButton
+					className="h-8 w-auto border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-transparent px-4 text-[color:var(--vscode-errorForeground,#f87171)] text-xs hover:bg-[color:var(--vscode-errorForeground,#f87171)]/12"
+					onClick={onConfirmDelete}
+				>
+					{pendingDelete ? "Confirm Delete" : "Delete Mission"}
+				</SidebarActionButton>
+			</div>
+
+			<div className="flex flex-wrap items-center gap-2">
 				<span
 					className={`w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(mission.status)}`}
 				>
@@ -299,6 +367,7 @@ const MissionWorkbenchHeader = ({
 					Runtime {runtimeStatusLabel}
 				</span>
 			</div>
+
 			<div className="flex flex-wrap gap-2 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
 				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1">
 					Operation {selectedOperation?.name ?? "Choose below"}
@@ -377,20 +446,6 @@ const MissionWorkbenchHeader = ({
 					</AccordionContent>
 				</AccordionItem>
 			</Accordion>
-		</div>
-		<div className="flex flex-wrap items-center gap-2">
-			<SidebarActionButton
-				className="h-8 w-auto px-4 text-xs"
-				onClick={onOpenTerminal}
-			>
-				{terminalActionLabel}
-			</SidebarActionButton>
-			<SidebarActionButton
-				className="h-8 w-auto border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-transparent px-4 text-[color:var(--vscode-errorForeground,#f87171)] text-xs hover:bg-[color:var(--vscode-errorForeground,#f87171)]/12"
-				onClick={onConfirmDelete}
-			>
-				{pendingDelete ? "Confirm Delete" : "Delete Mission"}
-			</SidebarActionButton>
 		</div>
 	</div>
 );
@@ -726,9 +781,11 @@ const MissionStatusPanel = ({
 
 const Route = () => {
 	const [draft, setDraft] = useState("");
+	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [operationQuery, setOperationQuery] = useState("");
 	const [pendingDelete, setPendingDelete] = useState(false);
 	const [state, setState] = useState<MissionWorkbenchState>(EMPTY_STATE);
+	const [titleDraft, setTitleDraft] = useState("");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -749,6 +806,12 @@ const Route = () => {
 	}, []);
 
 	const mission = state.mission;
+
+	useEffect(() => {
+		setTitleDraft(mission?.title ?? "");
+		setIsEditingTitle(false);
+	}, [mission?.title]);
+
 	const selectedOperation = useMemo(() => {
 		if (!mission?.operationRef) {
 			return null;
@@ -860,6 +923,48 @@ const Route = () => {
 		setDraft(value);
 	};
 
+	const handleTitleDraftChange = (value: string) => {
+		setPendingDelete(false);
+		setTitleDraft(value);
+	};
+
+	const handleStartTitleEdit = () => {
+		setPendingDelete(false);
+		setIsEditingTitle(true);
+	};
+
+	const handleRenameTitle = () => {
+		if (!mission) {
+			return;
+		}
+
+		const nextTitle = titleDraft.trim();
+		if (nextTitle.length === 0 || nextTitle === mission.title) {
+			return;
+		}
+
+		vscode.postMessage({
+			command: "ff15-mission-workbench.rename-title",
+			title: nextTitle,
+		});
+	};
+
+	const handleTitleEditKeyDown = (
+		event: React.KeyboardEvent<HTMLInputElement>
+	) => {
+		if (event.key === "Enter") {
+			event.preventDefault();
+			handleRenameTitle();
+			return;
+		}
+
+		if (event.key === "Escape") {
+			event.preventDefault();
+			setTitleDraft(mission?.title ?? "");
+			setIsEditingTitle(false);
+		}
+	};
+
 	const handleSend = () => {
 		if (draft.trim().length === 0) {
 			return;
@@ -887,14 +992,23 @@ const Route = () => {
 	return (
 		<div className="mx-auto flex h-full max-w-6xl flex-col gap-5 px-6 py-5">
 			<MissionWorkbenchHeader
+				isEditingTitle={isEditingTitle}
 				mission={mission}
 				onConfirmDelete={handleConfirmDelete}
 				onOpenTerminal={handleOpenTerminal}
+				onRenameTitle={handleRenameTitle}
+				onStartTitleEdit={handleStartTitleEdit}
+				onTitleDraftChange={handleTitleDraftChange}
+				onTitleEditKeyDown={handleTitleEditKeyDown}
 				pendingDelete={pendingDelete}
 				probeVerdictLabel={probeVerdictLabel}
+				renameActionDisabled={
+					titleDraft.trim().length === 0 || titleDraft.trim() === mission.title
+				}
 				runtimeStatusLabel={runtimeStatusLabel}
 				selectedOperation={selectedOperation}
 				terminalActionLabel={terminalActionLabel}
+				titleDraft={titleDraft}
 			/>
 
 			<div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)]">

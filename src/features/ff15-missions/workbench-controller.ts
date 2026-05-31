@@ -39,6 +39,7 @@ interface Ff15MissionSessionController {
 	deleteMission: (missionId: string) => Promise<unknown>;
 	isMissionTerminalReady?: (missionId: string) => boolean;
 	openMissionSession: (missionId: string) => Promise<unknown>;
+	renameMission?: (missionId: string, title: string) => Promise<unknown>;
 	selectMission: (missionId: string) => Promise<unknown>;
 }
 
@@ -133,9 +134,11 @@ export const createFf15MissionWorkbenchController = (
 	};
 
 	const postState = async (missionId: string, panel: WebviewPanel) => {
+		const state = await buildState(missionId);
+		panel.title = state.mission?.title ?? "Mission Workbench";
 		await panel.webview.postMessage({
 			command: "ff15-mission-workbench.state",
-			state: await buildState(missionId),
+			state,
 		});
 	};
 
@@ -219,10 +222,37 @@ export const createFf15MissionWorkbenchController = (
 		await postStateWithRuntimeProbe(missionId, panel);
 	};
 
+	const handleRenameTitleMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { title?: unknown }
+	) => {
+		if (typeof message.title !== "string") {
+			return;
+		}
+
+		if (options.missionSessionController.renameMission) {
+			await options.missionSessionController.renameMission(
+				missionId,
+				message.title
+			);
+		} else {
+			await options.missionsStore.updateMission(missionId, {
+				title: message.title,
+			});
+		}
+		await postState(missionId, panel);
+	};
+
 	const handlePanelMessage = async (
 		missionId: string,
 		panel: WebviewPanel,
-		message: { command?: string; operationRef?: unknown; prompt?: unknown }
+		message: {
+			command?: string;
+			operationRef?: unknown;
+			prompt?: unknown;
+			title?: unknown;
+		}
 	) => {
 		switch (message.command) {
 			case "ff15-mission-workbench.ready": {
@@ -247,6 +277,10 @@ export const createFf15MissionWorkbenchController = (
 			}
 			case "ff15-mission-workbench.select-operation": {
 				await handleSelectOperationMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.rename-title": {
+				await handleRenameTitleMessage(missionId, panel, message);
 				return;
 			}
 			default:

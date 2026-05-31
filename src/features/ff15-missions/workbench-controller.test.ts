@@ -253,6 +253,83 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 	});
 
+	it("persists a mission title rename and refreshes the panel title", async () => {
+		const missionPanel = createPanelDouble();
+		const record = {
+			agentPanes: {
+				gladiolus: null,
+				ignis: null,
+				noctis: null,
+				prompto: null,
+			},
+			createdAt: "2026-06-01T00:00:00.000Z",
+			id: "mission-1",
+			lastError: null,
+			operationRef: null,
+			schemaVersion: 1 as const,
+			sessionName: "ff15-1",
+			status: "draft" as const,
+			title: "Mission 1",
+			updatedAt: "2026-06-01T00:00:00.000Z",
+			workflow: createEmptyWorkflowState(),
+			workspaceRoot: "C:/repo",
+		};
+		const renameMission = vi.fn((_missionId: string, title: string) => {
+			record.title = title;
+			return Promise.resolve();
+		});
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => record),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
+				renameMission,
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: { command: string; title?: string }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.rename-title",
+			title: "Customer onboarding handoff",
+		});
+
+		expect(renameMission).toHaveBeenCalledWith(
+			"mission-1",
+			"Customer onboarding handoff"
+		);
+		expect(missionsStore.updateMission).not.toHaveBeenCalled();
+		expect(record.title).toBe("Customer onboarding handoff");
+		expect(missionPanel.panel.title).toBe("Customer onboarding handoff");
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenLastCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				mission: expect.objectContaining({
+					title: "Customer onboarding handoff",
+				}),
+			}),
+		});
+	});
+
 	it("opens the mission terminal only from the explicit workbench action", async () => {
 		const missionPanel = createPanelDouble();
 		let terminalReady = false;

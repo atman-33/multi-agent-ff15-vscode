@@ -239,6 +239,20 @@ export const createFf15MissionSessionController = (
 		isMissionTerminalReady: (missionId: string) =>
 			readyMissionIds.has(missionId),
 		openMissionSession,
+		async renameMission(
+			missionId: string,
+			title: string
+		): Promise<Ff15MissionsStoreSnapshot> {
+			if (!dependencies.missionsStore.getMissionRecord(missionId)) {
+				return dependencies.missionsStore.getSnapshot();
+			}
+
+			return notifyAndReturn(
+				await dependencies.missionsStore.updateMission(missionId, {
+					title,
+				})
+			);
+		},
 		async selectMission(missionId: string): Promise<Ff15MissionsStoreSnapshot> {
 			return notifyAndReturn(
 				await dependencies.missionsStore.selectMission(missionId)

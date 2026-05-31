@@ -9,6 +9,8 @@ import {
 	loadMissionOperationActivation,
 } from "../ff15-operations/definition";
 import {
+	isGeneratedMissionTitle,
+	normalizeMissionTitle,
 	createEmptyFf15MissionAgentPanes,
 	createEmptyFf15MissionWorkflowState,
 	type Ff15MissionAgentPanes,
@@ -235,6 +237,21 @@ const requireOperationSelection = (input: {
 	});
 };
 
+const deriveMissionTitleFromPrompt = (input: {
+	currentMission: ReturnType<Ff15MissionsStore["getMissionRecord"]>;
+	prompt: string;
+}) => {
+	if (!input.currentMission) {
+		return null;
+	}
+
+	if (!isGeneratedMissionTitle(input.currentMission.title)) {
+		return null;
+	}
+
+	return normalizeMissionTitle(input.prompt);
+};
+
 const requireMissionTerminalReady = (input: {
 	isMissionTerminalReady?: (missionId: string) => boolean;
 	missionId: string;
@@ -270,6 +287,10 @@ const deliverMissionPrompt = async (input: {
 }) => {
 	let agentPanes =
 		input.currentMission?.agentPanes ?? createEmptyFf15MissionAgentPanes();
+	const derivedTitle = deriveMissionTitleFromPrompt({
+		currentMission: input.currentMission,
+		prompt: input.prompt,
+	});
 
 	try {
 		const { agentPanes: resolvedAgentPanes, paneId } =
@@ -319,6 +340,7 @@ const deliverMissionPrompt = async (input: {
 			lastError: null,
 			sessionName: input.sessionName,
 			status: "active",
+			...(derivedTitle ? { title: derivedTitle } : {}),
 			workspaceRoot: input.workspaceRoot,
 		});
 	} catch (error) {
