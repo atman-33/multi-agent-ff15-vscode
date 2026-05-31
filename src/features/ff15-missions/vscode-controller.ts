@@ -12,6 +12,7 @@ import {
 } from "../ff15-launch/layout";
 import { launchZellijTerminal } from "../ff15-launch/launch-terminal";
 import { resolveActiveWorkspaceRoot } from "../ff15-launch/workspace-root";
+import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 import { createFf15MissionSendController } from "./controller";
 import { createFf15MissionSessionController } from "./session-controller";
 import type { Ff15MissionsStore } from "./state";
@@ -62,6 +63,15 @@ const createGetLaunchClient = () => () =>
 		}
 	);
 
+const resolveRuntimeContext = () => {
+	const workspaceRoot = resolveActiveWorkspaceRoot();
+	if (!workspaceRoot) {
+		return;
+	}
+
+	return resolveFf15ProjectRuntimeContext({ workspaceRoot });
+};
+
 export const createVsCodeFf15MissionSendController = (
 	missionsStore: Ff15MissionsStore,
 	missionTransport: Ff15MissionTransport = createFf15MissionZellijTransport()
@@ -71,9 +81,11 @@ export const createVsCodeFf15MissionSendController = (
 	return createFf15MissionSendController({
 		ensureCommandAvailable,
 		getLaunchClient,
-		getWorkspaceRoot: resolveActiveWorkspaceRoot,
+		getWorkspaceRoot: () => resolveRuntimeContext()?.executionRoot,
 		missionTransport,
 		missionsStore,
+		resolveRuntimeContext: ({ workspaceRoot }) =>
+			resolveFf15ProjectRuntimeContext({ workspaceRoot }),
 	});
 };
 
@@ -93,7 +105,7 @@ export const createVsCodeFf15MissionSessionController = (
 				paneLaunchPlan,
 				workspaceRoot,
 			}),
-		getWorkspaceRoot: resolveActiveWorkspaceRoot,
+		getWorkspaceRoot: () => resolveRuntimeContext()?.executionRoot,
 		launchTerminal: launchZellijTerminal,
 		missionsStore,
 		reconcileMissionAgentPanes: ({ agentPanes, sessionName, workspaceRoot }) =>

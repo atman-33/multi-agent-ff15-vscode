@@ -18,12 +18,23 @@ describe("Ff15SettingsViewProvider", () => {
 
 	it("renders the FF15 settings page and handles the open-settings action", async () => {
 		const openSettings = vi.fn().mockResolvedValue(undefined);
-		const provider = new Ff15SettingsViewProvider({} as never, openSettings);
+		const launchController = {
+			launch: vi.fn().mockResolvedValue({
+				cwd: "C:/workspace",
+				status: "launched",
+			}),
+		};
+		const provider = new Ff15SettingsViewProvider(
+			{} as never,
+			openSettings,
+			launchController as never
+		);
 		const webviewView = {
 			webview: {
 				html: "",
 				localResourceRoots: [],
 				options: undefined,
+				postMessage: vi.fn(),
 				onDidReceiveMessage: vi.fn((listener) => {
 					messageHandler = listener;
 					return { dispose: vi.fn() };
@@ -39,5 +50,49 @@ describe("Ff15SettingsViewProvider", () => {
 		await messageHandler?.({ command: "ff15-settings.open" });
 
 		expect(openSettings).toHaveBeenCalledTimes(1);
+	});
+
+	it("launches FF15 from settings and posts launch status updates", async () => {
+		const openSettings = vi.fn().mockResolvedValue(undefined);
+		const launchController = {
+			launch: vi.fn().mockResolvedValue({
+				cwd: "C:/workspace",
+				status: "launched",
+			}),
+		};
+		const provider = new Ff15SettingsViewProvider(
+			{} as never,
+			openSettings,
+			launchController as never
+		);
+		const webviewView = {
+			webview: {
+				html: "",
+				localResourceRoots: [],
+				options: undefined,
+				postMessage: vi.fn(),
+				onDidReceiveMessage: vi.fn((listener) => {
+					messageHandler = listener;
+					return { dispose: vi.fn() };
+				}),
+			},
+		};
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		await messageHandler?.({ command: "ff15-launch.start" });
+
+		expect(launchController.launch).toHaveBeenCalledTimes(1);
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
+			command: "ff15-launch.status",
+			message: "Checking dependencies and opening Zellij...",
+			state: "launching",
+		});
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
+			command: "ff15-launch.status",
+			message: "FF15 launch started in C:/workspace",
+			state: "launched",
+		});
+		expect(openSettings).not.toHaveBeenCalled();
 	});
 });

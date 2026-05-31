@@ -24,6 +24,7 @@ import {
 	type Ff15MissionsStore,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
+import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 import {
 	buildWorkerOperationAwarePrompt,
 	type Ff15MissionOperationActivation,
@@ -40,6 +41,11 @@ interface Ff15OperationRuntimeProbeServiceOptions {
 	getNow?: () => string;
 	missionTransport?: Ff15OperationRuntimeMissionTransport;
 	missionsStore: Ff15MissionsStore;
+	resolveRuntimeContext?: (input: { workspaceRoot: string }) => {
+		activeProjects: string[];
+		executionRoot: string;
+		openspecRoot: string | null;
+	};
 }
 
 interface Ff15OperationRuntimeMissionTransport {
@@ -372,6 +378,8 @@ export const createFf15OperationRuntimeProbeService = (
 	options: Ff15OperationRuntimeProbeServiceOptions
 ): Ff15OperationRuntimeProbeService => {
 	const getNow = options.getNow ?? (() => new Date().toISOString());
+	const resolveRuntimeContext =
+		options.resolveRuntimeContext ?? resolveFf15ProjectRuntimeContext;
 	const workspaces = new Map<string, WorkspaceBridgeRuntime>();
 
 	const updateMissionWorkflow = async (
@@ -564,12 +572,17 @@ export const createFf15OperationRuntimeProbeService = (
 			stepName: input.activation.stepName,
 			workflow: input.workflow,
 		});
+		const runtimeContext = resolveRuntimeContext({
+			workspaceRoot,
+		});
 		await options.missionTransport.sendPrompt({
 			paneId,
 			prompt: buildWorkerOperationAwarePrompt({
 				activation: input.activation,
+				activeProjects: runtimeContext.activeProjects,
 				handoff: input.handoff,
 				missionId: input.mission.id,
+				openspecRoot: runtimeContext.openspecRoot,
 				workflow: input.workflow,
 				workspaceRoot,
 			}),

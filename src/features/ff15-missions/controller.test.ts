@@ -279,6 +279,7 @@ describe("createFf15MissionSendController", () => {
 
 	it("activates operation workflow state and sends an operation-aware prompt for the first operation-backed send", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+		const openspecRoot = join(workspaceRoot, "selected-project", "openspec");
 
 		try {
 			seedRichWorkspaceOperation(workspaceRoot);
@@ -321,6 +322,11 @@ describe("createFf15MissionSendController", () => {
 			const controller = createFf15MissionSendController({
 				ensureCommandAvailable,
 				getLaunchClient: () => launchClient,
+				resolveRuntimeContext: () => ({
+					activeProjects: ["frontend", "backend"],
+					executionRoot: workspaceRoot,
+					openspecRoot,
+				}),
 				getWorkspaceRoot: () => workspaceRoot,
 				missionTransport,
 				missionsStore,
@@ -364,6 +370,23 @@ describe("createFf15MissionSendController", () => {
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: expect.stringContaining("<step-completion-contract>"),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(`execution_root: ${workspaceRoot}`),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(`openspec_root: ${openspecRoot}`),
+				})
+			);
+			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: expect.stringContaining(
+						"active_projects:\n  - frontend\n  - backend"
+					),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(

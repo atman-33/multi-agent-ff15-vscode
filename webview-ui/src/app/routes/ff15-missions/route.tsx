@@ -96,13 +96,13 @@ const Route = () => {
 						}
 						description={mission.sessionName ?? "Not attached yet"}
 						key={mission.id}
+						label={mission.title}
 						onClick={() => {
 							vscode.postMessage({
 								command: "ff15-missions.select",
 								missionId: mission.id,
 							});
 						}}
-						title={mission.title}
 					/>
 				))}
 

@@ -3,10 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
 	materializeBundledFf15WorkspaceTemplateFiles,
 	missionsViewProviderConstructor,
+	projectsViewProviderConstructor,
+	projectsWorkbenchControllerFactory,
 	resolveActiveWorkspaceRoot,
 } = vi.hoisted(() => ({
 	materializeBundledFf15WorkspaceTemplateFiles: vi.fn(),
 	missionsViewProviderConstructor: vi.fn(),
+	projectsViewProviderConstructor: vi.fn(),
+	projectsWorkbenchControllerFactory: vi.fn(() => ({
+		showProjectsEditor: vi.fn(),
+	})),
 	resolveActiveWorkspaceRoot: vi.fn(() => "c:/workspace"),
 }));
 
@@ -22,12 +28,6 @@ vi.mock("vscode", () => ({
 	window: {
 		activeTextEditor: undefined,
 		registerWebviewViewProvider: vi.fn(() => ({ dispose: vi.fn() })),
-	},
-}));
-
-vi.mock("./features/ff15-launch/provider", () => ({
-	Ff15LaunchViewProvider: class {
-		static readonly viewId = "multi-agent-ff15-vscode.launchView";
 	},
 }));
 
@@ -49,6 +49,20 @@ vi.mock("./features/ff15-missions/provider", () => ({
 	},
 }));
 
+vi.mock("./features/ff15-projects/provider", () => ({
+	Ff15ProjectsViewProvider: class {
+		static readonly viewId = "multi-agent-ff15-vscode.projectsView";
+
+		constructor(...args: unknown[]) {
+			projectsViewProviderConstructor(...args);
+		}
+	},
+}));
+
+vi.mock("./features/ff15-projects/workbench-controller", () => ({
+	createFf15ProjectsWorkbenchController: projectsWorkbenchControllerFactory,
+}));
+
 vi.mock("./features/ff15-settings/provider", () => ({
 	Ff15SettingsViewProvider: class {
 		static readonly viewId = "multi-agent-ff15-vscode.settingsView";
@@ -64,7 +78,7 @@ describe("activate", () => {
 		resolveActiveWorkspaceRoot.mockReturnValue("c:/workspace");
 	});
 
-	it("registers the FF15 launch, missions, settings views, and settings command", () => {
+	it("registers the FF15 projects, missions, settings views, and settings command", () => {
 		const context = {
 			extensionUri: {
 				fsPath: "c:/extension",
@@ -95,10 +109,24 @@ describe("activate", () => {
 				}),
 			})
 		);
+		expect(projectsWorkbenchControllerFactory).toHaveBeenCalledWith(
+			expect.objectContaining({
+				extensionUri: expect.anything(),
+				resolveProjectsContext: expect.any(Function),
+			})
+		);
+		expect(projectsViewProviderConstructor).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({
+				projectsWorkbenchController: expect.objectContaining({
+					showProjectsEditor: expect.any(Function),
+				}),
+			})
+		);
 
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
 			1,
-			"multi-agent-ff15-vscode.launchView",
+			"multi-agent-ff15-vscode.projectsView",
 			expect.anything()
 		);
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(

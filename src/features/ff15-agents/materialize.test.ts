@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS,
 	type Ff15WorkspaceTemplateFileDefinition,
 	materializeBundledFf15WorkspaceTemplateFiles,
 } from "./materialize";
@@ -186,5 +187,19 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 			rmSync(extensionRoot, { force: true, recursive: true });
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
+	});
+
+	it("includes workspace operation customization skills in the default template list", () => {
+		const bundledPaths = FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS.map(
+			(definition) => definition.relativePath.join("/")
+		);
+
+		expect(bundledPaths).toEqual(
+			expect.arrayContaining([
+				".github/skills/workspace-operation-customization/SKILL.md",
+				".opencode/skills/workspace-operation-customization/SKILL.md",
+				".opencode/skills/workspace-operation-customization/scripts/validate-operation-yaml.py",
+			])
+		);
 	});
 });
