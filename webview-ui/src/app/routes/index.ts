@@ -4,6 +4,7 @@ import Ff15LaunchRoute from "./ff15-launch/route";
 import Ff15MissionWorkbenchRoute from "./ff15-mission-workbench/route";
 import Ff15MissionsRoute from "./ff15-missions/route";
 import Ff15ProjectsRoute from "./ff15-projects/route";
+import Ff15ProjectsWorkbenchRoute from "./ff15-projects-workbench/route";
 import Ff15SettingsRoute from "./ff15-settings/route";
 import InteractiveViewRoute from "./interactive-view/route";
 import SimpleViewRoute from "./simple-view/route";
@@ -13,6 +14,7 @@ const routeComponents: Record<WebviewPageId, ComponentType> = {
 	"ff15-mission-workbench": Ff15MissionWorkbenchRoute,
 	"ff15-missions": Ff15MissionsRoute,
 	"ff15-projects": Ff15ProjectsRoute,
+	"ff15-projects-workbench": Ff15ProjectsWorkbenchRoute,
 	"ff15-settings": Ff15SettingsRoute,
 	interactive: InteractiveViewRoute,
 	simple: SimpleViewRoute,
