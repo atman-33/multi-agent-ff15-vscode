@@ -820,6 +820,11 @@ describe("createFf15OperationRuntimeProbeService", () => {
 					reconcileMissionAgentPanes,
 					sendPrompt,
 				},
+				resolveRuntimeContext: () => ({
+					activeProjects: ["frontend", "backend"],
+					executionRoot: workspaceRoot,
+					openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
+				}),
 			});
 
 			try {
@@ -907,6 +912,25 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						prompt: expect.stringContaining("submit-report.ps1"),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining(`execution_root: ${workspaceRoot}`),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining(
+							"active_projects:\n  - frontend\n  - backend"
+						),
+					})
+				);
+				expect(sendPrompt).toHaveBeenCalledWith(
+					expect.objectContaining({
+						prompt: expect.stringContaining(
+							`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+						),
 					})
 				);
 				expect(store.getMissionRecord("mission-1")).toEqual(

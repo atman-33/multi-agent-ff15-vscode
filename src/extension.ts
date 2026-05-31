@@ -16,6 +16,7 @@ import {
 	resolveFf15ProjectsContext,
 	saveFf15ProjectsContext,
 } from "./features/ff15-projects/context-resolver";
+import { resolveFf15ProjectRuntimeContext } from "./features/ff15-projects/runtime-context";
 import { Ff15ProjectsViewProvider } from "./features/ff15-projects/provider";
 import { createFf15ProjectsWorkbenchController } from "./features/ff15-projects/workbench-controller";
 import { openFf15Settings } from "./features/ff15-settings/open-settings";
@@ -54,6 +55,8 @@ export const activate = (context: ExtensionContext) => {
 		createFf15OperationRuntimeProbeService({
 			missionTransport: ff15MissionTransport,
 			missionsStore: ff15MissionsStore,
+			resolveRuntimeContext: ({ workspaceRoot }) =>
+				resolveFf15ProjectRuntimeContext({ workspaceRoot }),
 		});
 	activeRuntimeProbeService = ff15OperationRuntimeProbeService;
 	const ff15MissionWorkbenchController = createFf15MissionWorkbenchController({
