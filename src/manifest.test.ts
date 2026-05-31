@@ -7,7 +7,7 @@ const packageJson = JSON.parse(
 );
 
 describe("extension manifest", () => {
-	it("contributes the FF15 launch, missions, and settings views plus the open-settings command", () => {
+	it("contributes the FF15 launch, missions, projects, and settings views plus the open-settings command", () => {
 		expect(packageJson.contributes.views["multi-agent-ff15-vscode"]).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -16,6 +16,11 @@ describe("extension manifest", () => {
 				expect.objectContaining({
 					id: "multi-agent-ff15-vscode.missionsView",
 					name: "Missions",
+					type: "webview",
+				}),
+				expect.objectContaining({
+					id: "multi-agent-ff15-vscode.projectsView",
+					name: "Projects",
 					type: "webview",
 				}),
 				expect.objectContaining({

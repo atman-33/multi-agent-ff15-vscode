@@ -13,6 +13,7 @@ import {
 	createVsCodeFf15MissionSessionController,
 } from "./features/ff15-missions/vscode-controller";
 import { createFf15MissionWorkbenchController } from "./features/ff15-missions/workbench-controller";
+import { Ff15ProjectsViewProvider } from "./features/ff15-projects/provider";
 import { openFf15Settings } from "./features/ff15-settings/open-settings";
 import { Ff15SettingsViewProvider } from "./features/ff15-settings/provider";
 
@@ -75,6 +76,9 @@ export const activate = (context: ExtensionContext) => {
 			missionWorkbenchController: ff15MissionWorkbenchController,
 		}
 	);
+	const ff15ProjectsViewProvider = new Ff15ProjectsViewProvider(
+		context.extensionUri
+	);
 	const ff15SettingsViewProvider = new Ff15SettingsViewProvider(
 		context.extensionUri
 	);
@@ -86,6 +90,10 @@ export const activate = (context: ExtensionContext) => {
 		window.registerWebviewViewProvider(
 			Ff15MissionsViewProvider.viewId,
 			ff15MissionsViewProvider
+		),
+		window.registerWebviewViewProvider(
+			Ff15ProjectsViewProvider.viewId,
+			ff15ProjectsViewProvider
 		),
 		window.registerWebviewViewProvider(
 			Ff15SettingsViewProvider.viewId,

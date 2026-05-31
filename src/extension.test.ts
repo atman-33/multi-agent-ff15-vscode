@@ -49,6 +49,12 @@ vi.mock("./features/ff15-missions/provider", () => ({
 	},
 }));
 
+vi.mock("./features/ff15-projects/provider", () => ({
+	Ff15ProjectsViewProvider: class {
+		static readonly viewId = "multi-agent-ff15-vscode.projectsView";
+	},
+}));
+
 vi.mock("./features/ff15-settings/provider", () => ({
 	Ff15SettingsViewProvider: class {
 		static readonly viewId = "multi-agent-ff15-vscode.settingsView";
@@ -108,6 +114,11 @@ describe("activate", () => {
 		);
 		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
 			3,
+			"multi-agent-ff15-vscode.projectsView",
+			expect.anything()
+		);
+		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
+			4,
 			"multi-agent-ff15-vscode.settingsView",
 			expect.anything()
 		);
@@ -115,7 +126,7 @@ describe("activate", () => {
 			"multi-agent-ff15-vscode.openSettings",
 			expect.any(Function)
 		);
-		expect(context.subscriptions).toHaveLength(4);
+		expect(context.subscriptions).toHaveLength(5);
 	});
 
 	it("skips workspace agent materialization when no workspace root is available", () => {

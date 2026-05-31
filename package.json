@@ -64,6 +64,12 @@
           "icon": ""
         },
         {
+          "id": "multi-agent-ff15-vscode.projectsView",
+          "name": "Projects",
+          "type": "webview",
+          "icon": ""
+        },
+        {
           "id": "multi-agent-ff15-vscode.settingsView",
           "name": "Settings",
           "type": "webview",
