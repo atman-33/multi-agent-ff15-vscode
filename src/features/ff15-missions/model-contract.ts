@@ -40,6 +40,11 @@ export const FF15_OPENCODE_MODEL_CATALOG: Ff15OpenCodeModelDefinition[] = [
 		id: "gpt-5-mini",
 		name: "GPT-5 mini",
 	},
+	{
+		efforts: [],
+		id: "claude-haiku-4.5",
+		name: "Claude Haiku 4.5",
+	},
 ];
 
 export const resolveFf15OpenCodeModelDefinition = (

@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -7,15 +6,15 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { cn } from "@/lib/utils";
 import {
-	CheckIcon,
-	ChevronDownIcon,
-	ChevronRightIcon,
-	CpuIcon,
-	MoreVerticalIcon,
-} from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { useId } from "react";
 
 type PartyRosterAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
 
@@ -46,6 +45,7 @@ const AGENT_THEMES: Record<
 	{
 		accent: string;
 		glow: string;
+		glowSoft: string;
 		surface: string;
 		text: string;
 	}
@@ -53,29 +53,33 @@ const AGENT_THEMES: Record<
 	gladiolus: {
 		accent: "rgba(170, 58, 73, 0.8)",
 		glow: "rgba(170, 58, 73, 0.22)",
+		glowSoft: "rgba(170, 58, 73, 0.46)",
 		surface:
-			"linear-gradient(160deg, rgba(54, 18, 24, 0.96), rgba(26, 13, 16, 0.94))",
+			"linear-gradient(180deg, rgba(12, 8, 10, 0.98), rgba(7, 6, 8, 0.96) 58%, rgba(18, 9, 12, 0.94))",
 		text: "rgba(248, 214, 220, 0.92)",
 	},
 	ignis: {
 		accent: "rgba(75, 146, 114, 0.82)",
 		glow: "rgba(75, 146, 114, 0.2)",
+		glowSoft: "rgba(75, 146, 114, 0.4)",
 		surface:
-			"linear-gradient(160deg, rgba(18, 40, 32, 0.96), rgba(12, 22, 19, 0.94))",
+			"linear-gradient(180deg, rgba(7, 11, 9, 0.98), rgba(5, 8, 7, 0.96) 58%, rgba(9, 15, 12, 0.94))",
 		text: "rgba(223, 247, 234, 0.92)",
 	},
 	noctis: {
 		accent: "rgba(143, 156, 224, 0.82)",
 		glow: "rgba(143, 156, 224, 0.2)",
+		glowSoft: "rgba(143, 156, 224, 0.42)",
 		surface:
-			"linear-gradient(160deg, rgba(20, 26, 46, 0.96), rgba(12, 17, 33, 0.94))",
+			"linear-gradient(180deg, rgba(8, 10, 16, 0.98), rgba(6, 8, 13, 0.96) 58%, rgba(10, 12, 21, 0.94))",
 		text: "rgba(224, 231, 255, 0.94)",
 	},
 	prompto: {
 		accent: "rgba(240, 207, 115, 0.82)",
 		glow: "rgba(240, 207, 115, 0.2)",
+		glowSoft: "rgba(240, 207, 115, 0.42)",
 		surface:
-			"linear-gradient(160deg, rgba(48, 38, 14, 0.96), rgba(27, 22, 11, 0.94))",
+			"linear-gradient(180deg, rgba(14, 11, 5, 0.98), rgba(9, 8, 4, 0.96) 58%, rgba(17, 14, 8, 0.94))",
 		text: "rgba(255, 243, 196, 0.92)",
 	},
 };
@@ -123,24 +127,6 @@ interface PartyRosterPanelProps {
 	partyRoster: PartyRosterAgent[];
 }
 
-const getAvailabilityClassName = (available: boolean) =>
-	available
-		? "border-emerald-500/30 bg-emerald-500/12 text-emerald-200"
-		: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]";
-
-const getAgentStatusLabel = (available: boolean, enabled: boolean) => {
-	if (!enabled) {
-		return "Locked";
-	}
-
-	return available ? "Live" : "Standby";
-};
-
-const getModelSummary = (agent: PartyRosterAgent) =>
-	agent.model.effortLabel
-		? `${agent.model.modelName} / ${agent.model.effortLabel}`
-		: agent.model.modelName;
-
 interface AgentModelPickerProps {
 	agent: PartyRosterAgent;
 	disabled: boolean;
@@ -158,192 +144,116 @@ const AgentModelPicker = ({
 	modelCatalog,
 	onChangeAgentModel,
 }: AgentModelPickerProps) => {
-	const [open, setOpen] = useState(false);
-	const [activeModelId, setActiveModelId] = useState(agent.model.modelId);
-	const panelRef = useRef<HTMLDivElement | null>(null);
 	const panelId = useId();
+	const activeModel =
+		modelCatalog.find((model) => model.id === agent.model.modelId) ??
+		modelCatalog[0] ??
+		null;
+	const effortEnabled = Boolean(activeModel?.efforts.length);
+	const effortValue =
+		agent.model.effort ?? activeModel?.efforts[0]?.value ?? undefined;
 
-	useEffect(() => {
-		if (!open) {
+	const handleModelChange = (modelId: string) => {
+		const nextModel = modelCatalog.find((model) => model.id === modelId);
+		if (!nextModel) {
 			return;
 		}
 
-		const handlePointerDown = (event: MouseEvent) => {
-			if (!panelRef.current?.contains(event.target as Node)) {
-				setOpen(false);
-			}
-		};
+		const nextEffort = nextModel.efforts.some(
+			(option) => option.value === agent.model.effort
+		)
+			? agent.model.effort
+			: (nextModel.efforts[0]?.value ?? null);
 
-		const handleEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				setOpen(false);
-			}
-		};
+		onChangeAgentModel({
+			agentId: agent.agentId,
+			effort: nextEffort,
+			modelId,
+		});
+	};
 
-		document.addEventListener("mousedown", handlePointerDown);
-		document.addEventListener("keydown", handleEscape);
-
-		return () => {
-			document.removeEventListener("mousedown", handlePointerDown);
-			document.removeEventListener("keydown", handleEscape);
-		};
-	}, [open]);
-
-	useEffect(() => {
-		setActiveModelId(agent.model.modelId);
-	}, [agent.model.modelId]);
-
-	const activeModel =
-		modelCatalog.find((model) => model.id === activeModelId) ??
-		modelCatalog[0] ??
-		null;
+	const handleEffortChange = (value: string) => {
+		onChangeAgentModel({
+			agentId: agent.agentId,
+			effort: value,
+			modelId: activeModel?.id ?? agent.model.modelId,
+		});
+	};
 
 	return (
-		<div className="relative" ref={panelRef}>
-			<Button
-				aria-controls={open ? panelId : undefined}
-				aria-expanded={open}
-				aria-haspopup="dialog"
-				className="h-10 w-full justify-between rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_80%,transparent)] px-3 text-[color:var(--vscode-foreground)] text-xs shadow-none hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_88%,transparent)]"
-				disabled={disabled}
-				onClick={() => {
-					setActiveModelId(agent.model.modelId);
-					setOpen((current) => !current);
-				}}
-				variant="outline"
-			>
-				<span className="flex min-w-0 items-center gap-2">
-					<CpuIcon className="h-3.5 w-3.5 shrink-0" />
-					<span className="min-w-0 truncate text-left">
-						{getModelSummary(agent)}
-					</span>
-				</span>
-				<ChevronDownIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
-			</Button>
-
-			{open ? (
-				<div
-					className="absolute left-0 z-50 mt-2 grid min-w-[20rem] gap-0 overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_98%,transparent)] shadow-[0_18px_48px_rgba(0,0,0,0.35)] md:min-w-[25rem] md:grid-cols-[minmax(0,1fr)_12rem]"
-					id={panelId}
-					role="dialog"
+		<div className="flex items-stretch gap-1.5" id={panelId}>
+			<div className="min-w-0 flex-1 basis-0">
+				<Select
+					disabled={disabled}
+					onValueChange={handleModelChange}
+					value={activeModel?.id ?? agent.model.modelId}
 				>
-					<div className="max-h-72 overflow-y-auto p-2">
-						<div className="mb-1 px-2 py-1 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] uppercase tracking-[0.18em]">
-							Model
-						</div>
-						<div className="grid gap-1">
-							{modelCatalog.map((model) => {
-								const hasEfforts = model.efforts.length > 0;
-								const selected = agent.model.modelId === model.id;
-								const active = activeModelId === model.id;
-
-								return (
-									<button
-										className={cn(
-											"flex w-full items-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left transition-colors",
-											active
-												? "bg-[color:color-mix(in_srgb,var(--vscode-button-background,#0e7490)_14%,transparent)] text-[color:var(--vscode-foreground)]"
-												: "text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_88%,transparent)]"
-										)}
-										key={model.id}
-										onClick={() => {
-											if (hasEfforts) {
-												setActiveModelId(model.id);
-												return;
-											}
-
-											onChangeAgentModel({
-												agentId: agent.agentId,
-												effort: null,
-												modelId: model.id,
-											});
-											setOpen(false);
-										}}
-										onFocus={() => {
-											setActiveModelId(model.id);
-										}}
-										onMouseEnter={() => {
-											setActiveModelId(model.id);
-										}}
-										type="button"
-									>
-										<CheckIcon
-											className={cn(
-												"h-3.5 w-3.5 shrink-0",
-												selected ? "opacity-100" : "opacity-0"
-											)}
-										/>
-										<div className="min-w-0 flex-1">
-											<div className="truncate font-medium text-xs">
-												{model.name}
-											</div>
-											<div className="mt-0.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] uppercase tracking-[0.14em]">
-												{hasEfforts ? "Hover for Effort" : "Direct Apply"}
-											</div>
-										</div>
-										{hasEfforts ? (
-											<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
-										) : null}
-									</button>
-								);
-							})}
-						</div>
-					</div>
-
-					<div className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] border-l bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_86%,transparent)] p-2">
-						<div className="mb-1 px-2 py-1 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] uppercase tracking-[0.18em]">
-							Effort
-						</div>
-						{activeModel?.efforts.length ? (
-							<div className="grid gap-1">
-								{activeModel.efforts.map((effort) => {
-									const selected =
-										agent.model.modelId === activeModel.id &&
-										agent.model.effort === effort.value;
-
-									return (
-										<button
-											className={cn(
-												"rounded-xl border px-3 py-2 text-left transition-colors",
-												selected
-													? "border-[color:var(--vscode-button-background,#0e7490)] bg-[color:var(--vscode-button-background,#0e7490)]/14 text-[color:var(--vscode-foreground)]"
-													: "border-transparent text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_92%,transparent)]"
-											)}
-											key={effort.value}
-											onClick={() => {
-												onChangeAgentModel({
-													agentId: agent.agentId,
-													effort: effort.value,
-													modelId: activeModel.id,
-												});
-												setOpen(false);
-											}}
-											type="button"
-										>
-											<div className="font-medium text-xs">{effort.value}</div>
-											<div className="mt-0.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
-												{effort.label}
-											</div>
-										</button>
-									);
-								})}
-							</div>
-						) : (
-							<div
-								className={cn(
-									"flex h-full min-h-28 items-center justify-center rounded-xl border border-dashed px-3 text-center",
-									"border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)]",
-									"text-[11px]",
-									"leading-5",
-									"text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.62))]"
-								)}
-							>
-								Select a model with effort options to tune it here.
-							</div>
+					<SelectTrigger
+						className={cn(
+							"h-6 w-full min-w-0 px-2 font-mono text-[10px] uppercase tracking-[0.18em]",
+							"hover:bg-black/60",
+							"data-[placeholder]:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.82))]",
+							"[&_svg]:text-[color:var(--vscode-foreground)]"
 						)}
-					</div>
-				</div>
-			) : null}
+						size="sm"
+						style={{
+							backgroundColor: "rgba(0, 0, 0, 0.5)",
+							borderColor: "rgba(255, 255, 255, 0.12)",
+							boxShadow: "none",
+							color: "var(--vscode-foreground)",
+						}}
+					>
+						<SelectValue placeholder="Select model" />
+					</SelectTrigger>
+					<SelectContent
+						align="end"
+						className="border-white/12 bg-[rgba(8,10,16,0.98)] text-[color:var(--vscode-foreground)]"
+					>
+						{modelCatalog.map((model) => (
+							<SelectItem key={model.id} value={model.id}>
+								{model.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			<div className="min-w-0 flex-1 basis-0">
+				<Select
+					disabled={disabled || !effortEnabled}
+					onValueChange={handleEffortChange}
+					value={effortValue}
+				>
+					<SelectTrigger
+						className={cn(
+							"h-6 w-full min-w-0 px-2 font-mono text-[10px] uppercase tracking-[0.18em]",
+							"hover:bg-black/60",
+							"disabled:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.58))]",
+							"data-[placeholder]:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.82))]",
+							"[&_svg]:text-[color:var(--vscode-foreground)]",
+							"disabled:[&_svg]:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.58))]"
+						)}
+						size="sm"
+						style={{
+							backgroundColor: "rgba(0, 0, 0, 0.5)",
+							borderColor: "rgba(255, 255, 255, 0.12)",
+							boxShadow: "none",
+							color: "var(--vscode-foreground)",
+						}}
+					>
+						<SelectValue placeholder="Effort unavailable" />
+					</SelectTrigger>
+					<SelectContent
+						align="end"
+						className="border-white/12 bg-[rgba(8,10,16,0.98)] text-[color:var(--vscode-foreground)]"
+					>
+						{activeModel?.efforts.map((effort) => (
+							<SelectItem key={effort.value} value={effort.value}>
+								{effort.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
 		</div>
 	);
 };
@@ -355,25 +265,32 @@ export const PartyRosterPanel = ({
 	partyRosterEnabled,
 	partyRoster,
 }: PartyRosterPanelProps) => (
-	<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-5 py-4 shadow-[0_24px_72px_rgba(0,0,0,0.18)]">
-		<div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+	<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-4 py-3 shadow-[0_24px_72px_rgba(0,0,0,0.18)]">
+		<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
 			<div>
 				<div className="font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
 					Party Roster
 				</div>
-				<div className="mt-1 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-5">
+				<div className="mt-0.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
 					Right-click a card to continue. Left-click the model field to retune
 					the agent.
 				</div>
 			</div>
-			<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+			<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
 				{partyRoster.filter((agent) => agent.available).length} Live Panes
 			</span>
 		</div>
 
-		<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+		<div className="grid gap-2">
 			{partyRoster.map((agent) => {
 				const theme = AGENT_THEMES[agent.agentId];
+				const portraitFilter = [
+					`drop-shadow(0 0 3px ${theme.glowSoft})`,
+					`drop-shadow(0 0 7px ${theme.glow})`,
+					agent.available
+						? `drop-shadow(0 0 12px ${theme.accent})`
+						: `drop-shadow(0 0 5px ${theme.glow})`,
+				].join(" ");
 
 				return (
 					<ContextMenu key={agent.agentId}>
@@ -381,80 +298,80 @@ export const PartyRosterPanel = ({
 							<div
 								className={cn(
 									"min-w-0",
-									"rounded-[1.75rem]",
-									"border",
-									"px-4 py-4",
+									"rounded-xl",
+									"border border-transparent",
+									"px-3 py-3",
 									"transition-transform",
 									"hover:-translate-y-0.5",
-									"border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)]",
-									"shadow-[0_16px_36px_rgba(0,0,0,0.18)]"
+									"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
 								)}
 								style={{
 									background: theme.surface,
-									boxShadow: `0 18px 36px rgba(0,0,0,0.18), 0 0 0 1px ${theme.glow} inset`,
+									boxShadow: `0 16px 34px rgba(0,0,0,0.34), 0 1px 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 18px ${theme.glow}`,
 								}}
 							>
-								<div className="mb-3 flex items-start justify-between gap-3">
-									<div className="flex min-w-0 items-center gap-3">
-										<div
-											className="relative flex h-18 w-14 shrink-0 items-end justify-center overflow-hidden rounded-2xl border"
+								<div className="flex min-w-0 items-center gap-3.5">
+									<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
+										<span
+											aria-hidden="true"
+											className="pointer-events-none absolute rounded-full"
 											style={{
-												background: `radial-gradient(circle at 50% 100%, ${theme.glow}, transparent 72%)`,
-												borderColor: theme.accent,
+												background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
+												bottom: 0,
+												height: "2rem",
+												left: "50%",
+												opacity: agent.available ? 1 : 0.72,
+												transform: "translateX(-50%)",
+												width: "2rem",
 											}}
-										>
-											<img
-												alt={agent.displayName}
-												className="h-full w-full object-contain object-bottom"
-												height={72}
-												src={AGENT_PORTRAITS[agent.agentId]}
-												width={56}
+										/>
+										{agent.available ? (
+											<span
+												aria-hidden="true"
+												className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
+												style={{
+													background: theme.glow,
+													filter: "blur(16px)",
+												}}
 											/>
-										</div>
-										<div className="min-w-0">
+										) : null}
+										<img
+											alt={agent.displayName}
+											className="relative z-10 h-full w-full object-contain object-bottom"
+											height={64}
+											src={AGENT_PORTRAITS[agent.agentId]}
+											style={{ filter: portraitFilter }}
+											width={40}
+										/>
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-2">
 											<div
-												className="truncate font-semibold text-sm"
+												className="truncate font-bold text-sm uppercase tracking-wider"
 												style={{ color: theme.text }}
 											>
 												{agent.displayName}
 											</div>
-											<div className="mt-1 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.66))] uppercase tracking-[0.18em]">
+											<div
+												className="font-mono text-[9px]"
+												style={{
+													color:
+														"var(--vscode-descriptionForeground, rgba(255,255,255,0.76))",
+													letterSpacing: "0.12em",
+													textTransform: "uppercase",
+												}}
+											>
 												{AGENT_ROLE_LABELS[agent.agentId]}
 											</div>
-											<div className="mt-2 truncate text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-5">
-												{getModelSummary(agent)}
-											</div>
 										</div>
-									</div>
-									<div className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] p-2 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]">
-										<MoreVerticalIcon className="h-4 w-4" />
-									</div>
-								</div>
-
-								<div className="mb-3 flex flex-wrap items-center gap-2">
-									<span
-										className={cn(
-											"w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em]",
-											getAvailabilityClassName(agent.available)
-										)}
-									>
-										{getAgentStatusLabel(agent.available, partyRosterEnabled)}
-									</span>
-									<span className="min-w-0 truncate rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-										{agent.paneId ?? "No Pane"}
-									</span>
-								</div>
-
-								<div className="grid gap-2">
-									<AgentModelPicker
-										agent={agent}
-										disabled={!partyRosterEnabled}
-										modelCatalog={modelCatalog}
-										onChangeAgentModel={onChangeAgentModel}
-									/>
-									<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-3 py-2 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-5">
-										Current routing target:{" "}
-										{agent.available ? "resolved pane" : "resolved on demand"}
+										<div className="mt-1 w-full max-w-[17rem]">
+											<AgentModelPicker
+												agent={agent}
+												disabled={!partyRosterEnabled}
+												modelCatalog={modelCatalog}
+												onChangeAgentModel={onChangeAgentModel}
+											/>
+										</div>
 									</div>
 								</div>
 							</div>
