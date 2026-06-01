@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
 import { CheckIcon, PencilIcon, SearchIcon } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { PartyRosterPanel } from "./components/party-roster-panel";
 
 interface MissionWorkbenchCatalogEntry {
 	fileName: string;
@@ -42,20 +43,43 @@ interface MissionWorkbenchMission {
 	workspaceRoot: string | null;
 }
 
+interface MissionWorkbenchModelDefinition {
+	efforts: { label: string; value: string }[];
+	id: string;
+	name: string;
+}
+
+interface MissionWorkbenchPartyAgent {
+	agentId: "noctis" | "ignis" | "gladiolus" | "prompto";
+	available: boolean;
+	displayName: string;
+	model: {
+		effort: string | null;
+		effortLabel: string | null;
+		modelId: string;
+		modelName: string;
+	};
+	paneId: string | null;
+}
+
 interface MissionWorkbenchState {
+	modelCatalog: MissionWorkbenchModelDefinition[];
 	mission: MissionWorkbenchMission | null;
 	operations: {
 		supported: MissionWorkbenchCatalogEntry[];
 		unsupported: MissionWorkbenchCatalogEntry[];
 	};
+	partyRoster: MissionWorkbenchPartyAgent[];
 }
 
 const EMPTY_STATE: MissionWorkbenchState = {
+	modelCatalog: [],
 	mission: null,
 	operations: {
 		supported: [],
 		unsupported: [],
 	},
+	partyRoster: [],
 };
 
 const RUNTIME_STATUS_LABELS = {
@@ -978,6 +1002,28 @@ const Route = () => {
 		});
 	};
 
+	const handleContinueAgent = (
+		agentId: MissionWorkbenchPartyAgent["agentId"]
+	) => {
+		vscode.postMessage({
+			agentId,
+			command: "ff15-mission-workbench.continue-agent",
+		});
+	};
+
+	const handleChangeAgentModel = (input: {
+		agentId: MissionWorkbenchPartyAgent["agentId"];
+		effort: string | null;
+		modelId: string;
+	}) => {
+		vscode.postMessage({
+			agentId: input.agentId,
+			command: "ff15-mission-workbench.change-agent-model",
+			effort: input.effort,
+			modelId: input.modelId,
+		});
+	};
+
 	if (!mission) {
 		return (
 			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
@@ -1050,6 +1096,14 @@ const Route = () => {
 					/>
 				</div>
 			</div>
+
+			<PartyRosterPanel
+				modelCatalog={state.modelCatalog}
+				onChangeAgentModel={handleChangeAgentModel}
+				onContinueAgent={handleContinueAgent}
+				partyRoster={state.partyRoster}
+				partyRosterEnabled={mission.terminalReady}
+			/>
 		</div>
 	);
 };

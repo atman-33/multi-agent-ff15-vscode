@@ -242,6 +242,38 @@ export const createFf15MissionZellijTransport = (
 			new Promise<void>((resolve) => {
 				setTimeout(resolve, FF15_PROMPT_INPUT_DELAY_MS);
 			}));
+	const sendPaneInputSequence = async (input: {
+		inputs: string[];
+		paneId: string;
+		sessionName: string;
+	}) => {
+		for (const value of input.inputs) {
+			await runCommand({
+				args: [
+					"--session",
+					input.sessionName,
+					"action",
+					"write-chars",
+					"--pane-id",
+					input.paneId,
+					value,
+				],
+			});
+			await waitForPromptDelivery();
+
+			await runCommand({
+				args: [
+					"--session",
+					input.sessionName,
+					"action",
+					"send-keys",
+					"--pane-id",
+					input.paneId,
+					"Enter",
+				],
+			});
+		}
+	};
 
 	return {
 		async ensureMissionSession(input: {
@@ -345,30 +377,13 @@ export const createFf15MissionZellijTransport = (
 			prompt: string;
 			sessionName: string;
 		}) {
-			await runCommand({
-				args: [
-					"--session",
-					input.sessionName,
-					"action",
-					"write-chars",
-					"--pane-id",
-					input.paneId,
-					input.prompt,
-				],
-			});
-			await waitForPromptDelivery();
-
-			await runCommand({
-				args: [
-					"--session",
-					input.sessionName,
-					"action",
-					"send-keys",
-					"--pane-id",
-					input.paneId,
-					"Enter",
-				],
+			await sendPaneInputSequence({
+				inputs: [input.prompt],
+				paneId: input.paneId,
+				sessionName: input.sessionName,
 			});
 		},
+
+		sendPaneInputSequence,
 	};
 };

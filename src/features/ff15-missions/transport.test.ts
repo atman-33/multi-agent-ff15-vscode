@@ -225,4 +225,58 @@ describe("createFf15MissionZellijTransport", () => {
 			cwd: undefined,
 		});
 	});
+
+	it("sends each pane input as a write followed by Enter", async () => {
+		const runZellijCommand = vi.fn().mockResolvedValue({ stdout: "" });
+		const waitForPromptDelivery = vi.fn().mockResolvedValue(undefined);
+		const transport = createFf15MissionZellijTransport({
+			runZellijCommand,
+			waitForPromptDelivery,
+		});
+
+		await transport.sendPaneInputSequence({
+			inputs: ["/model", "GPT-5.4", "3"],
+			paneId: "terminal_2",
+			sessionName: "ff15-session",
+		});
+
+		expect(runZellijCommand).toHaveBeenNthCalledWith(1, {
+			args: [
+				"--session",
+				"ff15-session",
+				"action",
+				"write-chars",
+				"--pane-id",
+				"terminal_2",
+				"/model",
+			],
+			cwd: undefined,
+		});
+		expect(runZellijCommand).toHaveBeenNthCalledWith(2, {
+			args: [
+				"--session",
+				"ff15-session",
+				"action",
+				"send-keys",
+				"--pane-id",
+				"terminal_2",
+				"Enter",
+			],
+			cwd: undefined,
+		});
+		expect(runZellijCommand).toHaveBeenNthCalledWith(5, {
+			args: [
+				"--session",
+				"ff15-session",
+				"action",
+				"write-chars",
+				"--pane-id",
+				"terminal_2",
+				"3",
+			],
+			cwd: undefined,
+		});
+		expect(runZellijCommand).toHaveBeenCalledTimes(6);
+		expect(waitForPromptDelivery).toHaveBeenCalledTimes(3);
+	});
 });

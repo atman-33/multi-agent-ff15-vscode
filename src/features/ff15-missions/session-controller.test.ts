@@ -280,6 +280,54 @@ describe("createFf15MissionSessionController", () => {
 		}
 	});
 
+	it("retries pane reconciliation after launch until the fixed roster is live", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-05-26T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+
+			const reconcileMissionAgentPanes = vi
+				.fn()
+				.mockResolvedValueOnce(createEmptyFf15MissionAgentPanes())
+				.mockResolvedValueOnce(createAgentPanes());
+			const waitForMissionAgentPanesReconcile = vi
+				.fn()
+				.mockResolvedValue(undefined);
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getLaunchClient: createLaunchClient,
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal: vi.fn().mockResolvedValue(undefined),
+				missionsStore,
+				reconcileMissionAgentPanes,
+				showErrorMessage: vi.fn(),
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+				waitForMissionAgentPanesReconcile,
+			});
+
+			await controller.openMissionSession("mission-1");
+
+			expect(reconcileMissionAgentPanes).toHaveBeenCalledTimes(2);
+			expect(waitForMissionAgentPanesReconcile).toHaveBeenCalledTimes(1);
+			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					agentPanes: createAgentPanes(),
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("deletes the mission after terminating its session", async () => {
 		const workspaceRoot = createWorkspaceRoot();
 

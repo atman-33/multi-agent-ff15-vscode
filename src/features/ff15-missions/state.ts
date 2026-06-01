@@ -8,6 +8,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { FF15_AGENT_IDS, type Ff15AgentId } from "../ff15-launch/launch-client";
+import {
+	createDefaultFf15MissionAgentModels,
+	normalizeFf15MissionAgentModels,
+	type Ff15MissionAgentModels,
+} from "./model-contract";
 
 export const FF15_MISSIONS_STATE_STORAGE_KEY =
 	"multi-agent-ff15-vscode.missionsState";
@@ -65,12 +70,14 @@ export interface Ff15MissionSummary {
 
 export interface Ff15MissionRecord extends Ff15MissionSummary {
 	agentPanes: Ff15MissionAgentPanes;
+	agentModels: Ff15MissionAgentModels;
 	operationRef: string | null;
 	workflow: Ff15MissionWorkflowState;
 	schemaVersion: 1;
 }
 
 export interface Ff15MissionRecordPatch {
+	agentModels?: Ff15MissionAgentModels;
 	agentPanes?: Ff15MissionAgentPanes;
 	lastError?: string | null;
 	operationRef?: string | null;
@@ -287,6 +294,7 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 	}
 
 	const mission = value as Ff15MissionSummary & {
+		agentModels?: unknown;
 		agentPanes?: unknown;
 		operationRef?: unknown;
 		schemaVersion?: unknown;
@@ -295,6 +303,7 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 
 	return {
 		...normalizeMissionSummary(mission),
+		agentModels: normalizeFf15MissionAgentModels(mission.agentModels),
 		agentPanes: normalizeAgentPanes(mission.agentPanes),
 		operationRef:
 			typeof mission.operationRef === "string" ? mission.operationRef : null,
@@ -311,6 +320,7 @@ const createMissionRecordFromSummary = (
 		...mission,
 		workspaceRoot,
 	}),
+	agentModels: createDefaultFf15MissionAgentModels(),
 	agentPanes: createEmptyFf15MissionAgentPanes(),
 	operationRef: null,
 	workflow: createEmptyFf15MissionWorkflowState(),
@@ -470,6 +480,39 @@ const loadMissionRecordsFromWorkspace = (
 	return sortMissionRecords(missionRecords);
 };
 
+const applyMissionRecordPatch = (input: {
+	activeWorkspaceRoot?: string;
+	mission: Ff15MissionRecord;
+	patch: Ff15MissionRecordPatch;
+	updatedAt: string;
+}): Ff15MissionRecord => {
+	const normalizedTitle =
+		typeof input.patch.title === "string"
+			? normalizeMissionTitle(input.patch.title)
+			: undefined;
+
+	return {
+		...input.mission,
+		...input.patch,
+		agentModels: input.patch.agentModels
+			? normalizeFf15MissionAgentModels(input.patch.agentModels)
+			: input.mission.agentModels,
+		agentPanes: input.patch.agentPanes
+			? normalizeAgentPanes(input.patch.agentPanes)
+			: input.mission.agentPanes,
+		title: normalizedTitle ?? input.mission.title,
+		updatedAt: input.updatedAt,
+		workflow: input.patch.workflow
+			? mergeWorkflowState(input.mission.workflow, input.patch.workflow)
+			: input.mission.workflow,
+		workspaceRoot:
+			input.patch.workspaceRoot ??
+			input.mission.workspaceRoot ??
+			input.activeWorkspaceRoot ??
+			null,
+	};
+};
+
 export const createWorkspaceStateFf15MissionsStore = (
 	storage: Ff15MissionsStateStorage,
 	options: CreateWorkspaceStateFf15MissionsStoreOptions = {}
@@ -575,6 +618,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 				updatedAt: createdAt,
 				workspaceRoot,
 				agentPanes: createEmptyFf15MissionAgentPanes(),
+				agentModels: createDefaultFf15MissionAgentModels(),
 				workflow: createEmptyFf15MissionWorkflowState(),
 				schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 			} satisfies Ff15MissionRecord;
@@ -633,6 +677,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 		updateMission: (missionId, patch) => {
 			hydrateMissionRecords();
 			const updatedAt = getNow();
+			const activeWorkspaceRoot = getActiveWorkspaceRoot();
 			let didUpdate = false;
 
 			missionRecords = missionRecords.map((mission) => {
@@ -641,27 +686,12 @@ export const createWorkspaceStateFf15MissionsStore = (
 				}
 
 				didUpdate = true;
-				const normalizedTitle =
-					typeof patch.title === "string"
-						? normalizeMissionTitle(patch.title)
-						: undefined;
-				const updatedMission: Ff15MissionRecord = {
-					...mission,
-					...patch,
-					agentPanes: patch.agentPanes
-						? normalizeAgentPanes(patch.agentPanes)
-						: mission.agentPanes,
-					title: normalizedTitle ?? mission.title,
-					workflow: patch.workflow
-						? mergeWorkflowState(mission.workflow, patch.workflow)
-						: mission.workflow,
+				const updatedMission = applyMissionRecordPatch({
+					activeWorkspaceRoot,
+					mission,
+					patch,
 					updatedAt,
-					workspaceRoot:
-						patch.workspaceRoot ??
-						mission.workspaceRoot ??
-						getActiveWorkspaceRoot() ??
-						null,
-				};
+				});
 
 				persistMissionRecord(updatedMission);
 				return updatedMission;
