@@ -11,8 +11,12 @@ export const getWebviewContent = (
 	const styleUri = webview.asWebviewUri(
 		Uri.joinPath(extensionUri, "dist", "webview", "app", "assets", "index.css")
 	);
+	const assetBaseUri = webview.asWebviewUri(
+		Uri.joinPath(extensionUri, "dist", "webview", "app")
+	);
 
 	const nonce = getNonce();
+	const assetBaseScript = `window.__FF15_WEBVIEW_ASSET_BASE__ = ${JSON.stringify(`${assetBaseUri}/`)};`;
 
 	return `<!DOCTYPE html>
         <html lang="en">
@@ -25,6 +29,7 @@ export const getWebviewContent = (
         </head>
         <body>
             <div id="root" data-page="${page}"></div>
+			<script nonce="${nonce}">${assetBaseScript}</script>
             <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
         </body>
         </html>`;
