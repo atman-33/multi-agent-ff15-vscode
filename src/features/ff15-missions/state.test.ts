@@ -44,6 +44,47 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 		);
 	});
 
+	it("stores a pinned provider on the mission record when the mission is created", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-06-03T00:00:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission({
+				providerId: "opencode",
+			});
+
+			const missionFilePath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1",
+				"mission.json"
+			);
+
+			expect(store.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					providerId: "opencode",
+				})
+			);
+			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
+				expect.objectContaining({
+					providerId: "opencode",
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("selects an existing mission and persists the active mission id", async () => {
 		const update = vi.fn().mockResolvedValue(undefined);
 		const storage = {
