@@ -223,6 +223,45 @@ const seedPersistedMission = async (
 };
 
 describe("createFf15MissionSendController", () => {
+	it("sends prompts with the mission's pinned provider", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-03T00:15:00.000Z",
+		});
+		await missionsStore.createMission({ providerId: "opencode" });
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const githubClient = createLaunchClient();
+		const opencodeClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: (mission) =>
+				mission.providerId === "opencode" ? opencodeClient : githubClient,
+			getWorkspaceRoot: () => "C:/repo",
+			missionTransport,
+			missionsStore,
+		});
+
+		await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(ensureCommandAvailable).toHaveBeenCalledWith("zellij");
+		expect(opencodeClient.ensureDependenciesAvailable).toHaveBeenCalledTimes(1);
+		expect(githubClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+	});
+
 	it("launches or attaches the mission session and marks the mission active after the first prompt is delivered", async () => {
 		const { storage } = createStorage();
 		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {

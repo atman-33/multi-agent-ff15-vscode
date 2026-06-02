@@ -4,6 +4,7 @@ import { ensureCommandAvailable } from "../ff15-launch/dependency-check";
 import {
 	createFf15LaunchClient,
 	resolveFf15LaunchClientId,
+	type Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
 import {
 	prepareFf15LaunchLayout,
@@ -15,7 +16,7 @@ import { resolveActiveWorkspaceRoot } from "../ff15-launch/workspace-root";
 import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 import { createFf15MissionSendController } from "./controller";
 import { createFf15MissionSessionController } from "./session-controller";
-import type { Ff15MissionsStore } from "./state";
+import type { Ff15MissionRecord, Ff15MissionsStore } from "./state";
 import { createFf15MissionZellijTransport } from "./transport";
 
 type Ff15MissionTransport = ReturnType<typeof createFf15MissionZellijTransport>;
@@ -80,17 +81,17 @@ export const terminateZellijMissionSession = (input: {
 	});
 };
 
-const createGetLaunchClient = () => () =>
-	createFf15LaunchClient(
-		resolveFf15LaunchClientId(
-			workspace.getConfiguration("multi-agent-ff15-vscode").get("launchClient")
-		),
-		{
-			ensureCommandAvailable,
-			resolveCopilotCommand: resolveLaunchableCopilotCommand,
-			resolveOpenCodeCommand: resolveLaunchableOpencodeCommand,
-		}
+const getConfiguredLaunchClientId = (): Ff15LaunchClientId =>
+	resolveFf15LaunchClientId(
+		workspace.getConfiguration("multi-agent-ff15-vscode").get("launchClient")
 	);
+
+const createGetLaunchClient = () => (mission: Ff15MissionRecord) =>
+	createFf15LaunchClient(mission.providerId, {
+		ensureCommandAvailable,
+		resolveCopilotCommand: resolveLaunchableCopilotCommand,
+		resolveOpenCodeCommand: resolveLaunchableOpencodeCommand,
+	});
 
 const resolveRuntimeContext = () => {
 	const workspaceRoot = resolveActiveWorkspaceRoot();
@@ -129,6 +130,7 @@ export const createVsCodeFf15MissionSessionController = (
 
 	return createFf15MissionSessionController({
 		ensureCommandAvailable,
+		getPinnedProviderId: getConfiguredLaunchClientId,
 		getLaunchClient,
 		getLaunchLayoutPath: (workspaceRoot, paneLaunchPlan) =>
 			prepareFf15LaunchLayout({

@@ -2,12 +2,14 @@ import type { Disposable } from "vscode";
 import { FF15_AGENT_IDS } from "../ff15-launch/launch-client";
 import type {
 	Ff15LaunchClient,
+	Ff15LaunchClientId,
 	Ff15PaneLaunchPlanEntry,
 } from "../ff15-launch/launch-client";
 import type { LaunchTerminalInput } from "../ff15-launch/types";
 import { deriveMissionSessionName } from "./controller";
 import type {
 	Ff15MissionAgentPanes,
+	Ff15MissionRecord,
 	Ff15MissionsStore,
 	Ff15MissionsStoreSnapshot,
 } from "./state";
@@ -25,7 +27,8 @@ const ZELLIJ_EXECUTABLE = "zellij";
 
 interface Ff15MissionTerminalControllerDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
-	getLaunchClient: () => Ff15LaunchClient;
+	getPinnedProviderId: () => Ff15LaunchClientId;
+	getLaunchClient: (mission: Ff15MissionRecord) => Ff15LaunchClient;
 	getLaunchLayoutPath: (
 		workspaceRoot: string,
 		paneLaunchPlan: readonly Ff15PaneLaunchPlanEntry[]
@@ -171,7 +174,7 @@ export const createFf15MissionSessionController = (
 			);
 		}
 
-		const launchClient = dependencies.getLaunchClient();
+		const launchClient = dependencies.getLaunchClient(mission);
 		let paneLaunchPlan: readonly Ff15PaneLaunchPlanEntry[];
 
 		try {
@@ -243,7 +246,11 @@ export const createFf15MissionSessionController = (
 
 	return {
 		createMission: async (): Promise<Ff15MissionsStoreSnapshot> =>
-			notifyAndReturn(await dependencies.missionsStore.createMission()),
+			notifyAndReturn(
+				await dependencies.missionsStore.createMission({
+					providerId: dependencies.getPinnedProviderId(),
+				})
+			),
 		onDidChangeMissionSnapshot: (
 			listener: (snapshot: Ff15MissionsStoreSnapshot) => void
 		): Disposable => {

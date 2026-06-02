@@ -7,7 +7,13 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { FF15_AGENT_IDS, type Ff15AgentId } from "../ff15-launch/launch-client";
+import {
+	DEFAULT_FF15_LAUNCH_CLIENT_ID,
+	FF15_AGENT_IDS,
+	resolveFf15LaunchClientId,
+	type Ff15AgentId,
+	type Ff15LaunchClientId,
+} from "../ff15-launch/launch-client";
 import {
 	createDefaultFf15MissionAgentModels,
 	normalizeFf15MissionAgentModels,
@@ -72,6 +78,7 @@ export interface Ff15MissionRecord extends Ff15MissionSummary {
 	agentPanes: Ff15MissionAgentPanes;
 	agentModels: Ff15MissionAgentModels;
 	operationRef: string | null;
+	providerId: Ff15LaunchClientId;
 	workflow: Ff15MissionWorkflowState;
 	schemaVersion: 1;
 }
@@ -96,7 +103,9 @@ export interface Ff15MissionsStoreSnapshot {
 export interface Ff15MissionsStore {
 	getSnapshot: () => Ff15MissionsStoreSnapshot;
 	getMissionRecord: (missionId: string) => Ff15MissionRecord | null;
-	createMission: () => Promise<Ff15MissionsStoreSnapshot>;
+	createMission: (options?: {
+		providerId?: Ff15LaunchClientId;
+	}) => Promise<Ff15MissionsStoreSnapshot>;
 	deleteMission: (missionId: string) => Promise<Ff15MissionsStoreSnapshot>;
 	selectMission: (missionId: string) => Promise<Ff15MissionsStoreSnapshot>;
 	updateMission: (
@@ -297,6 +306,7 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 		agentModels?: unknown;
 		agentPanes?: unknown;
 		operationRef?: unknown;
+		providerId?: unknown;
 		schemaVersion?: unknown;
 		workflow?: unknown;
 	};
@@ -307,6 +317,7 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 		agentPanes: normalizeAgentPanes(mission.agentPanes),
 		operationRef:
 			typeof mission.operationRef === "string" ? mission.operationRef : null,
+		providerId: resolveFf15LaunchClientId(mission.providerId),
 		workflow: normalizeWorkflowState(mission.workflow),
 		schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 	};
@@ -323,6 +334,7 @@ const createMissionRecordFromSummary = (
 	agentModels: createDefaultFf15MissionAgentModels(),
 	agentPanes: createEmptyFf15MissionAgentPanes(),
 	operationRef: null,
+	providerId: DEFAULT_FF15_LAUNCH_CLIENT_ID,
 	workflow: createEmptyFf15MissionWorkflowState(),
 	schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 });
@@ -602,7 +614,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 		getMissionRecord: (missionId: string) =>
 			hydrateMissionRecords().find((mission) => mission.id === missionId) ??
 			null,
-		createMission: () => {
+		createMission: (createMissionOptions = {}) => {
 			hydrateMissionRecords();
 			const createdAt = getNow();
 			const missionNumber = missionRecords.length + 1;
@@ -612,6 +624,8 @@ export const createWorkspaceStateFf15MissionsStore = (
 				id: createId(),
 				lastError: null,
 				operationRef: null,
+				providerId:
+					createMissionOptions.providerId ?? DEFAULT_FF15_LAUNCH_CLIENT_ID,
 				sessionName: null,
 				status: "draft",
 				title: createGeneratedMissionTitle(missionNumber),

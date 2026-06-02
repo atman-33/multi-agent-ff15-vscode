@@ -14,6 +14,7 @@ import {
 	createEmptyFf15MissionAgentPanes,
 	createEmptyFf15MissionWorkflowState,
 	type Ff15MissionAgentPanes,
+	type Ff15MissionRecord,
 	type Ff15MissionsStore,
 } from "./state";
 
@@ -48,7 +49,7 @@ interface Ff15MissionTransport {
 
 interface CreateFf15MissionSendControllerDependencies {
 	ensureCommandAvailable: (command: string) => Promise<void>;
-	getLaunchClient: () => Ff15LaunchClient;
+	getLaunchClient: (mission: Ff15MissionRecord) => Ff15LaunchClient;
 	getWorkspaceRoot: () => string | undefined;
 	isMissionTerminalReady?: (missionId: string) => boolean;
 	missionTransport: Ff15MissionTransport;
@@ -190,7 +191,13 @@ const prepareMissionSend = async (
 		};
 	}
 
-	const launchClient = dependencies.getLaunchClient();
+	if (!currentMission) {
+		return {
+			result: dependencies.missionsStore.getSnapshot(),
+		};
+	}
+
+	const launchClient = dependencies.getLaunchClient(currentMission);
 
 	try {
 		await launchClient.ensureDependenciesAvailable();

@@ -73,6 +73,7 @@ describe("createFf15MissionSessionController", () => {
 			const launchTerminal = vi.fn().mockResolvedValue(undefined);
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable,
+				getPinnedProviderId: () => "github-copilot-cli",
 				getLaunchClient: () => launchClient,
 				getLaunchLayoutPath: vi
 					.fn()
@@ -104,6 +105,91 @@ describe("createFf15MissionSessionController", () => {
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
 					agentPanes: createEmptyFf15MissionAgentPanes(),
+					providerId: "github-copilot-cli",
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("opens a mission terminal with the mission's pinned provider", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-06-03T00:12:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission({ providerId: "opencode" });
+
+			const githubClient = createLaunchClient();
+			const opencodeClient = createLaunchClient();
+			const launchTerminal = vi.fn().mockResolvedValue(undefined);
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "github-copilot-cli",
+				getLaunchClient: (mission) =>
+					mission.providerId === "opencode" ? opencodeClient : githubClient,
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal,
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage: vi.fn(),
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+
+			await controller.openMissionSession("mission-1");
+
+			expect(opencodeClient.ensureDependenciesAvailable).toHaveBeenCalledTimes(
+				1
+			);
+			expect(githubClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+			expect(launchTerminal).toHaveBeenCalledTimes(1);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("pins the current provider when a mission is created", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-06-03T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: createLaunchClient,
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal: vi.fn().mockResolvedValue(undefined),
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage: vi.fn(),
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+
+			await controller.createMission();
+
+			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					providerId: "opencode",
 				})
 			);
 		} finally {
@@ -125,6 +211,7 @@ describe("createFf15MissionSessionController", () => {
 
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "github-copilot-cli",
 				getLaunchClient: createLaunchClient,
 				getLaunchLayoutPath: vi
 					.fn()
@@ -177,6 +264,7 @@ describe("createFf15MissionSessionController", () => {
 
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "github-copilot-cli",
 				getLaunchClient: createLaunchClient,
 				getLaunchLayoutPath: vi
 					.fn()
@@ -233,6 +321,7 @@ describe("createFf15MissionSessionController", () => {
 			const launchTerminal = vi.fn().mockResolvedValue(undefined);
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable,
+				getPinnedProviderId: () => "github-copilot-cli",
 				getLaunchClient: () => launchClient,
 				getLaunchLayoutPath: vi
 					.fn()
