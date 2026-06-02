@@ -1,6 +1,17 @@
 import type { Uri, Webview, WebviewPanel } from "vscode";
 import { ViewColumn, window } from "vscode";
 import { getWebviewContent } from "../../lib/webview/get-webview-content";
+import {
+	FF15_AGENT_DISPLAY_NAMES,
+	FF15_AGENT_IDS,
+	type Ff15AgentId,
+} from "../ff15-launch/launch-client";
+import {
+	FF15_OPENCODE_MODEL_CATALOG,
+	normalizeFf15MissionAgentModels,
+	resolveFf15OpenCodeModelDefinition,
+	type Ff15OpenCodeModelDefinition,
+} from "./model-contract";
 import type {
 	Ff15MissionStatus,
 	Ff15MissionsStore,
@@ -43,6 +54,19 @@ interface Ff15MissionSessionController {
 	selectMission: (missionId: string) => Promise<unknown>;
 }
 
+interface Ff15MissionAgentActionController {
+	changeAgentModel: (input: {
+		agentId: Ff15AgentId;
+		effort: string | null;
+		missionId: string;
+		modelId: string;
+	}) => Promise<unknown>;
+	continueAgent: (input: {
+		agentId: Ff15AgentId;
+		missionId: string;
+	}) => Promise<unknown>;
+}
+
 interface WorkbenchMissionState {
 	id: string;
 	lastError: string | null;
@@ -55,9 +79,24 @@ interface WorkbenchMissionState {
 	workspaceRoot: string | null;
 }
 
+interface WorkbenchPartyRosterAgent {
+	agentId: Ff15AgentId;
+	available: boolean;
+	displayName: string;
+	model: {
+		effort: string | null;
+		effortLabel: string | null;
+		modelId: string;
+		modelName: string;
+	};
+	paneId: string | null;
+}
+
 interface WorkbenchState {
+	modelCatalog: Ff15OpenCodeModelDefinition[];
 	mission: WorkbenchMissionState | null;
 	operations: Ff15MissionWorkbenchCatalog;
+	partyRoster: WorkbenchPartyRosterAgent[];
 }
 
 interface CreateFf15MissionWorkbenchControllerOptions {
@@ -66,6 +105,8 @@ interface CreateFf15MissionWorkbenchControllerOptions {
 	loadOperationsCatalog: (
 		workspaceRoot: string | null
 	) => Promise<Ff15MissionWorkbenchCatalog> | Ff15MissionWorkbenchCatalog;
+	modelCatalog?: readonly Ff15OpenCodeModelDefinition[];
+	missionAgentActionController?: Ff15MissionAgentActionController;
 	missionSendController: Ff15MissionSendController;
 	missionSessionController: Ff15MissionSessionController;
 	missionsStore: Ff15MissionsStore;
@@ -82,6 +123,49 @@ interface CreateFf15MissionWorkbenchControllerOptions {
 const EMPTY_CATALOG: Ff15MissionWorkbenchCatalog = {
 	supported: [],
 	unsupported: [],
+};
+
+const isFf15AgentId = (value: unknown): value is Ff15AgentId =>
+	typeof value === "string" &&
+	FF15_AGENT_IDS.some((agentId) => agentId === value);
+
+const toPartyRosterState = (
+	mission: ReturnType<Ff15MissionsStore["getMissionRecord"]>,
+	modelCatalog: readonly Ff15OpenCodeModelDefinition[]
+): WorkbenchPartyRosterAgent[] => {
+	if (!mission) {
+		return [];
+	}
+
+	const agentModels = normalizeFf15MissionAgentModels(
+		mission.agentModels,
+		modelCatalog
+	);
+
+	return FF15_AGENT_IDS.map((agentId) => {
+		const selection = agentModels[agentId];
+		const model = resolveFf15OpenCodeModelDefinition(
+			selection.modelId,
+			modelCatalog
+		);
+		const effort = model?.efforts.find(
+			(option) => option.value === selection.effort
+		);
+		const paneId = mission.agentPanes[agentId];
+
+		return {
+			agentId,
+			available: paneId !== null,
+			displayName: FF15_AGENT_DISPLAY_NAMES[agentId],
+			model: {
+				effort: selection.effort,
+				effortLabel: effort?.label ?? null,
+				modelId: selection.modelId,
+				modelName: model?.name ?? selection.modelId,
+			},
+			paneId,
+		};
+	});
 };
 
 const toMissionState = (
@@ -112,24 +196,31 @@ export const createFf15MissionWorkbenchController = (
 		options.createWebviewPanel ?? window.createWebviewPanel;
 	const renderWebviewContent =
 		options.renderWebviewContent ?? getWebviewContent;
+	const modelCatalog = [
+		...(options.modelCatalog ?? FF15_OPENCODE_MODEL_CATALOG),
+	];
 	const panels = new Map<string, WebviewPanel>();
 
 	const buildState = async (missionId: string): Promise<WorkbenchState> => {
 		const mission = options.missionsStore.getMissionRecord(missionId);
 		if (!mission) {
 			return {
+				modelCatalog,
 				mission: null,
 				operations: EMPTY_CATALOG,
+				partyRoster: [],
 			};
 		}
 
 		return {
+			modelCatalog,
 			mission: toMissionState(
 				mission,
 				options.missionSessionController.isMissionTerminalReady?.(missionId) ??
 					false
 			),
 			operations: await options.loadOperationsCatalog(mission.workspaceRoot),
+			partyRoster: toPartyRosterState(mission, modelCatalog),
 		};
 	};
 
@@ -244,11 +335,57 @@ export const createFf15MissionWorkbenchController = (
 		await postState(missionId, panel);
 	};
 
+	const handleContinueAgentMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { agentId?: unknown }
+	) => {
+		if (
+			!(options.missionAgentActionController && isFf15AgentId(message.agentId))
+		) {
+			return;
+		}
+
+		await options.missionAgentActionController.continueAgent({
+			agentId: message.agentId,
+			missionId,
+		});
+		await postState(missionId, panel);
+	};
+
+	const handleChangeAgentModelMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { agentId?: unknown; effort?: unknown; modelId?: unknown }
+	) => {
+		if (
+			!(
+				options.missionAgentActionController &&
+				isFf15AgentId(message.agentId) &&
+				typeof message.modelId === "string" &&
+				(message.effort === null || typeof message.effort === "string")
+			)
+		) {
+			return;
+		}
+
+		await options.missionAgentActionController.changeAgentModel({
+			agentId: message.agentId,
+			effort: message.effort,
+			missionId,
+			modelId: message.modelId,
+		});
+		await postState(missionId, panel);
+	};
+
 	const handlePanelMessage = async (
 		missionId: string,
 		panel: WebviewPanel,
 		message: {
+			agentId?: unknown;
 			command?: string;
+			effort?: unknown;
+			modelId?: unknown;
 			operationRef?: unknown;
 			prompt?: unknown;
 			title?: unknown;
@@ -281,6 +418,14 @@ export const createFf15MissionWorkbenchController = (
 			}
 			case "ff15-mission-workbench.rename-title": {
 				await handleRenameTitleMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.continue-agent": {
+				await handleContinueAgentMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.change-agent-model": {
+				await handleChangeAgentModelMessage(missionId, panel, message);
 				return;
 			}
 			default:

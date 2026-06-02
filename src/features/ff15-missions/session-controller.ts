@@ -1,4 +1,5 @@
 import type { Disposable } from "vscode";
+import { FF15_AGENT_IDS } from "../ff15-launch/launch-client";
 import type {
 	Ff15LaunchClient,
 	Ff15PaneLaunchPlanEntry,
@@ -37,6 +38,7 @@ interface Ff15MissionTerminalControllerDependencies {
 		sessionName: string;
 		workspaceRoot: string;
 	}) => Promise<Ff15MissionAgentPanes>;
+	waitForMissionAgentPanesReconcile?: () => Promise<void>;
 	showErrorMessage: (message: string) => PromiseLike<unknown> | void;
 	terminateMissionSession: (input: {
 		sessionName: string;
@@ -62,6 +64,17 @@ const buildMissionAttachArgs = (input: {
 	input.layoutPath,
 ];
 
+const MISSION_AGENT_PANES_RECONCILE_MAX_ATTEMPTS = 5;
+
+const waitForMissionAgentPanesReconcile = () =>
+	new Promise<void>((resolve) => {
+		setTimeout(resolve, 250);
+	});
+
+const hasResolvedAllMissionAgentPanes = (
+	agentPanes: Ff15MissionAgentPanes
+): boolean => FF15_AGENT_IDS.every((agentId) => agentPanes[agentId] !== null);
+
 export const createFf15MissionSessionController = (
 	dependencies: Ff15MissionTerminalControllerDependencies
 ) => {
@@ -81,6 +94,44 @@ export const createFf15MissionSessionController = (
 	const notifyAndReturn = (snapshot: Ff15MissionsStoreSnapshot) => {
 		notifyMissionSnapshotChanged(snapshot);
 		return snapshot;
+	};
+
+	const waitForPaneReconcile =
+		dependencies.waitForMissionAgentPanesReconcile ??
+		waitForMissionAgentPanesReconcile;
+
+	const reconcileMissionAgentPanesWithRetry = async (input: {
+		agentPanes: Ff15MissionAgentPanes;
+		sessionName: string;
+		workspaceRoot: string;
+	}): Promise<Ff15MissionAgentPanes> => {
+		let agentPanes = input.agentPanes;
+
+		for (
+			let attempt = 0;
+			attempt < MISSION_AGENT_PANES_RECONCILE_MAX_ATTEMPTS;
+			attempt += 1
+		) {
+			try {
+				agentPanes = await dependencies.reconcileMissionAgentPanes({
+					agentPanes,
+					sessionName: input.sessionName,
+					workspaceRoot: input.workspaceRoot,
+				});
+			} catch {
+				return input.agentPanes;
+			}
+
+			if (hasResolvedAllMissionAgentPanes(agentPanes)) {
+				return agentPanes;
+			}
+
+			if (attempt < MISSION_AGENT_PANES_RECONCILE_MAX_ATTEMPTS - 1) {
+				await waitForPaneReconcile();
+			}
+		}
+
+		return agentPanes;
 	};
 
 	const openMissionSession = async (
@@ -156,7 +207,7 @@ export const createFf15MissionSessionController = (
 
 			let agentPanes = mission.agentPanes;
 			try {
-				agentPanes = await dependencies.reconcileMissionAgentPanes({
+				agentPanes = await reconcileMissionAgentPanesWithRetry({
 					agentPanes: mission.agentPanes,
 					sessionName,
 					workspaceRoot,

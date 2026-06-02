@@ -6,11 +6,21 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+	Combobox,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	useComboboxAnchor,
+} from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
-import { CheckIcon, PencilIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, PencilIcon } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { PartyRosterPanel } from "./components/party-roster-panel";
 
 interface MissionWorkbenchCatalogEntry {
 	fileName: string;
@@ -42,20 +52,43 @@ interface MissionWorkbenchMission {
 	workspaceRoot: string | null;
 }
 
+interface MissionWorkbenchModelDefinition {
+	efforts: { label: string; value: string }[];
+	id: string;
+	name: string;
+}
+
+interface MissionWorkbenchPartyAgent {
+	agentId: "noctis" | "ignis" | "gladiolus" | "prompto";
+	available: boolean;
+	displayName: string;
+	model: {
+		effort: string | null;
+		effortLabel: string | null;
+		modelId: string;
+		modelName: string;
+	};
+	paneId: string | null;
+}
+
 interface MissionWorkbenchState {
+	modelCatalog: MissionWorkbenchModelDefinition[];
 	mission: MissionWorkbenchMission | null;
 	operations: {
 		supported: MissionWorkbenchCatalogEntry[];
 		unsupported: MissionWorkbenchCatalogEntry[];
 	};
+	partyRoster: MissionWorkbenchPartyAgent[];
 }
 
 const EMPTY_STATE: MissionWorkbenchState = {
+	modelCatalog: [],
 	mission: null,
 	operations: {
 		supported: [],
 		unsupported: [],
 	},
+	partyRoster: [],
 };
 
 const RUNTIME_STATUS_LABELS = {
@@ -241,26 +274,6 @@ const getProbeVerdictLabel = (
 	return "Pending";
 };
 
-const renderMissionStatusSupplement = (mission: MissionWorkbenchMission) => {
-	if (mission.lastError) {
-		return (
-			<div className="mt-3 rounded-2xl border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/10 px-4 py-3 text-[color:var(--vscode-errorForeground,#f87171)] text-sm leading-6">
-				{mission.lastError}
-			</div>
-		);
-	}
-
-	if (!mission.workflow.probe.summary) {
-		return null;
-	}
-
-	return (
-		<div className="mt-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] text-xs leading-5">
-			{mission.workflow.probe.summary}
-		</div>
-	);
-};
-
 interface MissionWorkbenchHeaderProps {
 	mission: MissionWorkbenchMission;
 	onConfirmDelete: () => void;
@@ -296,10 +309,10 @@ const MissionWorkbenchHeader = ({
 	terminalActionLabel,
 	titleDraft,
 }: MissionWorkbenchHeaderProps) => (
-	<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--vscode-editor-background)_92%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_16%,transparent))] px-5 py-4">
-		<div className="flex min-w-0 flex-col gap-4">
-			<div className="flex min-w-0 flex-col gap-1.5">
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em]">
+	<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--vscode-editor-background)_94%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-4 py-3">
+		<div className="flex min-w-0 flex-col gap-3">
+			<div className="flex min-w-0 flex-col gap-1">
+				<div className="text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] uppercase tracking-[0.16em]">
 					Mission Name
 				</div>
 				{isEditingTitle ? (
@@ -307,7 +320,7 @@ const MissionWorkbenchHeader = ({
 						<Input
 							aria-label="Mission title"
 							autoFocus
-							className="h-11 min-w-0 flex-1 rounded-2xl border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_78%,transparent)] px-4 text-[color:var(--vscode-foreground)] text-base"
+							className="h-10 min-w-0 flex-1 rounded-xl border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_78%,transparent)] px-3 text-[color:var(--vscode-foreground)] text-sm"
 							onChange={(event) => {
 								onTitleDraftChange(event.target.value);
 							}}
@@ -317,7 +330,7 @@ const MissionWorkbenchHeader = ({
 						/>
 						<SidebarActionButton
 							aria-label="Save mission title"
-							className="h-11 w-11 rounded-2xl px-0"
+							className="h-10 w-10 rounded-xl px-0"
 							disabled={renameActionDisabled}
 							onClick={onRenameTitle}
 						>
@@ -326,12 +339,12 @@ const MissionWorkbenchHeader = ({
 					</div>
 				) : (
 					<div className="flex min-w-0 items-center gap-2">
-						<h1 className="min-w-0 flex-1 truncate font-semibold text-[color:var(--vscode-foreground)] text-xl tracking-[0.03em]">
+						<h1 className="min-w-0 flex-1 truncate font-semibold text-[color:var(--vscode-foreground)] text-lg tracking-[0.02em]">
 							{mission.title}
 						</h1>
 						<SidebarActionButton
 							aria-label="Edit mission title"
-							className="h-11 w-11 rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-0 text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_84%,transparent)]"
+							className="h-9 w-9 rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-0 text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_84%,transparent)]"
 							onClick={onStartTitleEdit}
 						>
 							<PencilIcon className="h-4 w-4" />
@@ -342,13 +355,13 @@ const MissionWorkbenchHeader = ({
 
 			<div className="flex flex-wrap items-center gap-2">
 				<SidebarActionButton
-					className="h-8 w-auto px-4 text-xs"
+					className="h-7 w-auto px-3 text-[11px]"
 					onClick={onOpenTerminal}
 				>
 					{terminalActionLabel}
 				</SidebarActionButton>
 				<SidebarActionButton
-					className="h-8 w-auto border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-transparent px-4 text-[color:var(--vscode-errorForeground,#f87171)] text-xs hover:bg-[color:var(--vscode-errorForeground,#f87171)]/12"
+					className="h-7 w-auto border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-transparent px-3 text-[11px] text-[color:var(--vscode-errorForeground,#f87171)] hover:bg-[color:var(--vscode-errorForeground,#f87171)]/12"
 					onClick={onConfirmDelete}
 				>
 					{pendingDelete ? "Confirm Delete" : "Delete Mission"}
@@ -366,28 +379,23 @@ const MissionWorkbenchHeader = ({
 				>
 					Runtime {runtimeStatusLabel}
 				</span>
-			</div>
-
-			<div className="flex flex-wrap gap-2 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1">
-					Operation {selectedOperation?.name ?? "Choose below"}
+				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+					{mission.terminalReady ? "Terminal Attached" : "Terminal Detached"}
 				</span>
-				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1">
-					Session {mission.terminalReady ? "Attached" : "Not attached"}
-				</span>
-				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1">
+				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
 					Probe {probeVerdictLabel}
 				</span>
 			</div>
+
 			<Accordion
-				className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_64%,transparent)] px-4"
+				className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_64%,transparent)] px-3"
 				type="multiple"
 			>
 				<AccordionItem className="border-none" value="mission-details">
-					<AccordionTrigger className="py-3 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
+					<AccordionTrigger className="py-2.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
 						Mission Details
 					</AccordionTrigger>
-					<AccordionContent className="grid gap-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-sm leading-6">
+					<AccordionContent className="grid gap-2.5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-xs leading-5">
 						<div className="grid gap-1">
 							<div className="text-[10px] uppercase tracking-[0.14em]">
 								Selected Operation Ref
@@ -421,10 +429,10 @@ const MissionWorkbenchHeader = ({
 					</AccordionContent>
 				</AccordionItem>
 				<AccordionItem className="border-none" value="runtime-notes">
-					<AccordionTrigger className="py-3 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
+					<AccordionTrigger className="py-2.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
 						Runtime Notes
 					</AccordionTrigger>
-					<AccordionContent className="grid gap-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-sm leading-6">
+					<AccordionContent className="grid gap-2.5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-xs leading-5">
 						<div>
 							<div className="text-[10px] uppercase tracking-[0.14em]">
 								Probe Summary
@@ -511,154 +519,150 @@ const UnsupportedOperationCard = ({
 );
 
 interface OperationCatalogPanelProps {
-	filteredSupportedOperations: MissionWorkbenchCatalogEntry[];
 	filteredUnsupportedOperations: MissionWorkbenchCatalogEntry[];
 	hasCatalogEntries: boolean;
 	hasDeliverableOperation: boolean;
-	hasOperationSearchResults: boolean;
 	hasUnsupportedOperations: boolean;
 	onOperationQueryChange: (value: string) => void;
 	onSelectOperation: (operationRef: string) => void;
 	operationQuery: string;
 	selectedOperation: MissionWorkbenchCatalogEntry | null;
-	selectedOperationRef: string | null;
+	supportedOperations: MissionWorkbenchCatalogEntry[];
 	supportedOperationCount: number;
 }
 
 const OperationCatalogPanel = ({
-	filteredSupportedOperations,
 	filteredUnsupportedOperations,
 	hasCatalogEntries,
 	hasDeliverableOperation,
-	hasOperationSearchResults,
 	hasUnsupportedOperations,
 	onOperationQueryChange,
 	onSelectOperation,
 	operationQuery,
 	selectedOperation,
-	selectedOperationRef,
+	supportedOperations,
 	supportedOperationCount,
-}: OperationCatalogPanelProps) => (
-	<div className="flex flex-col gap-4 rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-5 py-4">
-		<div className="flex flex-wrap items-start justify-between gap-3">
-			<div>
-				<div className="font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
-					Operations Catalog
-				</div>
-				<div className="mt-2 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] text-sm leading-6">
-					Choose a supported operation before sending a prompt to Noctis. Search
-					keeps large catalogs manageable and unsupported entries stay collapsed
-					until needed.
-				</div>
-			</div>
-			<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-				{supportedOperationCount} Selectable
-			</span>
-		</div>
+}: OperationCatalogPanelProps) => {
+	const comboboxAnchor = useComboboxAnchor();
 
-		<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)] px-4 py-3">
-			<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] uppercase tracking-[0.14em]">
-				Selected Operation
-			</div>
-			<div className="mt-2 flex items-start justify-between gap-3">
-				<div className="min-w-0">
-					<div className="truncate font-medium text-[color:var(--vscode-foreground)] text-sm">
-						{selectedOperation?.name ?? "Choose an operation below"}
-					</div>
-					<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] text-xs leading-5">
-						{selectedOperation?.ref ?? OPERATION_REQUIRED_MESSAGE}
-					</div>
+	return (
+		<div className="flex flex-col gap-3 rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-4 py-3">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
+					Operation
 				</div>
-				<span
-					className={cn(
-						"rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em]",
-						hasDeliverableOperation
-							? "border-emerald-500/30 bg-emerald-500/12 text-emerald-200"
-							: "border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/12 text-[color:var(--vscode-warningForeground,#fbbf24)]"
-					)}
-				>
-					{hasDeliverableOperation ? "Ready" : "Required"}
+				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+					{hasDeliverableOperation ? "Ready" : "Required"} ·{" "}
+					{supportedOperationCount}
 				</span>
 			</div>
-		</div>
 
-		<div className="relative">
-			<SearchIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.5))]" />
-			<Input
-				aria-label="Search operations"
-				className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] pl-9 text-[color:var(--vscode-foreground)]"
-				onChange={(event) => {
-					onOperationQueryChange(event.target.value);
+			<Combobox
+				inputValue={operationQuery}
+				items={supportedOperations}
+				itemToStringLabel={(operation) =>
+					[operation.name, operation.ref, operation.fileName].join(" ")
+				}
+				itemToStringValue={(operation) => operation.name}
+				onInputValueChange={onOperationQueryChange}
+				onValueChange={(operation) => {
+					if (operation) {
+						onSelectOperation(operation.ref);
+					}
 				}}
-				placeholder="Search operations by name, ref, or file"
-				value={operationQuery}
-			/>
-		</div>
-
-		{hasCatalogEntries ? (
-			<div className="grid gap-3">
-				{hasOperationSearchResults ? (
-					<div className="max-h-[18rem] overflow-y-auto pr-1">
-						<div className="grid gap-2">
-							{filteredSupportedOperations.map((operation) => (
-								<SupportedOperationButton
-									key={operation.ref}
-									onSelect={onSelectOperation}
-									operation={operation}
-									selected={selectedOperationRef === operation.ref}
-								/>
-							))}
-						</div>
-					</div>
-				) : (
-					<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] border-dashed px-4 py-5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
-						No operations match "{operationQuery.trim()}".
-					</div>
-				)}
-
-				{hasUnsupportedOperations ? (
-					<Accordion
-						className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)] px-4"
-						collapsible
-						type="single"
-					>
-						<AccordionItem
-							className="border-none"
-							value="unsupported-operations"
-						>
-							<AccordionTrigger className="py-3 text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
-								Unsupported Operations ({filteredUnsupportedOperations.length})
-							</AccordionTrigger>
-							<AccordionContent className="grid gap-2">
-								{filteredUnsupportedOperations.length > 0 ? (
-									filteredUnsupportedOperations.map((operation) => (
-										<UnsupportedOperationCard
-											key={operation.ref}
-											operation={operation}
-										/>
-									))
-								) : (
-									<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
-										No unsupported entries match the current search.
+				value={selectedOperation?.supported ? selectedOperation : undefined}
+			>
+				<ComboboxInput
+					anchorRef={comboboxAnchor}
+					aria-label="Choose operation"
+					className={cn(
+						"w-full",
+						"[&_[data-slot=input-group]]:h-9",
+						"[&_[data-slot=input-group-input]]:border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)]",
+						"[&_[data-slot=input-group-input]]:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)]",
+						"[&_[data-slot=input-group-input]]:text-sm",
+						"[&_[data-slot=input-group-input]]:text-[color:var(--vscode-foreground)]"
+					)}
+					placeholder="Search supported operations"
+					showTrigger
+				/>
+				<ComboboxContent
+					anchor={comboboxAnchor}
+					className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_96%,transparent)] text-[color:var(--vscode-foreground)]"
+					sideOffset={8}
+				>
+					<ComboboxEmpty className="px-3 py-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] text-xs">
+						No supported operations match the current query.
+					</ComboboxEmpty>
+					<ComboboxList>
+						{(operation: MissionWorkbenchCatalogEntry) => (
+							<ComboboxItem value={operation}>
+								<div className="min-w-0">
+									<div className="truncate font-medium text-sm">
+										{operation.name}
 									</div>
-								)}
-							</AccordionContent>
-						</AccordionItem>
-					</Accordion>
-				) : null}
+									<div className="truncate text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))]">
+										{operation.ref}
+									</div>
+								</div>
+							</ComboboxItem>
+						)}
+					</ComboboxList>
+				</ComboboxContent>
+			</Combobox>
+
+			<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] leading-4">
+				{selectedOperation?.ref ?? OPERATION_REQUIRED_MESSAGE}
 			</div>
-		) : (
-			<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] border-dashed px-4 py-5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
-				Bundled operations have not been materialized for this workspace yet.
-			</div>
-		)}
-	</div>
-);
+
+			{hasCatalogEntries ? (
+				<div className="grid gap-3">
+					{hasUnsupportedOperations ? (
+						<Accordion
+							className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)] px-3"
+							collapsible
+							type="single"
+						>
+							<AccordionItem
+								className="border-none"
+								value="unsupported-operations"
+							>
+								<AccordionTrigger className="py-2.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
+									Unsupported Operations ({filteredUnsupportedOperations.length}
+									)
+								</AccordionTrigger>
+								<AccordionContent className="grid gap-2">
+									{filteredUnsupportedOperations.length > 0 ? (
+										filteredUnsupportedOperations.map((operation) => (
+											<UnsupportedOperationCard
+												key={operation.ref}
+												operation={operation}
+											/>
+										))
+									) : (
+										<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-xs leading-5">
+											No unsupported entries match the current search.
+										</div>
+									)}
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
+					) : null}
+				</div>
+			) : (
+				<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] border-dashed px-4 py-5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
+					Bundled operations have not been materialized for this workspace yet.
+				</div>
+			)}
+		</div>
+	);
+};
 
 interface PromptComposerPanelProps {
 	composerActionDisabled: boolean;
 	composerActionLabel: string;
 	composerDisabled: boolean;
+	composerStatusMessage: string;
 	composerPlaceholder: string;
 	draft: string;
 	hasDeliverableOperation: boolean;
@@ -671,6 +675,7 @@ const PromptComposerPanel = ({
 	composerActionDisabled,
 	composerActionLabel,
 	composerDisabled,
+	composerStatusMessage,
 	composerPlaceholder,
 	draft,
 	hasDeliverableOperation,
@@ -694,47 +699,52 @@ const PromptComposerPanel = ({
 	}
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-3">
-			<div>
-				<div className="font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
+		<div className="flex min-h-0 flex-1 flex-col gap-3 rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-4 py-3">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
 					Prompt Composer
 				</div>
-				<div className="mt-2 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] text-sm leading-6">
-					Write the message after choosing an operation. Delivery stays
-					mission-scoped and runs through the selected operation context.
-				</div>
+				<span
+					className={cn(
+						"w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em]",
+						hasDeliverableOperation && mission.terminalReady
+							? "border-emerald-500/30 bg-emerald-500/12 text-emerald-200"
+							: "border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/12 text-[color:var(--vscode-warningForeground,#fbbf24)]"
+					)}
+				>
+					{statusBadgeLabel}
+				</span>
+			</div>
+
+			<div
+				className={cn(
+					"rounded-xl border px-3 py-2 text-[11px] leading-5",
+					mission.lastError
+						? "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/10 text-[color:var(--vscode-errorForeground,#f87171)]"
+						: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]"
+				)}
+			>
+				{composerStatusMessage}
 			</div>
 
 			<div className="min-h-0 flex-1">
 				<TextareaPanel
-					containerClassName=" px-0"
+					containerClassName="px-0"
 					disabled={composerDisabled}
 					onChange={(event) => {
 						onDraftChange(event.target.value);
 					}}
 					placeholder={composerPlaceholder}
 					rows={10}
-					textareaClassName="min-h-[16rem] px-5 text-sm leading-7"
+					textareaClassName="min-h-[15rem] px-4 text-sm leading-6"
 					value={draft}
 				>
-					<div className="flex items-center justify-between gap-3 border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] border-t px-5 pt-3">
-						<div className="flex min-w-0 flex-col gap-1">
-							<span
-								className={cn(
-									"w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em]",
-									hasDeliverableOperation && mission.terminalReady
-										? "border-emerald-500/30 bg-emerald-500/12 text-emerald-200"
-										: "border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/12 text-[color:var(--vscode-warningForeground,#fbbf24)]"
-								)}
-							>
-								{statusBadgeLabel}
-							</span>
-							<span className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] text-xs">
-								{footerMessage}
-							</span>
+					<div className="flex items-center justify-between gap-3 border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] border-t px-4 pt-2.5 pb-2.5">
+						<div className="min-w-0 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] leading-4">
+							{footerMessage}
 						</div>
 						<SidebarActionButton
-							className="h-8 w-auto px-4 text-xs"
+							className="h-7 w-auto self-end px-3 text-[11px]"
 							disabled={composerActionDisabled}
 							onClick={onSend}
 						>
@@ -746,38 +756,6 @@ const PromptComposerPanel = ({
 		</div>
 	);
 };
-
-const MissionStatusPanel = ({
-	composerStatusMessage,
-	mission,
-	probeVerdictLabel,
-	runtimeStatusLabel,
-}: {
-	composerStatusMessage: string;
-	mission: MissionWorkbenchMission;
-	probeVerdictLabel: string;
-	runtimeStatusLabel: string;
-}) => (
-	<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-5 py-4">
-		<div className="mb-2 font-semibold text-[color:var(--vscode-foreground)] text-sm uppercase tracking-[0.18em]">
-			Mission Status
-		</div>
-		<div className="mb-3 flex flex-wrap items-center gap-2">
-			<span
-				className={`rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getRuntimeStatusClassName(mission.workflow.runtimeStatus)}`}
-			>
-				{runtimeStatusLabel}
-			</span>
-			<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-				Probe {probeVerdictLabel}
-			</span>
-		</div>
-		<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] text-sm leading-6">
-			{composerStatusMessage}
-		</div>
-		{renderMissionStatusSupplement(mission)}
-	</div>
-);
 
 const Route = () => {
 	const [draft, setDraft] = useState("");
@@ -834,13 +812,6 @@ const Route = () => {
 	const deferredOperationQuery = useDeferredValue(
 		normalizeOperationQuery(operationQuery)
 	);
-	const filteredSupportedOperations = useMemo(
-		() =>
-			state.operations.supported.filter((operation) =>
-				matchesOperationQuery(operation, deferredOperationQuery)
-			),
-		[deferredOperationQuery, state.operations.supported]
-	);
 	const filteredUnsupportedOperations = useMemo(
 		() =>
 			state.operations.unsupported.filter((operation) =>
@@ -886,9 +857,6 @@ const Route = () => {
 	const hasCatalogEntries =
 		state.operations.supported.length > 0 ||
 		state.operations.unsupported.length > 0;
-	const hasOperationSearchResults =
-		filteredSupportedOperations.length > 0 ||
-		filteredUnsupportedOperations.length > 0;
 	const hasUnsupportedOperations = state.operations.unsupported.length > 0;
 
 	const handleOpenTerminal = () => {
@@ -978,6 +946,28 @@ const Route = () => {
 		});
 	};
 
+	const handleContinueAgent = (
+		agentId: MissionWorkbenchPartyAgent["agentId"]
+	) => {
+		vscode.postMessage({
+			agentId,
+			command: "ff15-mission-workbench.continue-agent",
+		});
+	};
+
+	const handleChangeAgentModel = (input: {
+		agentId: MissionWorkbenchPartyAgent["agentId"];
+		effort: string | null;
+		modelId: string;
+	}) => {
+		vscode.postMessage({
+			agentId: input.agentId,
+			command: "ff15-mission-workbench.change-agent-model",
+			effort: input.effort,
+			modelId: input.modelId,
+		});
+	};
+
 	if (!mission) {
 		return (
 			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
@@ -990,7 +980,7 @@ const Route = () => {
 	}
 
 	return (
-		<div className="mx-auto flex h-full max-w-6xl flex-col gap-5 px-6 py-5">
+		<div className="mx-auto flex h-full max-w-5xl flex-col gap-4 px-5 py-4">
 			<MissionWorkbenchHeader
 				isEditingTitle={isEditingTitle}
 				mission={mission}
@@ -1011,44 +1001,40 @@ const Route = () => {
 				titleDraft={titleDraft}
 			/>
 
-			<div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)]">
-				<div className="flex min-h-0 flex-col gap-4">
-					<OperationCatalogPanel
-						filteredSupportedOperations={filteredSupportedOperations}
-						filteredUnsupportedOperations={filteredUnsupportedOperations}
-						hasCatalogEntries={hasCatalogEntries}
-						hasDeliverableOperation={hasDeliverableOperation}
-						hasOperationSearchResults={hasOperationSearchResults}
-						hasUnsupportedOperations={hasUnsupportedOperations}
-						onOperationQueryChange={handleOperationQueryChange}
-						onSelectOperation={handleSelectOperation}
-						operationQuery={operationQuery}
-						selectedOperation={selectedOperation}
-						selectedOperationRef={mission.operationRef}
-						supportedOperationCount={state.operations.supported.length}
-					/>
+			<div className="flex min-h-0 flex-1 flex-col gap-4">
+				<OperationCatalogPanel
+					filteredUnsupportedOperations={filteredUnsupportedOperations}
+					hasCatalogEntries={hasCatalogEntries}
+					hasDeliverableOperation={hasDeliverableOperation}
+					hasUnsupportedOperations={hasUnsupportedOperations}
+					onOperationQueryChange={handleOperationQueryChange}
+					onSelectOperation={handleSelectOperation}
+					operationQuery={operationQuery}
+					selectedOperation={selectedOperation}
+					supportedOperationCount={state.operations.supported.length}
+					supportedOperations={state.operations.supported}
+				/>
 
-					<PromptComposerPanel
-						composerActionDisabled={composerActionDisabled}
-						composerActionLabel={composerActionLabel}
-						composerDisabled={composerDisabled}
-						composerPlaceholder={composerPlaceholder}
-						draft={draft}
-						hasDeliverableOperation={hasDeliverableOperation}
-						mission={mission}
-						onDraftChange={handleDraftChange}
-						onSend={handleSend}
-					/>
-				</div>
+				<PartyRosterPanel
+					modelCatalog={state.modelCatalog}
+					onChangeAgentModel={handleChangeAgentModel}
+					onContinueAgent={handleContinueAgent}
+					partyRoster={state.partyRoster}
+					partyRosterEnabled={mission.terminalReady}
+				/>
 
-				<div className="flex min-h-0 flex-col gap-4">
-					<MissionStatusPanel
-						composerStatusMessage={composerStatusMessage}
-						mission={mission}
-						probeVerdictLabel={probeVerdictLabel}
-						runtimeStatusLabel={runtimeStatusLabel}
-					/>
-				</div>
+				<PromptComposerPanel
+					composerActionDisabled={composerActionDisabled}
+					composerActionLabel={composerActionLabel}
+					composerDisabled={composerDisabled}
+					composerPlaceholder={composerPlaceholder}
+					composerStatusMessage={composerStatusMessage}
+					draft={draft}
+					hasDeliverableOperation={hasDeliverableOperation}
+					mission={mission}
+					onDraftChange={handleDraftChange}
+					onSend={handleSend}
+				/>
 			</div>
 		</div>
 	);
