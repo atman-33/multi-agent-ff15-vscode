@@ -25,6 +25,11 @@ describe("OpenCode model contract", () => {
 				id: "gpt-5-mini",
 				name: "GPT-5 mini",
 			},
+			{
+				efforts: [],
+				id: "claude-haiku-4.5",
+				name: "Claude Haiku 4.5",
+			},
 		]);
 	});
 
