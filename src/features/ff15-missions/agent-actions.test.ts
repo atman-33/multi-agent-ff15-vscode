@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { createFf15MissionAgentActionController } from "./agent-actions";
+import {
+	createFf15MissionAgentActionController,
+	FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
+} from "./agent-actions";
 import {
 	createDefaultFf15MissionAgentModels,
+	createDefaultFf15MissionProviderState,
 	type Ff15MissionAgentModels,
 } from "./model-contract";
 import {
@@ -11,9 +15,9 @@ import {
 
 const createMissionRecord = (input?: {
 	agentModels?: Ff15MissionAgentModels;
+	providerId?: "github-copilot-cli" | "opencode";
 	noctisPaneId?: string | null;
 }) => ({
-	agentModels: input?.agentModels ?? createDefaultFf15MissionAgentModels(),
 	agentPanes: {
 		...createEmptyFf15MissionAgentPanes(),
 		noctis:
@@ -25,7 +29,14 @@ const createMissionRecord = (input?: {
 	id: "mission-1",
 	lastError: null,
 	operationRef: null,
-	schemaVersion: 1 as const,
+	providerId: input?.providerId ?? "opencode",
+	providerState: {
+		...createDefaultFf15MissionProviderState(),
+		opencode: {
+			agentModels: input?.agentModels ?? createDefaultFf15MissionAgentModels(),
+		},
+	},
+	schemaVersion: 2 as const,
 	sessionName: "ff15-session",
 	status: "active" as const,
 	title: "Mission 1",
@@ -97,12 +108,44 @@ describe("createFf15MissionAgentActionController", () => {
 			sessionName: "ff15-session",
 		});
 		expect(updateMission).toHaveBeenCalledWith("mission-1", {
-			agentModels: {
-				...missionRecord.agentModels,
-				noctis: { effort: "3", modelId: "gpt-5.4" },
-			},
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: { effort: "3", modelId: "gpt-5.4" },
+					}),
+				},
+			}),
 			agentPanes: missionRecord.agentPanes,
 			lastError: null,
+		});
+	});
+
+	it("rejects model switching when the pinned mission provider has no model catalog", async () => {
+		const missionRecord = createMissionRecord({
+			providerId: "github-copilot-cli",
+		});
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: {
+				reconcileMissionAgentPanes: vi.fn(),
+				sendPaneInputSequence: vi.fn(),
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.changeAgentModel({
+			agentId: "noctis",
+			effort: "3",
+			missionId: "mission-1",
+			modelId: "gpt-5.4",
+		});
+
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			lastError: FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
 		});
 	});
 
@@ -171,10 +214,13 @@ describe("createFf15MissionAgentActionController", () => {
 			sessionName: "ff15-session",
 		});
 		expect(updateMission).toHaveBeenCalledWith("mission-1", {
-			agentModels: {
-				...missionRecord.agentModels,
-				noctis: { effort: "2", modelId: "gpt-5-mini" },
-			},
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: { effort: "2", modelId: "gpt-5-mini" },
+					}),
+				},
+			}),
 			agentPanes: {
 				...missionRecord.agentPanes,
 				noctis: "terminal_9",

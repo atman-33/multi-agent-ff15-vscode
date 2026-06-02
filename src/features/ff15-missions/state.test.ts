@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { createDefaultFf15MissionProviderState } from "./model-contract";
 import {
 	createEmptyFf15MissionAgentPanes,
 	createWorkspaceStateFf15MissionsStore,
@@ -73,13 +74,81 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 			expect(store.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
 					providerId: "opencode",
+					providerState: expect.objectContaining({
+						"github-copilot-cli": { agentModels: null },
+						opencode: expect.objectContaining({
+							agentModels: expect.any(Object),
+						}),
+					}),
 				})
 			);
 			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
 				expect.objectContaining({
 					providerId: "opencode",
+					providerState: expect.objectContaining({
+						"github-copilot-cli": { agentModels: null },
+						opencode: expect.objectContaining({
+							agentModels: expect.any(Object),
+						}),
+					}),
 				})
 			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("persists provider-aware model state without writing the legacy shared model field", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: vi
+					.fn()
+					.mockReturnValueOnce("2026-06-03T00:00:00.000Z")
+					.mockReturnValueOnce("2026-06-03T00:01:00.000Z"),
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission({ providerId: "opencode" });
+			await store.updateMission("mission-1", {
+				providerState: {
+					...createDefaultFf15MissionProviderState(),
+					opencode: {
+						agentModels: {
+							...createDefaultFf15MissionProviderState().opencode.agentModels,
+							ignis: { effort: "3", modelId: "gpt-5-mini" },
+						},
+					},
+				},
+			} as never);
+
+			const missionFilePath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1",
+				"mission.json"
+			);
+			const missionJson = JSON.parse(readFileSync(missionFilePath, "utf8"));
+
+			expect(missionJson).toEqual(
+				expect.objectContaining({
+					providerState: expect.objectContaining({
+						opencode: {
+							agentModels: expect.objectContaining({
+								ignis: { effort: "3", modelId: "gpt-5-mini" },
+							}),
+						},
+					}),
+				})
+			);
+			expect(missionJson).not.toHaveProperty("agentModels");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

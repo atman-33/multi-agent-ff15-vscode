@@ -11,7 +11,10 @@ import {
 	createFf15MissionWorkbenchController,
 	FF15_MISSION_WORKBENCH_PANEL_VIEW_TYPE,
 } from "./workbench-controller";
-import { createDefaultFf15MissionAgentModels } from "./model-contract";
+import {
+	createDefaultFf15MissionAgentModels,
+	createDefaultFf15MissionProviderState,
+} from "./model-contract";
 
 const createEmptyWorkflowState = () => ({
 	activeTask: null,
@@ -56,9 +59,10 @@ describe("createFf15MissionWorkbenchController", () => {
 		const missionPanel = createPanelDouble();
 		const agentModels = createDefaultFf15MissionAgentModels();
 		agentModels.ignis = { effort: "3", modelId: "gpt-5-mini" };
+		const providerState = createDefaultFf15MissionProviderState();
+		providerState.opencode.agentModels = agentModels;
 		const missionsStore = {
 			getMissionRecord: vi.fn(() => ({
-				agentModels,
 				agentPanes: {
 					gladiolus: null,
 					ignis: "terminal_2",
@@ -69,7 +73,9 @@ describe("createFf15MissionWorkbenchController", () => {
 				id: "mission-1",
 				lastError: null,
 				operationRef: null,
-				schemaVersion: 1 as const,
+				providerId: "opencode" as const,
+				providerState,
+				schemaVersion: 2 as const,
 				sessionName: "ff15-session",
 				status: "active" as const,
 				title: "Mission 1",
@@ -144,6 +150,71 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 	});
 
+	it("projects provider-managed roster state when the pinned provider has no mission model catalog", async () => {
+		const missionPanel = createPanelDouble();
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_1",
+					prompto: null,
+				},
+				createdAt: "2026-06-03T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "github-copilot-cli" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-03T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(true),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				modelCatalog: [],
+				partyRoster: expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "noctis",
+						model: expect.objectContaining({
+							effort: null,
+							modelName: "GitHub Copilot managed",
+						}),
+					}),
+				]),
+			}),
+		});
+	});
+
 	it("routes party roster Continue and model messages through the action controller", async () => {
 		const missionPanel = createPanelDouble();
 		const missionAgentActionController = {
@@ -152,7 +223,6 @@ describe("createFf15MissionWorkbenchController", () => {
 		};
 		const missionsStore = {
 			getMissionRecord: vi.fn(() => ({
-				agentModels: createDefaultFf15MissionAgentModels(),
 				agentPanes: {
 					gladiolus: null,
 					ignis: "terminal_2",
@@ -163,7 +233,9 @@ describe("createFf15MissionWorkbenchController", () => {
 				id: "mission-1",
 				lastError: null,
 				operationRef: null,
-				schemaVersion: 1 as const,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
 				sessionName: "ff15-session",
 				status: "active" as const,
 				title: "Mission 1",
@@ -246,7 +318,9 @@ describe("createFf15MissionWorkbenchController", () => {
 				id: missionId,
 				lastError: null,
 				operationRef: null,
-				schemaVersion: 1 as const,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
 				sessionName: missionId === "mission-1" ? "ff15-1" : "ff15-2",
 				status: "draft" as const,
 				title: missionId === "mission-1" ? "Mission 1" : "Mission 2",
@@ -335,7 +409,9 @@ describe("createFf15MissionWorkbenchController", () => {
 			id: "mission-1",
 			lastError: "Select an operation before sending a mission prompt.",
 			operationRef: null,
-			schemaVersion: 1 as const,
+			providerId: "opencode" as const,
+			providerState: createDefaultFf15MissionProviderState(),
+			schemaVersion: 2 as const,
 			sessionName: "ff15-1",
 			status: "draft" as const,
 			title: "Mission 1",
@@ -442,7 +518,9 @@ describe("createFf15MissionWorkbenchController", () => {
 			id: "mission-1",
 			lastError: null,
 			operationRef: null,
-			schemaVersion: 1 as const,
+			providerId: "opencode" as const,
+			providerState: createDefaultFf15MissionProviderState(),
+			schemaVersion: 2 as const,
 			sessionName: "ff15-1",
 			status: "draft" as const,
 			title: "Mission 1",
@@ -541,7 +619,9 @@ describe("createFf15MissionWorkbenchController", () => {
 					id: "mission-1",
 					lastError: null,
 					operationRef: null,
-					schemaVersion: 1 as const,
+					providerId: "opencode" as const,
+					providerState: createDefaultFf15MissionProviderState(),
+					schemaVersion: 2 as const,
 					sessionName: null,
 					status: "draft" as const,
 					title: "Mission 1",
@@ -588,7 +668,9 @@ describe("createFf15MissionWorkbenchController", () => {
 			id: "mission-1",
 			lastError: null,
 			operationRef: "builtin:noctis-autonomous",
-			schemaVersion: 1 as const,
+			providerId: "opencode" as const,
+			providerState: createDefaultFf15MissionProviderState(),
+			schemaVersion: 2 as const,
 			sessionName: null,
 			status: "draft" as const,
 			title: "Mission 1",
@@ -706,7 +788,9 @@ describe("createFf15MissionWorkbenchController", () => {
 			id: "mission-1",
 			lastError: null,
 			operationRef: "builtin:shiritori-smoke-test",
-			schemaVersion: 1 as const,
+			providerId: "opencode" as const,
+			providerState: createDefaultFf15MissionProviderState(),
+			schemaVersion: 2 as const,
 			sessionName: "ff15-session",
 			status: "active" as const,
 			title: "Mission 1",

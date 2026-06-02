@@ -8,7 +8,8 @@ import {
 } from "../ff15-launch/launch-client";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
-	normalizeFf15MissionAgentModels,
+	resolveFf15MissionModelCatalog,
+	resolveFf15MissionProviderAgentModels,
 	resolveFf15OpenCodeModelDefinition,
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
@@ -137,13 +138,17 @@ const toPartyRosterState = (
 		return [];
 	}
 
-	const agentModels = normalizeFf15MissionAgentModels(
-		mission.agentModels,
-		modelCatalog
-	);
+	const providerAgentModels = resolveFf15MissionProviderAgentModels({
+		catalog: modelCatalog,
+		providerId: mission.providerId,
+		providerState: mission.providerState,
+	});
 
 	return FF15_AGENT_IDS.map((agentId) => {
-		const selection = agentModels[agentId];
+		const selection = providerAgentModels?.[agentId] ?? {
+			effort: null,
+			modelId: mission.providerId,
+		};
 		const model = resolveFf15OpenCodeModelDefinition(
 			selection.modelId,
 			modelCatalog
@@ -161,7 +166,11 @@ const toPartyRosterState = (
 				effort: selection.effort,
 				effortLabel: effort?.label ?? null,
 				modelId: selection.modelId,
-				modelName: model?.name ?? selection.modelId,
+				modelName:
+					model?.name ??
+					(mission.providerId === "github-copilot-cli"
+						? "GitHub Copilot managed"
+						: selection.modelId),
 			},
 			paneId,
 		};
@@ -196,7 +205,7 @@ export const createFf15MissionWorkbenchController = (
 		options.createWebviewPanel ?? window.createWebviewPanel;
 	const renderWebviewContent =
 		options.renderWebviewContent ?? getWebviewContent;
-	const modelCatalog = [
+	const openCodeModelCatalog = [
 		...(options.modelCatalog ?? FF15_OPENCODE_MODEL_CATALOG),
 	];
 	const panels = new Map<string, WebviewPanel>();
@@ -205,12 +214,17 @@ export const createFf15MissionWorkbenchController = (
 		const mission = options.missionsStore.getMissionRecord(missionId);
 		if (!mission) {
 			return {
-				modelCatalog,
+				modelCatalog: [],
 				mission: null,
 				operations: EMPTY_CATALOG,
 				partyRoster: [],
 			};
 		}
+
+		const modelCatalog = resolveFf15MissionModelCatalog(
+			mission.providerId,
+			openCodeModelCatalog
+		);
 
 		return {
 			modelCatalog,
@@ -365,6 +379,15 @@ export const createFf15MissionWorkbenchController = (
 				typeof message.modelId === "string" &&
 				(message.effort === null || typeof message.effort === "string")
 			)
+		) {
+			return;
+		}
+
+		const mission = options.missionsStore.getMissionRecord(missionId);
+		if (
+			!mission ||
+			resolveFf15MissionModelCatalog(mission.providerId, openCodeModelCatalog)
+				.length === 0
 		) {
 			return;
 		}

@@ -1,6 +1,8 @@
 import type { Ff15AgentId } from "../ff15-launch/launch-client";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
+	patchFf15MissionProviderStateAgentModelSelection,
+	resolveFf15MissionModelCatalog,
 	resolveFf15OpenCodeModelDefinition,
 	type Ff15MissionAgentModelSelection,
 	type Ff15OpenCodeModelDefinition,
@@ -15,6 +17,8 @@ export const FF15_AGENT_MODEL_UNAVAILABLE_MESSAGE =
 	"FF15 could not resolve the selected OpenCode model.";
 export const FF15_AGENT_MODEL_EFFORT_UNAVAILABLE_MESSAGE =
 	"FF15 could not resolve the selected Reasoning Effort option.";
+export const FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE =
+	"FF15 model switching is unavailable for the pinned mission provider.";
 
 interface Ff15MissionAgentActionTransport {
 	reconcileMissionAgentPanes: (input: {
@@ -138,9 +142,19 @@ export const createFf15MissionAgentActionController = (
 				});
 			}
 
+			const missionModelCatalog = resolveFf15MissionModelCatalog(
+				context.mission.providerId,
+				modelCatalog
+			);
+			if (missionModelCatalog.length === 0) {
+				return options.missionsStore.updateMission(input.missionId, {
+					lastError: FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
+				});
+			}
+
 			const model = resolveFf15OpenCodeModelDefinition(
 				input.modelId,
-				modelCatalog
+				missionModelCatalog
 			);
 			if (!model) {
 				return options.missionsStore.updateMission(input.missionId, {
@@ -174,10 +188,13 @@ export const createFf15MissionAgentActionController = (
 			});
 
 			return options.missionsStore.updateMission(input.missionId, {
-				agentModels: {
-					...context.mission.agentModels,
-					[input.agentId]: selection,
-				},
+				providerState: patchFf15MissionProviderStateAgentModelSelection({
+					agentId: input.agentId,
+					catalog: missionModelCatalog,
+					providerId: context.mission.providerId,
+					providerState: context.mission.providerState,
+					selection,
+				}),
 				agentPanes: context.agentPanes,
 				lastError: null,
 			});

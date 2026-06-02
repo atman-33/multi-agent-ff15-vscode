@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
+	patchFf15MissionProviderStateAgentModelSelection,
 	normalizeFf15AgentModelSelection,
+	normalizeFf15MissionProviderState,
+	resolveFf15MissionModelCatalog,
+	resolveFf15MissionProviderAgentModels,
 } from "./model-contract";
 
 describe("OpenCode model contract", () => {
@@ -60,5 +64,48 @@ describe("OpenCode model contract", () => {
 				catalog
 			)
 		).toEqual({ effort: null, modelId: "instant" });
+	});
+
+	it("resolves provider-aware mission model state from the pinned provider only", () => {
+		const providerState = normalizeFf15MissionProviderState({
+			opencode: {
+				agentModels: {
+					ignis: { effort: "3", modelId: "gpt-5-mini" },
+				},
+			},
+		});
+
+		expect(resolveFf15MissionModelCatalog("github-copilot-cli")).toEqual([]);
+		expect(
+			resolveFf15MissionProviderAgentModels({
+				providerId: "github-copilot-cli",
+				providerState,
+			})
+		).toBeNull();
+		expect(
+			resolveFf15MissionProviderAgentModels({
+				providerId: "opencode",
+				providerState,
+			})
+		).toEqual(
+			expect.objectContaining({
+				ignis: { effort: "3", modelId: "gpt-5-mini" },
+			})
+		);
+	});
+
+	it("patches only the provider-owned model state for the active provider", () => {
+		const providerState = patchFf15MissionProviderStateAgentModelSelection({
+			agentId: "noctis",
+			providerId: "opencode",
+			providerState: {},
+			selection: { effort: "3", modelId: "gpt-5.4" },
+		});
+
+		expect(providerState.opencode.agentModels.noctis).toEqual({
+			effort: "3",
+			modelId: "gpt-5.4",
+		});
+		expect(providerState["github-copilot-cli"].agentModels).toBeNull();
 	});
 });
