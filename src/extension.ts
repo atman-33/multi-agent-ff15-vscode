@@ -6,6 +6,7 @@ import { loadBundledOperationsCatalog } from "./features/ff15-operations/catalog
 import { createFf15OperationRuntimeProbeService } from "./features/ff15-operations/runtime-probe";
 import { Ff15MissionsViewProvider } from "./features/ff15-missions/provider";
 import { createFf15MissionAgentActionController } from "./features/ff15-missions/agent-actions";
+import { createFf15OpenCodeModelCatalogLoader } from "./features/ff15-missions/opencode-model-catalog";
 import { createWorkspaceStateFf15MissionsStore } from "./features/ff15-missions/state";
 import { createFf15MissionZellijTransport } from "./features/ff15-missions/transport";
 import {
@@ -42,6 +43,7 @@ export const activate = (context: ExtensionContext) => {
 			getWorkspaceRoot: resolveActiveWorkspaceRoot,
 		}
 	);
+	const ff15OpenCodeModelCatalogLoader = createFf15OpenCodeModelCatalogLoader();
 	const ff15MissionTransport = createFf15MissionZellijTransport();
 	const ff15MissionSessionController = createVsCodeFf15MissionSessionController(
 		context.extensionUri,
@@ -55,6 +57,11 @@ export const activate = (context: ExtensionContext) => {
 	);
 	const ff15MissionAgentActionController =
 		createFf15MissionAgentActionController({
+			loadOpenCodeModelCatalog: (workspaceRoot) =>
+				ff15OpenCodeModelCatalogLoader.readCatalog({
+					waitForLatest: true,
+					workspaceRoot,
+				}),
 			missionTransport: ff15MissionTransport,
 			missionsStore: ff15MissionsStore,
 		});
@@ -67,6 +74,11 @@ export const activate = (context: ExtensionContext) => {
 		});
 	activeRuntimeProbeService = ff15OperationRuntimeProbeService;
 	const ff15MissionWorkbenchController = createFf15MissionWorkbenchController({
+		loadOpenCodeModelCatalog: (workspaceRoot) =>
+			ff15OpenCodeModelCatalogLoader.readCatalog({
+				waitForLatest: true,
+				workspaceRoot,
+			}),
 		missionAgentActionController: ff15MissionAgentActionController,
 		missionSendController: ff15MissionSendController,
 		missionSessionController: ff15MissionSessionController,

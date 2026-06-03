@@ -224,6 +224,80 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 	});
 
+	it("disables only OpenCode model controls with a visible reason when catalog refresh fails", async () => {
+		const missionPanel = createPanelDouble();
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_1",
+					prompto: null,
+				},
+				createdAt: "2026-06-03T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-03T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOpenCodeModelCatalog: vi.fn().mockResolvedValue({
+				lastError: "opencode models failed",
+				refreshState: "error",
+				snapshot: null,
+				stale: false,
+			}),
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(true),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				modelCatalog: [],
+				modelCatalogStatusMessage: null,
+				modelSelectionDisabledReason:
+					"FF15 could not refresh OpenCode models: opencode models failed",
+				mission: expect.objectContaining({
+					providerId: "opencode",
+				}),
+				partyRoster: expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "noctis",
+						available: true,
+					}),
+				]),
+			}),
+		});
+	});
+
 	it("routes party roster Continue and model messages through the action controller", async () => {
 		const missionPanel = createPanelDouble();
 		const missionAgentActionController = {

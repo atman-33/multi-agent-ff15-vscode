@@ -74,7 +74,9 @@ interface MissionWorkbenchPartyAgent {
 
 interface MissionWorkbenchState {
 	modelCatalog: MissionWorkbenchModelDefinition[];
+	modelCatalogStatusMessage: string | null;
 	mission: MissionWorkbenchMission | null;
+	modelSelectionDisabledReason: string | null;
 	operations: {
 		supported: MissionWorkbenchCatalogEntry[];
 		unsupported: MissionWorkbenchCatalogEntry[];
@@ -84,7 +86,9 @@ interface MissionWorkbenchState {
 
 const EMPTY_STATE: MissionWorkbenchState = {
 	modelCatalog: [],
+	modelCatalogStatusMessage: null,
 	mission: null,
+	modelSelectionDisabledReason: null,
 	operations: {
 		supported: [],
 		unsupported: [],
@@ -1026,6 +1030,8 @@ const Route = () => {
 
 				<PartyRosterPanel
 					modelCatalog={state.modelCatalog}
+					modelCatalogStatusMessage={state.modelCatalogStatusMessage}
+					modelSelectionDisabledReason={state.modelSelectionDisabledReason}
 					onChangeAgentModel={handleChangeAgentModel}
 					onContinueAgent={handleContinueAgent}
 					partyRoster={state.partyRoster}

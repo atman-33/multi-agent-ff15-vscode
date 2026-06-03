@@ -6,6 +6,10 @@ import {
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
 import { resolveFf15MissionProviderAdapter } from "./mission-provider-adapter";
+import {
+	createDefaultMissionOpenCodeModelCatalogResolution,
+	resolveMissionOpenCodeModelCatalog,
+} from "./opencode-model-catalog";
 import type { Ff15MissionsStore } from "./state";
 
 export const FF15_AGENT_ACTION_PANE_UNAVAILABLE_MESSAGE =
@@ -33,6 +37,19 @@ interface Ff15MissionAgentActionTransport {
 }
 
 interface CreateFf15MissionAgentActionControllerOptions {
+	loadOpenCodeModelCatalog?: (workspaceRoot: string) =>
+		| Promise<{
+				lastError: string | null;
+				refreshState: "error" | "ready" | "refreshing" | "unavailable";
+				snapshot: { models: Ff15OpenCodeModelDefinition[] } | null;
+				stale: boolean;
+		  }>
+		| {
+				lastError: string | null;
+				refreshState: "error" | "ready" | "refreshing" | "unavailable";
+				snapshot: { models: Ff15OpenCodeModelDefinition[] } | null;
+				stale: boolean;
+		  };
 	modelCatalog?: readonly Ff15OpenCodeModelDefinition[];
 	missionTransport: Ff15MissionAgentActionTransport;
 	missionsStore: Ff15MissionsStore;
@@ -84,6 +101,24 @@ export const createFf15MissionAgentActionController = (
 	options: CreateFf15MissionAgentActionControllerOptions
 ) => {
 	const modelCatalog = options.modelCatalog ?? FF15_OPENCODE_MODEL_CATALOG;
+	const getResolvedCatalog = (
+		mission: NonNullable<ReturnType<Ff15MissionsStore["getMissionRecord"]>>
+	) => {
+		if (
+			!(mission.providerId === "opencode" && options.loadOpenCodeModelCatalog)
+		) {
+			return createDefaultMissionOpenCodeModelCatalogResolution({
+				defaultCatalog: modelCatalog,
+				mission,
+			});
+		}
+
+		return resolveMissionOpenCodeModelCatalog({
+			defaultCatalog: modelCatalog,
+			loadOpenCodeModelCatalog: options.loadOpenCodeModelCatalog,
+			mission,
+		});
+	};
 
 	return {
 		async continueAgent(input: { agentId: Ff15AgentId; missionId: string }) {
@@ -137,7 +172,10 @@ export const createFf15MissionAgentActionController = (
 				context.mission.providerId
 			);
 
-			const missionModelCatalog = adapter.getModelCatalog(modelCatalog);
+			const resolvedCatalog = await getResolvedCatalog(context.mission);
+			const missionModelCatalog = adapter.getModelCatalog(
+				resolvedCatalog.modelCatalog
+			);
 			if (
 				!adapter.capabilities.modelSelection ||
 				missionModelCatalog.length === 0
