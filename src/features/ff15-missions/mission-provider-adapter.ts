@@ -98,7 +98,12 @@ const createAdapter = (
 
 const DEFAULT_FF15_MISSION_PROVIDER_ADAPTERS = {
 	"github-copilot-cli": createAdapter("github-copilot-cli"),
-	opencode: createAdapter("opencode"),
+	opencode: createAdapter("opencode", {
+		capabilities: {
+			modelSelection: true,
+		},
+		getModelCatalog: (catalog = FF15_OPENCODE_MODEL_CATALOG) => [...catalog],
+	}),
 } as const satisfies Record<Ff15LaunchClientId, Ff15MissionProviderAdapter>;
 
 export const resolveFf15MissionProviderAdapter = (
