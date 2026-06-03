@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { type Uri, window, workspace } from "vscode";
 import { ensureCommandAvailable } from "../ff15-launch/dependency-check";
 import {
-	createFf15LaunchClient,
 	resolveFf15LaunchClientId,
 	type Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
@@ -15,6 +14,7 @@ import { launchZellijTerminal } from "../ff15-launch/launch-terminal";
 import { resolveActiveWorkspaceRoot } from "../ff15-launch/workspace-root";
 import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 import { createFf15MissionSendController } from "./controller";
+import { resolveFf15MissionProviderAdapter } from "./mission-provider-adapter";
 import { createFf15MissionSessionController } from "./session-controller";
 import type { Ff15MissionRecord, Ff15MissionsStore } from "./state";
 import { createFf15MissionZellijTransport } from "./transport";
@@ -87,7 +87,7 @@ const getConfiguredLaunchClientId = (): Ff15LaunchClientId =>
 	);
 
 const createGetLaunchClient = () => (mission: Ff15MissionRecord) =>
-	createFf15LaunchClient(mission.providerId, {
+	resolveFf15MissionProviderAdapter(mission.providerId).createLaunchClient({
 		ensureCommandAvailable,
 		resolveCopilotCommand: resolveLaunchableCopilotCommand,
 		resolveOpenCodeCommand: resolveLaunchableOpencodeCommand,
