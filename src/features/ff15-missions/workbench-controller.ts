@@ -9,11 +9,10 @@ import {
 } from "../ff15-launch/launch-client";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
-	resolveFf15MissionModelCatalog,
-	resolveFf15MissionProviderAgentModels,
 	resolveFf15OpenCodeModelDefinition,
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
+import { resolveFf15MissionProviderAdapter } from "./mission-provider-adapter";
 import type {
 	Ff15MissionStatus,
 	Ff15MissionsStore,
@@ -140,9 +139,10 @@ const toPartyRosterState = (
 		return [];
 	}
 
-	const providerAgentModels = resolveFf15MissionProviderAgentModels({
+	const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
+
+	const providerAgentModels = adapter.getMissionAgentModels({
 		catalog: modelCatalog,
-		providerId: mission.providerId,
 		providerState: mission.providerState,
 	});
 
@@ -169,10 +169,7 @@ const toPartyRosterState = (
 				effortLabel: effort?.label ?? null,
 				modelId: selection.modelId,
 				modelName:
-					model?.name ??
-					(mission.providerId === "opencode"
-						? "OpenCode managed"
-						: selection.modelId),
+					model?.name ?? adapter.getFallbackModelName(selection.modelId),
 			},
 			paneId,
 		};
@@ -224,10 +221,8 @@ export const createFf15MissionWorkbenchController = (
 			};
 		}
 
-		const modelCatalog = resolveFf15MissionModelCatalog(
-			mission.providerId,
-			openCodeModelCatalog
-		);
+		const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
+		const modelCatalog = adapter.getModelCatalog(openCodeModelCatalog);
 
 		return {
 			modelCatalog,
@@ -387,11 +382,12 @@ export const createFf15MissionWorkbenchController = (
 		}
 
 		const mission = options.missionsStore.getMissionRecord(missionId);
-		if (
-			!mission ||
-			resolveFf15MissionModelCatalog(mission.providerId, openCodeModelCatalog)
-				.length === 0
-		) {
+		if (!mission) {
+			return;
+		}
+
+		const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
+		if (adapter.getModelCatalog(openCodeModelCatalog).length === 0) {
 			return;
 		}
 

@@ -1,12 +1,11 @@
 import type { Ff15AgentId } from "../ff15-launch/launch-client";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
-	patchFf15MissionProviderStateAgentModelSelection,
-	resolveFf15MissionModelCatalog,
 	resolveFf15OpenCodeModelDefinition,
 	type Ff15MissionAgentModelSelection,
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
+import { resolveFf15MissionProviderAdapter } from "./mission-provider-adapter";
 import type { Ff15MissionsStore } from "./state";
 
 export const FF15_AGENT_ACTION_PANE_UNAVAILABLE_MESSAGE =
@@ -38,18 +37,6 @@ interface CreateFf15MissionAgentActionControllerOptions {
 	missionTransport: Ff15MissionAgentActionTransport;
 	missionsStore: Ff15MissionsStore;
 }
-
-const buildModelInputSequence = (input: {
-	effort: string | null;
-	model: Ff15OpenCodeModelDefinition;
-}): string[] => {
-	const sequence = ["/model", input.model.name];
-	if (input.effort !== null) {
-		sequence.push(input.effort);
-	}
-
-	return sequence;
-};
 
 const resolveAgentPaneActionContext = async (
 	missionTransport: Ff15MissionAgentActionTransport,
@@ -112,8 +99,12 @@ export const createFf15MissionAgentActionController = (
 				});
 			}
 
+			const adapter = resolveFf15MissionProviderAdapter(
+				context.mission.providerId
+			);
+
 			await options.missionTransport.sendPaneInputSequence({
-				inputs: ["Continue"],
+				inputs: adapter.buildContinueInputSequence(),
 				paneId: context.paneId,
 				sessionName: context.sessionName,
 			});
@@ -142,11 +133,15 @@ export const createFf15MissionAgentActionController = (
 				});
 			}
 
-			const missionModelCatalog = resolveFf15MissionModelCatalog(
-				context.mission.providerId,
-				modelCatalog
+			const adapter = resolveFf15MissionProviderAdapter(
+				context.mission.providerId
 			);
-			if (missionModelCatalog.length === 0) {
+
+			const missionModelCatalog = adapter.getModelCatalog(modelCatalog);
+			if (
+				!adapter.capabilities.modelSelection ||
+				missionModelCatalog.length === 0
+			) {
 				return options.missionsStore.updateMission(input.missionId, {
 					lastError: FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
 				});
@@ -179,7 +174,7 @@ export const createFf15MissionAgentActionController = (
 			};
 
 			await options.missionTransport.sendPaneInputSequence({
-				inputs: buildModelInputSequence({
+				inputs: adapter.buildModelInputSequence({
 					effort: selection.effort,
 					model,
 				}),
@@ -188,10 +183,9 @@ export const createFf15MissionAgentActionController = (
 			});
 
 			return options.missionsStore.updateMission(input.missionId, {
-				providerState: patchFf15MissionProviderStateAgentModelSelection({
+				providerState: adapter.patchProviderStateAgentModelSelection({
 					agentId: input.agentId,
 					catalog: missionModelCatalog,
-					providerId: context.mission.providerId,
 					providerState: context.mission.providerState,
 					selection,
 				}),
