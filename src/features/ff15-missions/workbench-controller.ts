@@ -66,6 +66,12 @@ interface Ff15MissionAgentActionController {
 		missionId: string;
 		modelId: string;
 	}) => Promise<unknown>;
+	changeAgentVariant: (input: {
+		agentId: Ff15AgentId;
+		effort: string | null;
+		missionId: string;
+		modelId: string;
+	}) => Promise<unknown>;
 	continueAgent: (input: {
 		agentId: Ff15AgentId;
 		missionId: string;
@@ -439,6 +445,36 @@ export const createFf15MissionWorkbenchController = (
 		await postState(missionId, panel);
 	};
 
+	const handleChangeAgentVariantMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { agentId?: unknown; effort?: unknown; modelId?: unknown }
+	) => {
+		if (
+			!(
+				options.missionAgentActionController &&
+				isFf15AgentId(message.agentId) &&
+				typeof message.modelId === "string" &&
+				(message.effort === null || typeof message.effort === "string")
+			)
+		) {
+			return;
+		}
+
+		const mission = options.missionsStore.getMissionRecord(missionId);
+		if (!mission) {
+			return;
+		}
+
+		await options.missionAgentActionController.changeAgentVariant({
+			agentId: message.agentId,
+			effort: message.effort,
+			missionId,
+			modelId: message.modelId,
+		});
+		await postState(missionId, panel);
+	};
+
 	const handlePanelMessage = async (
 		missionId: string,
 		panel: WebviewPanel,
@@ -487,6 +523,10 @@ export const createFf15MissionWorkbenchController = (
 			}
 			case "ff15-mission-workbench.change-agent-model": {
 				await handleChangeAgentModelMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.change-agent-variant": {
+				await handleChangeAgentVariantMessage(missionId, panel, message);
 				return;
 			}
 			default:

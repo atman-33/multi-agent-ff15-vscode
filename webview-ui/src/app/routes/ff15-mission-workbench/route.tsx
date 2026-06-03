@@ -981,6 +981,19 @@ const Route = () => {
 		});
 	};
 
+	const handleChangeAgentVariant = (input: {
+		agentId: MissionWorkbenchPartyAgent["agentId"];
+		effort: string | null;
+		modelId: string;
+	}) => {
+		vscode.postMessage({
+			agentId: input.agentId,
+			command: "ff15-mission-workbench.change-agent-variant",
+			effort: input.effort,
+			modelId: input.modelId,
+		});
+	};
+
 	if (!mission) {
 		return (
 			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
@@ -1033,6 +1046,7 @@ const Route = () => {
 					modelCatalogStatusMessage={state.modelCatalogStatusMessage}
 					modelSelectionDisabledReason={state.modelSelectionDisabledReason}
 					onChangeAgentModel={handleChangeAgentModel}
+					onChangeAgentVariant={handleChangeAgentVariant}
 					onContinueAgent={handleContinueAgent}
 					partyRoster={state.partyRoster}
 					partyRosterEnabled={mission.terminalReady}

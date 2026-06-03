@@ -232,5 +232,87 @@ export const createFf15MissionAgentActionController = (
 				lastError: null,
 			});
 		},
+
+		async changeAgentVariant(input: {
+			agentId: Ff15AgentId;
+			effort: string | null;
+			missionId: string;
+			modelId: string;
+		}) {
+			const context = await resolveAgentPaneActionContext(
+				options.missionTransport,
+				options.missionsStore,
+				input.missionId,
+				input.agentId
+			);
+			if ("error" in context) {
+				return options.missionsStore.updateMission(input.missionId, {
+					lastError: context.error,
+				});
+			}
+
+			const adapter = resolveFf15MissionProviderAdapter(
+				context.mission.providerId
+			);
+
+			const resolvedCatalog = await getResolvedCatalog(context.mission);
+			const missionModelCatalog = adapter.getModelCatalog(
+				resolvedCatalog.modelCatalog
+			);
+			if (
+				!adapter.capabilities.modelSelection ||
+				missionModelCatalog.length === 0
+			) {
+				return options.missionsStore.updateMission(input.missionId, {
+					lastError: FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
+				});
+			}
+
+			const model = resolveFf15OpenCodeModelDefinition(
+				input.modelId,
+				missionModelCatalog
+			);
+			if (!model) {
+				return options.missionsStore.updateMission(input.missionId, {
+					lastError: FF15_AGENT_MODEL_UNAVAILABLE_MESSAGE,
+				});
+			}
+
+			const effort = input.effort;
+			if (
+				effort !== null &&
+				!model.efforts.some((option) => option.value === effort)
+			) {
+				return options.missionsStore.updateMission(input.missionId, {
+					lastError: FF15_AGENT_MODEL_EFFORT_UNAVAILABLE_MESSAGE,
+				});
+			}
+
+			const selection: Ff15MissionAgentModelSelection = {
+				effort:
+					model.efforts.length > 0 ? (effort ?? model.efforts[0].value) : null,
+				modelId: model.id,
+			};
+
+			await options.missionTransport.sendPaneInputSequence({
+				steps: adapter.buildVariantInputSequence({
+					effort: selection.effort,
+					model,
+				}),
+				paneId: context.paneId,
+				sessionName: context.sessionName,
+			});
+
+			return options.missionsStore.updateMission(input.missionId, {
+				providerState: adapter.patchProviderStateAgentModelSelection({
+					agentId: input.agentId,
+					catalog: missionModelCatalog,
+					providerState: context.mission.providerState,
+					selection,
+				}),
+				agentPanes: context.agentPanes,
+				lastError: null,
+			});
+		},
 	};
 };

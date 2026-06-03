@@ -124,6 +124,11 @@ interface PartyRosterPanelProps {
 		effort: string | null;
 		modelId: string;
 	}) => void;
+	onChangeAgentVariant: (input: {
+		agentId: PartyRosterAgent["agentId"];
+		effort: string | null;
+		modelId: string;
+	}) => void;
 	onContinueAgent: (agentId: PartyRosterAgent["agentId"]) => void;
 	partyRosterEnabled: boolean;
 	partyRoster: PartyRosterAgent[];
@@ -139,6 +144,11 @@ interface AgentModelPickerProps {
 		effort: string | null;
 		modelId: string;
 	}) => void;
+	onChangeAgentVariant: (input: {
+		agentId: PartyRosterAgentId;
+		effort: string | null;
+		modelId: string;
+	}) => void;
 }
 
 const AgentModelPicker = ({
@@ -147,6 +157,7 @@ const AgentModelPicker = ({
 	modelCatalog,
 	modelSelectionDisabledReason,
 	onChangeAgentModel,
+	onChangeAgentVariant,
 }: AgentModelPickerProps) => {
 	const panelId = useId();
 	const activeModel =
@@ -177,7 +188,7 @@ const AgentModelPicker = ({
 	};
 
 	const handleEffortChange = (value: string) => {
-		onChangeAgentModel({
+		onChangeAgentVariant({
 			agentId: agent.agentId,
 			effort: value,
 			modelId: activeModel?.id ?? agent.model.modelId,
@@ -269,6 +280,7 @@ export const PartyRosterPanel = ({
 	modelCatalogStatusMessage,
 	modelSelectionDisabledReason,
 	onChangeAgentModel,
+	onChangeAgentVariant,
 	onContinueAgent,
 	partyRosterEnabled,
 	partyRoster,
@@ -390,6 +402,7 @@ export const PartyRosterPanel = ({
 													modelSelectionDisabledReason
 												}
 												onChangeAgentModel={onChangeAgentModel}
+												onChangeAgentVariant={onChangeAgentVariant}
 											/>
 										</div>
 									</div>

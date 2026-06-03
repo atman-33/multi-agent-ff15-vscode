@@ -30,6 +30,10 @@ export interface Ff15MissionProviderAdapter {
 		effort: string | null;
 		model: Ff15OpenCodeModelDefinition;
 	}) => Ff15MissionPaneInputStep[];
+	buildVariantInputSequence: (input: {
+		effort: string | null;
+		model: Ff15OpenCodeModelDefinition;
+	}) => Ff15MissionPaneInputStep[];
 	capabilities: Ff15MissionProviderCapabilities;
 	createLaunchClient: (
 		dependencies: CreateFf15LaunchClientDependencies
@@ -85,6 +89,22 @@ const buildOpenCodeModelInputSequence = (input: {
 	return sequence;
 };
 
+const buildOpenCodeVariantInputSequence = (input: {
+	effort: string | null;
+	model: Ff15OpenCodeModelDefinition;
+}): Ff15MissionPaneInputStep[] => {
+	if (input.effort === null) {
+		return [];
+	}
+
+	return [
+		{ kind: "write", value: "/variants" },
+		{ kind: "enter" },
+		{ kind: "write", value: input.effort },
+		{ kind: "enter" },
+	];
+};
+
 const createAdapter = (
 	id: Ff15LaunchClientId,
 	overrides: Partial<Ff15MissionProviderAdapter> = {}
@@ -93,6 +113,7 @@ const createAdapter = (
 	buildContinueInputSequence: () =>
 		createFf15MissionPaneInputSteps(["Continue"]),
 	buildModelInputSequence: buildGithubCopilotModelInputSequence,
+	buildVariantInputSequence: buildGithubCopilotModelInputSequence,
 	capabilities: {
 		modelSelection: id === "github-copilot-cli",
 	},
@@ -128,6 +149,7 @@ const DEFAULT_FF15_MISSION_PROVIDER_ADAPTERS = {
 	"github-copilot-cli": createAdapter("github-copilot-cli"),
 	opencode: createAdapter("opencode", {
 		buildModelInputSequence: buildOpenCodeModelInputSequence,
+		buildVariantInputSequence: buildOpenCodeVariantInputSequence,
 		capabilities: {
 			modelSelection: true,
 		},
