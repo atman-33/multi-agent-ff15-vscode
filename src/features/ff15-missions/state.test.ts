@@ -79,7 +79,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 							agentModels: expect.any(Object),
 						}),
 						opencode: expect.objectContaining({
-							agentModels: null,
+							agentModels: expect.any(Object),
 						}),
 					}),
 				})
@@ -92,7 +92,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 							agentModels: expect.any(Object),
 						}),
 						opencode: expect.objectContaining({
-							agentModels: null,
+							agentModels: expect.any(Object),
 						}),
 					}),
 				})
@@ -154,6 +154,67 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 				})
 			);
 			expect(missionJson).not.toHaveProperty("agentModels");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("preserves dynamic OpenCode agent model selections through store normalization", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: vi.fn().mockReturnValue(undefined),
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const getNow = vi
+				.fn()
+				.mockReturnValueOnce("2026-06-04T00:00:00.000Z")
+				.mockReturnValueOnce("2026-06-04T00:01:00.000Z");
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow,
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission({ providerId: "opencode" });
+			await store.updateMission("mission-1", {
+				providerState: {
+					...createDefaultFf15MissionProviderState(),
+					opencode: {
+						agentModels: {
+							...createDefaultFf15MissionProviderState().opencode.agentModels,
+							noctis: {
+								effort: "low",
+								modelId: "github-copilot/big-pickle",
+							},
+						},
+					},
+				},
+			} as never);
+
+			expect(
+				store.getMissionRecord("mission-1")?.providerState.opencode.agentModels
+					.noctis
+			).toEqual({
+				effort: "low",
+				modelId: "github-copilot/big-pickle",
+			});
+
+			const missionFilePath = join(
+				workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"missions",
+				"mission-1",
+				"mission.json"
+			);
+			expect(
+				JSON.parse(readFileSync(missionFilePath, "utf8")).providerState.opencode
+					.agentModels.noctis
+			).toEqual({
+				effort: "low",
+				modelId: "github-copilot/big-pickle",
+			});
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

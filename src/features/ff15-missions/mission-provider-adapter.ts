@@ -14,6 +14,10 @@ import {
 	type Ff15MissionProviderState,
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
+import {
+	createFf15MissionPaneInputSteps,
+	type Ff15MissionPaneInputStep,
+} from "./transport";
 
 export interface Ff15MissionProviderCapabilities {
 	modelSelection: boolean;
@@ -21,11 +25,15 @@ export interface Ff15MissionProviderCapabilities {
 
 export interface Ff15MissionProviderAdapter {
 	id: Ff15LaunchClientId;
-	buildContinueInputSequence: () => string[];
+	buildContinueInputSequence: () => Ff15MissionPaneInputStep[];
 	buildModelInputSequence: (input: {
 		effort: string | null;
 		model: Ff15OpenCodeModelDefinition;
-	}) => string[];
+	}) => Ff15MissionPaneInputStep[];
+	buildVariantInputSequence: (input: {
+		effort: string | null;
+		model: Ff15OpenCodeModelDefinition;
+	}) => Ff15MissionPaneInputStep[];
 	capabilities: Ff15MissionProviderCapabilities;
 	createLaunchClient: (
 		dependencies: CreateFf15LaunchClientDependencies
@@ -46,16 +54,55 @@ export interface Ff15MissionProviderAdapter {
 	}) => Ff15MissionProviderState;
 }
 
-const buildModelInputSequence = (input: {
+const buildGithubCopilotModelInputSequence = (input: {
 	effort: string | null;
 	model: Ff15OpenCodeModelDefinition;
-}): string[] => {
+}): Ff15MissionPaneInputStep[] => {
 	const sequence = ["/model", input.model.name];
 	if (input.effort !== null) {
 		sequence.push(input.effort);
 	}
 
+	return createFf15MissionPaneInputSteps(sequence);
+};
+
+const buildOpenCodeModelInputSequence = (input: {
+	effort: string | null;
+	model: Ff15OpenCodeModelDefinition;
+}): Ff15MissionPaneInputStep[] => {
+	const sequence: Ff15MissionPaneInputStep[] = [
+		{ kind: "write", value: "/models" },
+		{ kind: "enter" },
+		{ kind: "write", value: input.model.name },
+		{ kind: "enter" },
+	];
+	if (input.effort !== null) {
+		sequence.push(
+			{ kind: "enter" },
+			{ kind: "write", value: "/variants" },
+			{ kind: "enter" },
+			{ kind: "write", value: input.effort },
+			{ kind: "enter" }
+		);
+	}
+
 	return sequence;
+};
+
+const buildOpenCodeVariantInputSequence = (input: {
+	effort: string | null;
+	model: Ff15OpenCodeModelDefinition;
+}): Ff15MissionPaneInputStep[] => {
+	if (input.effort === null) {
+		return [];
+	}
+
+	return [
+		{ kind: "write", value: "/variants" },
+		{ kind: "enter" },
+		{ kind: "write", value: input.effort },
+		{ kind: "enter" },
+	];
 };
 
 const createAdapter = (
@@ -63,8 +110,10 @@ const createAdapter = (
 	overrides: Partial<Ff15MissionProviderAdapter> = {}
 ): Ff15MissionProviderAdapter => ({
 	id,
-	buildContinueInputSequence: () => ["Continue"],
-	buildModelInputSequence,
+	buildContinueInputSequence: () =>
+		createFf15MissionPaneInputSteps(["Continue"]),
+	buildModelInputSequence: buildGithubCopilotModelInputSequence,
+	buildVariantInputSequence: buildGithubCopilotModelInputSequence,
 	capabilities: {
 		modelSelection: id === "github-copilot-cli",
 	},
@@ -98,7 +147,14 @@ const createAdapter = (
 
 const DEFAULT_FF15_MISSION_PROVIDER_ADAPTERS = {
 	"github-copilot-cli": createAdapter("github-copilot-cli"),
-	opencode: createAdapter("opencode"),
+	opencode: createAdapter("opencode", {
+		buildModelInputSequence: buildOpenCodeModelInputSequence,
+		buildVariantInputSequence: buildOpenCodeVariantInputSequence,
+		capabilities: {
+			modelSelection: true,
+		},
+		getModelCatalog: (catalog = FF15_OPENCODE_MODEL_CATALOG) => [...catalog],
+	}),
 } as const satisfies Record<Ff15LaunchClientId, Ff15MissionProviderAdapter>;
 
 export const resolveFf15MissionProviderAdapter = (

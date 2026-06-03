@@ -153,7 +153,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 	});
 
-	it("projects provider-managed roster state when the pinned provider has no mission model catalog", async () => {
+	it("projects provider-managed OpenCode roster state while exposing model controls", async () => {
 		const missionPanel = createPanelDouble();
 		const missionsStore = {
 			getMissionRecord: vi.fn(() => ({
@@ -207,14 +207,93 @@ describe("createFf15MissionWorkbenchController", () => {
 				mission: expect.objectContaining({
 					providerId: "opencode",
 				}),
-				modelCatalog: [],
+				modelCatalog: expect.arrayContaining([
+					expect.objectContaining({ id: "gpt-5.4", name: "GPT-5.4" }),
+					expect.objectContaining({ id: "gpt-5-mini", name: "GPT-5 mini" }),
+				]),
 				partyRoster: expect.arrayContaining([
 					expect.objectContaining({
 						agentId: "noctis",
 						model: expect.objectContaining({
-							effort: null,
-							modelName: "OpenCode managed",
+							effort: "1",
+							effortLabel: "Low",
+							modelId: "gpt-5.4",
+							modelName: "GPT-5.4",
 						}),
+					}),
+				]),
+			}),
+		});
+	});
+
+	it("disables only OpenCode model controls with a visible reason when catalog refresh fails", async () => {
+		const missionPanel = createPanelDouble();
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: "terminal_1",
+					prompto: null,
+				},
+				createdAt: "2026-06-03T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-03T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOpenCodeModelCatalog: vi.fn().mockResolvedValue({
+				lastError: "opencode models failed",
+				refreshState: "error",
+				snapshot: null,
+				stale: false,
+			}),
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(true),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				modelCatalog: [],
+				modelCatalogStatusMessage: null,
+				modelSelectionDisabledReason:
+					"FF15 could not refresh OpenCode models: opencode models failed",
+				mission: expect.objectContaining({
+					providerId: "opencode",
+				}),
+				partyRoster: expect.arrayContaining([
+					expect.objectContaining({
+						agentId: "noctis",
+						available: true,
 					}),
 				]),
 			}),
@@ -303,6 +382,165 @@ describe("createFf15MissionWorkbenchController", () => {
 			missionId: "mission-1",
 			modelId: "gpt-5-mini",
 		});
+	});
+
+	it("forwards OpenCode party roster model changes through the action controller", async () => {
+		const missionPanel = createPanelDouble();
+		const missionAgentActionController = {
+			changeAgentVariant: vi.fn().mockResolvedValue(undefined),
+			changeAgentModel: vi.fn().mockResolvedValue(undefined),
+			continueAgent: vi.fn().mockResolvedValue(undefined),
+		};
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: "terminal_2",
+					noctis: "terminal_1",
+					prompto: null,
+				},
+				createdAt: "2026-06-03T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-03T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionAgentActionController,
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: {
+					agentId?: string;
+					command: string;
+					effort?: string;
+					modelId?: string;
+			  }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			agentId: "ignis",
+			command: "ff15-mission-workbench.change-agent-model",
+			effort: "2",
+			modelId: "gpt-5-mini",
+		});
+
+		expect(missionAgentActionController.changeAgentModel).toHaveBeenCalledWith({
+			agentId: "ignis",
+			effort: "2",
+			missionId: "mission-1",
+			modelId: "gpt-5-mini",
+		});
+	});
+
+	it("forwards OpenCode party roster variant changes through the dedicated action path", async () => {
+		const missionPanel = createPanelDouble();
+		const missionAgentActionController = {
+			changeAgentVariant: vi.fn().mockResolvedValue(undefined),
+			changeAgentModel: vi.fn().mockResolvedValue(undefined),
+			continueAgent: vi.fn().mockResolvedValue(undefined),
+		};
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: "terminal_2",
+					noctis: "terminal_1",
+					prompto: null,
+				},
+				createdAt: "2026-06-03T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-03T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionAgentActionController,
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: {
+					agentId?: string;
+					command: string;
+					effort?: string;
+					modelId?: string;
+			  }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			agentId: "ignis",
+			command: "ff15-mission-workbench.change-agent-variant",
+			effort: "2",
+			modelId: "gpt-5-mini",
+		});
+
+		expect(
+			missionAgentActionController.changeAgentVariant
+		).toHaveBeenCalledWith({
+			agentId: "ignis",
+			effort: "2",
+			missionId: "mission-1",
+			modelId: "gpt-5-mini",
+		});
+		expect(
+			missionAgentActionController.changeAgentModel
+		).not.toHaveBeenCalled();
 	});
 
 	it("creates a dedicated editor panel per mission and reuses it when the same mission is focused again", async () => {

@@ -30,7 +30,7 @@ export interface Ff15MissionGithubCopilotCliProviderState {
 }
 
 export interface Ff15MissionOpenCodeProviderState {
-	agentModels: null;
+	agentModels: Ff15MissionAgentModels;
 }
 
 export interface Ff15MissionProviderState {
@@ -112,6 +112,25 @@ export const normalizeFf15AgentModelSelection = (
 	};
 };
 
+const normalizeFf15AgentModelSelectionPreserving = (
+	value: unknown,
+	fallback: Ff15MissionAgentModelSelection = createDefaultFf15AgentModelSelection()
+): Ff15MissionAgentModelSelection => {
+	if (!value || typeof value !== "object") {
+		return fallback;
+	}
+
+	const candidate = value as Record<string, unknown>;
+	if (typeof candidate.modelId !== "string" || candidate.modelId.length === 0) {
+		return fallback;
+	}
+
+	return {
+		effort: typeof candidate.effort === "string" ? candidate.effort : null,
+		modelId: candidate.modelId,
+	};
+};
+
 export const createDefaultFf15MissionAgentModels = (
 	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
 ): Ff15MissionAgentModels =>
@@ -142,6 +161,26 @@ export const normalizeFf15MissionAgentModels = (
 	return normalized;
 };
 
+const normalizeFf15MissionAgentModelsPreserving = (
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionAgentModels => {
+	const normalized = createDefaultFf15MissionAgentModels(catalog);
+	if (!value || typeof value !== "object") {
+		return normalized;
+	}
+
+	const agentModels = value as Record<string, unknown>;
+	for (const agentId of FF15_AGENT_IDS) {
+		normalized[agentId] = normalizeFf15AgentModelSelectionPreserving(
+			agentModels[agentId],
+			normalized[agentId]
+		);
+	}
+
+	return normalized;
+};
+
 export const createDefaultFf15MissionProviderState = (
 	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
 ): Ff15MissionProviderState => ({
@@ -149,7 +188,7 @@ export const createDefaultFf15MissionProviderState = (
 		agentModels: createDefaultFf15MissionAgentModels(catalog),
 	},
 	opencode: {
-		agentModels: null,
+		agentModels: createDefaultFf15MissionAgentModels(catalog),
 	},
 });
 
@@ -171,11 +210,21 @@ const normalizeFf15MissionGithubCopilotCliProviderState = (
 };
 
 const normalizeFf15MissionOpenCodeProviderState = (
-	_value: unknown,
-	_catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
-): Ff15MissionOpenCodeProviderState => ({
-	agentModels: null,
-});
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionOpenCodeProviderState => {
+	if (!value || typeof value !== "object") {
+		return createDefaultFf15MissionProviderState(catalog).opencode;
+	}
+
+	const providerState = value as Record<string, unknown>;
+	return {
+		agentModels: normalizeFf15MissionAgentModelsPreserving(
+			providerState.agentModels,
+			catalog
+		),
+	};
+};
 
 export const normalizeFf15MissionProviderState = (
 	value: unknown,
@@ -215,6 +264,10 @@ export const resolveFf15MissionProviderAgentModels = (input: {
 		catalog
 	);
 
+	if (input.providerId === "opencode") {
+		return providerState.opencode.agentModels;
+	}
+
 	if (input.providerId !== "github-copilot-cli") {
 		return null;
 	}
@@ -234,6 +287,21 @@ export const patchFf15MissionProviderStateAgentModelSelection = (input: {
 		input.providerState,
 		catalog
 	);
+
+	if (input.providerId === "opencode") {
+		return {
+			...providerState,
+			opencode: {
+				agentModels: {
+					...providerState.opencode.agentModels,
+					[input.agentId]: normalizeFf15AgentModelSelectionPreserving(
+						input.selection,
+						providerState.opencode.agentModels[input.agentId]
+					),
+				},
+			},
+		};
+	}
 
 	if (input.providerId !== "github-copilot-cli") {
 		return providerState;

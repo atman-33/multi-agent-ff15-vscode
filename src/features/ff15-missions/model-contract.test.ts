@@ -73,6 +73,11 @@ describe("OpenCode model contract", () => {
 					ignis: { effort: "3", modelId: "gpt-5-mini" },
 				},
 			},
+			opencode: {
+				agentModels: {
+					ignis: { effort: null, modelId: "claude-haiku-4.5" },
+				},
+			},
 		});
 
 		expect(resolveFf15MissionModelCatalog("github-copilot-cli")).toEqual(
@@ -83,7 +88,11 @@ describe("OpenCode model contract", () => {
 				providerId: "opencode",
 				providerState,
 			})
-		).toBeNull();
+		).toEqual(
+			expect.objectContaining({
+				ignis: { effort: null, modelId: "claude-haiku-4.5" },
+			})
+		);
 		expect(
 			resolveFf15MissionProviderAgentModels({
 				providerId: "github-copilot-cli",
@@ -94,6 +103,28 @@ describe("OpenCode model contract", () => {
 				ignis: { effort: "3", modelId: "gpt-5-mini" },
 			})
 		);
+	});
+
+	it("preserves dynamic OpenCode model ids and variants during provider-state normalization", () => {
+		const providerState = normalizeFf15MissionProviderState({
+			opencode: {
+				agentModels: {
+					ignis: {
+						effort: "medium",
+						modelId: "github-copilot/big-pickle",
+					},
+				},
+			},
+		});
+
+		expect(providerState.opencode.agentModels.ignis).toEqual({
+			effort: "medium",
+			modelId: "github-copilot/big-pickle",
+		});
+		expect(providerState["github-copilot-cli"].agentModels.ignis).toEqual({
+			effort: "1",
+			modelId: "gpt-5.4",
+		});
 	});
 
 	it("patches only the provider-owned model state for the active provider", () => {
@@ -108,6 +139,22 @@ describe("OpenCode model contract", () => {
 			effort: "3",
 			modelId: "gpt-5.4",
 		});
-		expect(providerState.opencode.agentModels).toBeNull();
+		expect(providerState.opencode.agentModels.noctis).toEqual({
+			effort: "1",
+			modelId: "gpt-5.4",
+		});
+
+		const opencodeProviderState =
+			patchFf15MissionProviderStateAgentModelSelection({
+				agentId: "noctis",
+				providerId: "opencode",
+				providerState: {},
+				selection: { effort: null, modelId: "claude-haiku-4.5" },
+			});
+
+		expect(opencodeProviderState.opencode.agentModels.noctis).toEqual({
+			effort: null,
+			modelId: "claude-haiku-4.5",
+		});
 	});
 });

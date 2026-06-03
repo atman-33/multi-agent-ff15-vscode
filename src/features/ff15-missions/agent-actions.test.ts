@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-	createFf15MissionAgentActionController,
-	FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
-} from "./agent-actions";
+import { createFf15MissionAgentActionController } from "./agent-actions";
 import {
 	createDefaultFf15MissionAgentModels,
 	createDefaultFf15MissionProviderState,
@@ -68,7 +65,7 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["Continue"],
+			steps: [{ kind: "write", value: "Continue" }, { kind: "enter" }],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -77,6 +74,40 @@ describe("createFf15MissionAgentActionController", () => {
 			lastError: null,
 		});
 		expect(reconcileMissionAgentPanes).not.toHaveBeenCalled();
+	});
+
+	it("routes OpenCode Continue through the shared adapter path", async () => {
+		const missionRecord = createMissionRecord({
+			providerId: "opencode",
+		});
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: {
+				reconcileMissionAgentPanes: vi.fn(),
+				sendPaneInputSequence,
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.continueAgent({
+			agentId: "noctis",
+			missionId: "mission-1",
+		});
+
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [{ kind: "write", value: "Continue" }, { kind: "enter" }],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
+		});
 	});
 
 	it("routes GitHub Copilot model changes with model-scoped effort input and persists the selection", async () => {
@@ -103,7 +134,14 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "GPT-5.4", "3"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "write", value: "3" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -120,15 +158,23 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 	});
 
-	it("rejects model switching when the pinned mission provider has no model catalog", async () => {
+	it("routes OpenCode model changes through the shared adapter path", async () => {
 		const missionRecord = createMissionRecord({
 			providerId: "opencode",
 		});
 		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
 		const controller = createFf15MissionAgentActionController({
+			modelCatalog: [
+				{
+					efforts: [{ label: "Low", value: "low" }],
+					id: "github-copilot/gpt-5.4",
+					name: "GPT-5.4",
+				},
+			],
 			missionTransport: {
 				reconcileMissionAgentPanes: vi.fn(),
-				sendPaneInputSequence: vi.fn(),
+				sendPaneInputSequence,
 			},
 			missionsStore: {
 				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
@@ -139,13 +185,233 @@ describe("createFf15MissionAgentActionController", () => {
 
 		await controller.changeAgentModel({
 			agentId: "noctis",
-			effort: "3",
+			effort: "low",
+			missionId: "mission-1",
+			modelId: "github-copilot/gpt-5.4",
+		});
+
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/models" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "enter" },
+				{ kind: "write", value: "/variants" },
+				{ kind: "enter" },
+				{ kind: "write", value: "low" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: {
+							effort: "low",
+							modelId: "github-copilot/gpt-5.4",
+						},
+					}),
+				},
+			}),
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
+		});
+	});
+
+	it("skips the variant command for OpenCode models without explicit variants", async () => {
+		const missionRecord = createMissionRecord({
+			providerId: "opencode",
+		});
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionAgentActionController({
+			modelCatalog: [
+				{
+					efforts: [],
+					id: "anthropic/claude-haiku-4.5",
+					name: "Claude Haiku 4.5",
+				},
+			],
+			missionTransport: {
+				reconcileMissionAgentPanes: vi.fn(),
+				sendPaneInputSequence,
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.changeAgentModel({
+			agentId: "noctis",
+			effort: null,
+			missionId: "mission-1",
+			modelId: "anthropic/claude-haiku-4.5",
+		});
+
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/models" },
+				{ kind: "enter" },
+				{ kind: "write", value: "Claude Haiku 4.5" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: {
+							effort: null,
+							modelId: "anthropic/claude-haiku-4.5",
+						},
+					}),
+				},
+			}),
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
+		});
+	});
+
+	it("routes OpenCode variant-only changes without resending the model command", async () => {
+		const missionRecord = createMissionRecord({
+			agentModels: {
+				...createDefaultFf15MissionAgentModels(),
+				noctis: {
+					effort: "low",
+					modelId: "github-copilot/gpt-5.4",
+				},
+			},
+			providerId: "opencode",
+		});
+		missionRecord.providerState = {
+			...missionRecord.providerState,
+			opencode: {
+				agentModels: {
+					...missionRecord.providerState.opencode.agentModels,
+					noctis: {
+						effort: "low",
+						modelId: "github-copilot/gpt-5.4",
+					},
+				},
+			},
+		};
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionAgentActionController({
+			modelCatalog: [
+				{
+					efforts: [
+						{ label: "Low", value: "low" },
+						{ label: "High", value: "high" },
+					],
+					id: "github-copilot/gpt-5.4",
+					name: "GPT-5.4",
+				},
+			],
+			missionTransport: {
+				reconcileMissionAgentPanes: vi.fn(),
+				sendPaneInputSequence,
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.changeAgentVariant({
+			agentId: "noctis",
+			effort: "high",
+			missionId: "mission-1",
+			modelId: "github-copilot/gpt-5.4",
+		});
+
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/variants" },
+				{ kind: "enter" },
+				{ kind: "write", value: "high" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: {
+							effort: "high",
+							modelId: "github-copilot/gpt-5.4",
+						},
+					}),
+				},
+			}),
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
+		});
+	});
+
+	it("keeps GitHub Copilot variant changes on the existing model command flow", async () => {
+		const missionRecord = createMissionRecord({
+			agentModels: {
+				...createDefaultFf15MissionAgentModels(),
+				noctis: {
+					effort: "1",
+					modelId: "gpt-5.4",
+				},
+			},
+		});
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const reconcileMissionAgentPanes = vi
+			.fn()
+			.mockResolvedValue(missionRecord.agentPanes);
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: { reconcileMissionAgentPanes, sendPaneInputSequence },
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.changeAgentVariant({
+			agentId: "noctis",
+			effort: "2",
 			missionId: "mission-1",
 			modelId: "gpt-5.4",
 		});
 
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "write", value: "2" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
 		expect(updateMission).toHaveBeenCalledWith("mission-1", {
-			lastError: FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
+			providerState: expect.objectContaining({
+				"github-copilot-cli": {
+					agentModels: expect.objectContaining({
+						noctis: { effort: "2", modelId: "gpt-5.4" },
+					}),
+				},
+			}),
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
 		});
 	});
 
@@ -173,7 +439,12 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "Instant"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "Instant" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -209,7 +480,14 @@ describe("createFf15MissionAgentActionController", () => {
 			workspaceRoot: "C:/repo",
 		});
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "GPT-5 mini", "2"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5 mini" },
+				{ kind: "enter" },
+				{ kind: "write", value: "2" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_9",
 			sessionName: "ff15-session",
 		});

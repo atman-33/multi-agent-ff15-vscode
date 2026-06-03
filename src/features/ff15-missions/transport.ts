@@ -37,6 +37,23 @@ interface RunZellijCommandResult {
 	stdout: string;
 }
 
+export type Ff15MissionPaneInputStep =
+	| {
+			kind: "enter";
+	  }
+	| {
+			kind: "write";
+			value: string;
+	  };
+
+export const createFf15MissionPaneInputSteps = (
+	values: readonly string[]
+): Ff15MissionPaneInputStep[] =>
+	values.flatMap((value) => [
+		{ kind: "write", value } as const,
+		{ kind: "enter" } as const,
+	]);
+
 interface CreateFf15MissionZellijTransportDependencies {
 	runZellijCommand?: (
 		input: RunZellijCommandInput
@@ -243,23 +260,26 @@ export const createFf15MissionZellijTransport = (
 				setTimeout(resolve, FF15_PROMPT_INPUT_DELAY_MS);
 			}));
 	const sendPaneInputSequence = async (input: {
-		inputs: string[];
+		steps: Ff15MissionPaneInputStep[];
 		paneId: string;
 		sessionName: string;
 	}) => {
-		for (const value of input.inputs) {
-			await runCommand({
-				args: [
-					"--session",
-					input.sessionName,
-					"action",
-					"write-chars",
-					"--pane-id",
-					input.paneId,
-					value,
-				],
-			});
-			await waitForPromptDelivery();
+		for (const step of input.steps) {
+			if (step.kind === "write") {
+				await runCommand({
+					args: [
+						"--session",
+						input.sessionName,
+						"action",
+						"write-chars",
+						"--pane-id",
+						input.paneId,
+						step.value,
+					],
+				});
+				await waitForPromptDelivery();
+				continue;
+			}
 
 			await runCommand({
 				args: [
@@ -272,6 +292,7 @@ export const createFf15MissionZellijTransport = (
 					"Enter",
 				],
 			});
+			await waitForPromptDelivery();
 		}
 	};
 
@@ -378,7 +399,7 @@ export const createFf15MissionZellijTransport = (
 			sessionName: string;
 		}) {
 			await sendPaneInputSequence({
-				inputs: [input.prompt],
+				steps: createFf15MissionPaneInputSteps([input.prompt]),
 				paneId: input.paneId,
 				sessionName: input.sessionName,
 			});

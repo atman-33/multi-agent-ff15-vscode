@@ -13,6 +13,10 @@ import {
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
 import { resolveFf15MissionProviderAdapter } from "./mission-provider-adapter";
+import {
+	createDefaultMissionOpenCodeModelCatalogResolution,
+	resolveMissionOpenCodeModelCatalog,
+} from "./opencode-model-catalog";
 import type {
 	Ff15MissionStatus,
 	Ff15MissionsStore,
@@ -62,6 +66,12 @@ interface Ff15MissionAgentActionController {
 		missionId: string;
 		modelId: string;
 	}) => Promise<unknown>;
+	changeAgentVariant: (input: {
+		agentId: Ff15AgentId;
+		effort: string | null;
+		missionId: string;
+		modelId: string;
+	}) => Promise<unknown>;
 	continueAgent: (input: {
 		agentId: Ff15AgentId;
 		missionId: string;
@@ -96,7 +106,9 @@ interface WorkbenchPartyRosterAgent {
 
 interface WorkbenchState {
 	modelCatalog: Ff15OpenCodeModelDefinition[];
+	modelCatalogStatusMessage: string | null;
 	mission: WorkbenchMissionState | null;
+	modelSelectionDisabledReason: string | null;
 	operations: Ff15MissionWorkbenchCatalog;
 	partyRoster: WorkbenchPartyRosterAgent[];
 }
@@ -107,6 +119,19 @@ interface CreateFf15MissionWorkbenchControllerOptions {
 	loadOperationsCatalog: (
 		workspaceRoot: string | null
 	) => Promise<Ff15MissionWorkbenchCatalog> | Ff15MissionWorkbenchCatalog;
+	loadOpenCodeModelCatalog?: (workspaceRoot: string) =>
+		| Promise<{
+				lastError: string | null;
+				refreshState: "error" | "ready" | "refreshing" | "unavailable";
+				snapshot: { models: Ff15OpenCodeModelDefinition[] } | null;
+				stale: boolean;
+		  }>
+		| {
+				lastError: string | null;
+				refreshState: "error" | "ready" | "refreshing" | "unavailable";
+				snapshot: { models: Ff15OpenCodeModelDefinition[] } | null;
+				stale: boolean;
+		  };
 	modelCatalog?: readonly Ff15OpenCodeModelDefinition[];
 	missionAgentActionController?: Ff15MissionAgentActionController;
 	missionSendController: Ff15MissionSendController;
@@ -208,6 +233,24 @@ export const createFf15MissionWorkbenchController = (
 	const openCodeModelCatalog = [
 		...(options.modelCatalog ?? FF15_OPENCODE_MODEL_CATALOG),
 	];
+	const getResolvedCatalog = (
+		mission: NonNullable<ReturnType<Ff15MissionsStore["getMissionRecord"]>>
+	) => {
+		if (
+			!(mission.providerId === "opencode" && options.loadOpenCodeModelCatalog)
+		) {
+			return createDefaultMissionOpenCodeModelCatalogResolution({
+				defaultCatalog: openCodeModelCatalog,
+				mission,
+			});
+		}
+
+		return resolveMissionOpenCodeModelCatalog({
+			defaultCatalog: openCodeModelCatalog,
+			loadOpenCodeModelCatalog: options.loadOpenCodeModelCatalog,
+			mission,
+		});
+	};
 	const panels = new Map<string, WebviewPanel>();
 
 	const buildState = async (missionId: string): Promise<WorkbenchState> => {
@@ -215,22 +258,29 @@ export const createFf15MissionWorkbenchController = (
 		if (!mission) {
 			return {
 				modelCatalog: [],
+				modelCatalogStatusMessage: null,
 				mission: null,
+				modelSelectionDisabledReason: null,
 				operations: EMPTY_CATALOG,
 				partyRoster: [],
 			};
 		}
 
+		const missionState = toMissionState(
+			mission,
+			options.missionSessionController.isMissionTerminalReady?.(missionId) ??
+				false
+		);
 		const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
-		const modelCatalog = adapter.getModelCatalog(openCodeModelCatalog);
+		const resolvedCatalog = await getResolvedCatalog(mission);
+		const modelCatalog = adapter.getModelCatalog(resolvedCatalog.modelCatalog);
 
 		return {
 			modelCatalog,
-			mission: toMissionState(
-				mission,
-				options.missionSessionController.isMissionTerminalReady?.(missionId) ??
-					false
-			),
+			modelCatalogStatusMessage: resolvedCatalog.modelCatalogStatusMessage,
+			mission: missionState,
+			modelSelectionDisabledReason:
+				resolvedCatalog.modelSelectionDisabledReason,
 			operations: await options.loadOperationsCatalog(mission.workspaceRoot),
 			partyRoster: toPartyRosterState(mission, modelCatalog),
 		};
@@ -386,12 +436,37 @@ export const createFf15MissionWorkbenchController = (
 			return;
 		}
 
-		const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
-		if (adapter.getModelCatalog(openCodeModelCatalog).length === 0) {
+		await options.missionAgentActionController.changeAgentModel({
+			agentId: message.agentId,
+			effort: message.effort,
+			missionId,
+			modelId: message.modelId,
+		});
+		await postState(missionId, panel);
+	};
+
+	const handleChangeAgentVariantMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { agentId?: unknown; effort?: unknown; modelId?: unknown }
+	) => {
+		if (
+			!(
+				options.missionAgentActionController &&
+				isFf15AgentId(message.agentId) &&
+				typeof message.modelId === "string" &&
+				(message.effort === null || typeof message.effort === "string")
+			)
+		) {
 			return;
 		}
 
-		await options.missionAgentActionController.changeAgentModel({
+		const mission = options.missionsStore.getMissionRecord(missionId);
+		if (!mission) {
+			return;
+		}
+
+		await options.missionAgentActionController.changeAgentVariant({
 			agentId: message.agentId,
 			effort: message.effort,
 			missionId,
@@ -448,6 +523,10 @@ export const createFf15MissionWorkbenchController = (
 			}
 			case "ff15-mission-workbench.change-agent-model": {
 				await handleChangeAgentModelMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.change-agent-variant": {
+				await handleChangeAgentVariantMessage(missionId, panel, message);
 				return;
 			}
 			default:

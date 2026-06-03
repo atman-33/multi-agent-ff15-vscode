@@ -117,7 +117,14 @@ interface PartyRosterAgent {
 
 interface PartyRosterPanelProps {
 	modelCatalog: OpenCodeModelDefinition[];
+	modelCatalogStatusMessage: string | null;
+	modelSelectionDisabledReason: string | null;
 	onChangeAgentModel: (input: {
+		agentId: PartyRosterAgent["agentId"];
+		effort: string | null;
+		modelId: string;
+	}) => void;
+	onChangeAgentVariant: (input: {
 		agentId: PartyRosterAgent["agentId"];
 		effort: string | null;
 		modelId: string;
@@ -131,7 +138,13 @@ interface AgentModelPickerProps {
 	agent: PartyRosterAgent;
 	disabled: boolean;
 	modelCatalog: OpenCodeModelDefinition[];
+	modelSelectionDisabledReason: string | null;
 	onChangeAgentModel: (input: {
+		agentId: PartyRosterAgentId;
+		effort: string | null;
+		modelId: string;
+	}) => void;
+	onChangeAgentVariant: (input: {
 		agentId: PartyRosterAgentId;
 		effort: string | null;
 		modelId: string;
@@ -142,7 +155,9 @@ const AgentModelPicker = ({
 	agent,
 	disabled,
 	modelCatalog,
+	modelSelectionDisabledReason,
 	onChangeAgentModel,
+	onChangeAgentVariant,
 }: AgentModelPickerProps) => {
 	const panelId = useId();
 	const activeModel =
@@ -173,7 +188,7 @@ const AgentModelPicker = ({
 	};
 
 	const handleEffortChange = (value: string) => {
-		onChangeAgentModel({
+		onChangeAgentVariant({
 			agentId: agent.agentId,
 			effort: value,
 			modelId: activeModel?.id ?? agent.model.modelId,
@@ -184,7 +199,7 @@ const AgentModelPicker = ({
 		<div className="flex items-stretch gap-1.5" id={panelId}>
 			<div className="min-w-0 flex-1 basis-0">
 				<Select
-					disabled={disabled}
+					disabled={disabled || modelSelectionDisabledReason !== null}
 					onValueChange={handleModelChange}
 					value={activeModel?.id ?? agent.model.modelId}
 				>
@@ -219,7 +234,9 @@ const AgentModelPicker = ({
 			</div>
 			<div className="min-w-0 flex-1 basis-0">
 				<Select
-					disabled={disabled || !effortEnabled}
+					disabled={
+						disabled || modelSelectionDisabledReason !== null || !effortEnabled
+					}
 					onValueChange={handleEffortChange}
 					value={effortValue}
 				>
@@ -260,7 +277,10 @@ const AgentModelPicker = ({
 
 export const PartyRosterPanel = ({
 	modelCatalog,
+	modelCatalogStatusMessage,
+	modelSelectionDisabledReason,
 	onChangeAgentModel,
+	onChangeAgentVariant,
 	onContinueAgent,
 	partyRosterEnabled,
 	partyRoster,
@@ -274,6 +294,16 @@ export const PartyRosterPanel = ({
 				<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
 					Right-click a card to continue. Model controls stay on each card.
 				</div>
+				{modelCatalogStatusMessage ? (
+					<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
+						{modelCatalogStatusMessage}
+					</div>
+				) : null}
+				{modelSelectionDisabledReason ? (
+					<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+						{modelSelectionDisabledReason}
+					</div>
+				) : null}
 			</div>
 			<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
 				{partyRoster.filter((agent) => agent.available).length} Live Panes
@@ -368,7 +398,11 @@ export const PartyRosterPanel = ({
 												agent={agent}
 												disabled={!partyRosterEnabled}
 												modelCatalog={modelCatalog}
+												modelSelectionDisabledReason={
+													modelSelectionDisabledReason
+												}
 												onChangeAgentModel={onChangeAgentModel}
+												onChangeAgentVariant={onChangeAgentVariant}
 											/>
 										</div>
 									</div>
