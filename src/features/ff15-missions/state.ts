@@ -15,9 +15,9 @@ import {
 	type Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
 import {
-	createDefaultFf15MissionAgentModels,
-	normalizeFf15MissionAgentModels,
-	type Ff15MissionAgentModels,
+	createDefaultFf15MissionProviderState,
+	normalizeFf15MissionProviderState,
+	type Ff15MissionProviderState,
 } from "./model-contract";
 
 export const FF15_MISSIONS_STATE_STORAGE_KEY =
@@ -28,7 +28,7 @@ export const FF15_MISSION_TITLE_MAX_LENGTH = 80;
 const FF15_MISSIONS_DIR_NAME = "missions";
 const FF15_MISSION_FILE_NAME = "mission.json";
 const FF15_MISSION_OUTPUTS_DIR_NAME = "outputs";
-const FF15_MISSION_SCHEMA_VERSION = 1;
+const FF15_MISSION_SCHEMA_VERSION = 2;
 const GENERATED_MISSION_TITLE_PATTERN = /^Mission \d+$/;
 
 export type Ff15MissionStatus = "active" | "draft" | "error" | "sending";
@@ -76,18 +76,18 @@ export interface Ff15MissionSummary {
 
 export interface Ff15MissionRecord extends Ff15MissionSummary {
 	agentPanes: Ff15MissionAgentPanes;
-	agentModels: Ff15MissionAgentModels;
 	operationRef: string | null;
 	providerId: Ff15LaunchClientId;
+	providerState: Ff15MissionProviderState;
 	workflow: Ff15MissionWorkflowState;
-	schemaVersion: 1;
+	schemaVersion: 2;
 }
 
 export interface Ff15MissionRecordPatch {
-	agentModels?: Ff15MissionAgentModels;
 	agentPanes?: Ff15MissionAgentPanes;
 	lastError?: string | null;
 	operationRef?: string | null;
+	providerState?: Ff15MissionProviderState;
 	sessionName?: string | null;
 	status?: Ff15MissionStatus;
 	title?: string;
@@ -303,21 +303,22 @@ const normalizeMissionRecord = (value: unknown): Ff15MissionRecord | null => {
 	}
 
 	const mission = value as Ff15MissionSummary & {
-		agentModels?: unknown;
 		agentPanes?: unknown;
 		operationRef?: unknown;
 		providerId?: unknown;
+		providerState?: unknown;
 		schemaVersion?: unknown;
 		workflow?: unknown;
 	};
+	const providerId = resolveFf15LaunchClientId(mission.providerId);
 
 	return {
 		...normalizeMissionSummary(mission),
-		agentModels: normalizeFf15MissionAgentModels(mission.agentModels),
 		agentPanes: normalizeAgentPanes(mission.agentPanes),
 		operationRef:
 			typeof mission.operationRef === "string" ? mission.operationRef : null,
-		providerId: resolveFf15LaunchClientId(mission.providerId),
+		providerId,
+		providerState: normalizeFf15MissionProviderState(mission.providerState),
 		workflow: normalizeWorkflowState(mission.workflow),
 		schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 	};
@@ -331,10 +332,10 @@ const createMissionRecordFromSummary = (
 		...mission,
 		workspaceRoot,
 	}),
-	agentModels: createDefaultFf15MissionAgentModels(),
 	agentPanes: createEmptyFf15MissionAgentPanes(),
 	operationRef: null,
 	providerId: DEFAULT_FF15_LAUNCH_CLIENT_ID,
+	providerState: createDefaultFf15MissionProviderState(),
 	workflow: createEmptyFf15MissionWorkflowState(),
 	schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 });
@@ -506,12 +507,12 @@ const applyMissionRecordPatch = (input: {
 	return {
 		...input.mission,
 		...input.patch,
-		agentModels: input.patch.agentModels
-			? normalizeFf15MissionAgentModels(input.patch.agentModels)
-			: input.mission.agentModels,
 		agentPanes: input.patch.agentPanes
 			? normalizeAgentPanes(input.patch.agentPanes)
 			: input.mission.agentPanes,
+		providerState: input.patch.providerState
+			? normalizeFf15MissionProviderState(input.patch.providerState)
+			: input.mission.providerState,
 		title: normalizedTitle ?? input.mission.title,
 		updatedAt: input.updatedAt,
 		workflow: input.patch.workflow
@@ -626,13 +627,13 @@ export const createWorkspaceStateFf15MissionsStore = (
 				operationRef: null,
 				providerId:
 					createMissionOptions.providerId ?? DEFAULT_FF15_LAUNCH_CLIENT_ID,
+				providerState: createDefaultFf15MissionProviderState(),
 				sessionName: null,
 				status: "draft",
 				title: createGeneratedMissionTitle(missionNumber),
 				updatedAt: createdAt,
 				workspaceRoot,
 				agentPanes: createEmptyFf15MissionAgentPanes(),
-				agentModels: createDefaultFf15MissionAgentModels(),
 				workflow: createEmptyFf15MissionWorkflowState(),
 				schemaVersion: FF15_MISSION_SCHEMA_VERSION,
 			} satisfies Ff15MissionRecord;

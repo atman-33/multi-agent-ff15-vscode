@@ -1,4 +1,8 @@
-import { type Ff15AgentId, FF15_AGENT_IDS } from "../ff15-launch/launch-client";
+import {
+	type Ff15AgentId,
+	FF15_AGENT_IDS,
+	type Ff15LaunchClientId,
+} from "../ff15-launch/launch-client";
 
 export interface Ff15OpenCodeModelEffortOption {
 	label: string;
@@ -20,6 +24,19 @@ export type Ff15MissionAgentModels = Record<
 	Ff15AgentId,
 	Ff15MissionAgentModelSelection
 >;
+
+export interface Ff15MissionGithubCopilotCliProviderState {
+	agentModels: Ff15MissionAgentModels;
+}
+
+export interface Ff15MissionOpenCodeProviderState {
+	agentModels: null;
+}
+
+export interface Ff15MissionProviderState {
+	"github-copilot-cli": Ff15MissionGithubCopilotCliProviderState;
+	opencode: Ff15MissionOpenCodeProviderState;
+}
 
 export const FF15_OPENCODE_MODEL_CATALOG: Ff15OpenCodeModelDefinition[] = [
 	{
@@ -123,4 +140,115 @@ export const normalizeFf15MissionAgentModels = (
 	}
 
 	return normalized;
+};
+
+export const createDefaultFf15MissionProviderState = (
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionProviderState => ({
+	"github-copilot-cli": {
+		agentModels: createDefaultFf15MissionAgentModels(catalog),
+	},
+	opencode: {
+		agentModels: null,
+	},
+});
+
+const normalizeFf15MissionGithubCopilotCliProviderState = (
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionGithubCopilotCliProviderState => {
+	if (!value || typeof value !== "object") {
+		return createDefaultFf15MissionProviderState(catalog)["github-copilot-cli"];
+	}
+
+	const providerState = value as Record<string, unknown>;
+	return {
+		agentModels: normalizeFf15MissionAgentModels(
+			providerState.agentModels,
+			catalog
+		),
+	};
+};
+
+const normalizeFf15MissionOpenCodeProviderState = (
+	_value: unknown,
+	_catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionOpenCodeProviderState => ({
+	agentModels: null,
+});
+
+export const normalizeFf15MissionProviderState = (
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionProviderState => {
+	const providerState =
+		value && typeof value === "object"
+			? (value as Record<string, unknown>)
+			: {};
+
+	return {
+		"github-copilot-cli": normalizeFf15MissionGithubCopilotCliProviderState(
+			providerState["github-copilot-cli"],
+			catalog
+		),
+		opencode: normalizeFf15MissionOpenCodeProviderState(
+			providerState.opencode,
+			catalog
+		),
+	};
+};
+
+export const resolveFf15MissionModelCatalog = (
+	providerId: Ff15LaunchClientId,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15OpenCodeModelDefinition[] =>
+	providerId === "github-copilot-cli" ? [...catalog] : [];
+
+export const resolveFf15MissionProviderAgentModels = (input: {
+	providerId: Ff15LaunchClientId;
+	providerState: Ff15MissionProviderState | unknown;
+	catalog?: readonly Ff15OpenCodeModelDefinition[];
+}): Ff15MissionAgentModels | null => {
+	const catalog = input.catalog ?? FF15_OPENCODE_MODEL_CATALOG;
+	const providerState = normalizeFf15MissionProviderState(
+		input.providerState,
+		catalog
+	);
+
+	if (input.providerId !== "github-copilot-cli") {
+		return null;
+	}
+
+	return providerState["github-copilot-cli"].agentModels;
+};
+
+export const patchFf15MissionProviderStateAgentModelSelection = (input: {
+	agentId: Ff15AgentId;
+	catalog?: readonly Ff15OpenCodeModelDefinition[];
+	providerId: Ff15LaunchClientId;
+	providerState: Ff15MissionProviderState | unknown;
+	selection: Ff15MissionAgentModelSelection;
+}): Ff15MissionProviderState => {
+	const catalog = input.catalog ?? FF15_OPENCODE_MODEL_CATALOG;
+	const providerState = normalizeFf15MissionProviderState(
+		input.providerState,
+		catalog
+	);
+
+	if (input.providerId !== "github-copilot-cli") {
+		return providerState;
+	}
+
+	return {
+		...providerState,
+		"github-copilot-cli": {
+			agentModels: {
+				...providerState["github-copilot-cli"].agentModels,
+				[input.agentId]: normalizeFf15AgentModelSelection(
+					input.selection,
+					catalog
+				),
+			},
+		},
+	};
 };

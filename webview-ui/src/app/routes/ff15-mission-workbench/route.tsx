@@ -34,6 +34,7 @@ interface MissionWorkbenchMission {
 	id: string;
 	lastError: string | null;
 	operationRef: string | null;
+	providerId: "github-copilot-cli" | "opencode";
 	sessionName: string | null;
 	status: "active" | "draft" | "error" | "sending";
 	terminalReady: boolean;
@@ -109,6 +110,11 @@ const MISSION_STATUS_LABELS: Record<MissionWorkbenchMission["status"], string> =
 		error: "Delivery Error",
 		sending: "Sending",
 	};
+
+const PROVIDER_LABELS: Record<MissionWorkbenchMission["providerId"], string> = {
+	"github-copilot-cli": "GitHub Copilot",
+	opencode: "OpenCode",
+};
 
 const getRuntimeStatusClassName = (
 	status: MissionWorkbenchMission["workflow"]["runtimeStatus"]
@@ -378,6 +384,9 @@ const MissionWorkbenchHeader = ({
 					className={`w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getRuntimeStatusClassName(mission.workflow.runtimeStatus)}`}
 				>
 					Runtime {runtimeStatusLabel}
+				</span>
+				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+					Provider {PROVIDER_LABELS[mission.providerId]}
 				</span>
 				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
 					{mission.terminalReady ? "Terminal Attached" : "Terminal Detached"}
