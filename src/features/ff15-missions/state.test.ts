@@ -79,7 +79,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 							agentModels: expect.any(Object),
 						}),
 						opencode: expect.objectContaining({
-							agentModels: null,
+							agentModels: expect.any(Object),
 						}),
 					}),
 				})
@@ -92,7 +92,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 							agentModels: expect.any(Object),
 						}),
 						opencode: expect.objectContaining({
-							agentModels: null,
+							agentModels: expect.any(Object),
 						}),
 					}),
 				})

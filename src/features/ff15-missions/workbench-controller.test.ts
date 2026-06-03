@@ -215,8 +215,10 @@ describe("createFf15MissionWorkbenchController", () => {
 					expect.objectContaining({
 						agentId: "noctis",
 						model: expect.objectContaining({
-							effort: null,
-							modelName: "OpenCode managed",
+							effort: "1",
+							effortLabel: "Low",
+							modelId: "gpt-5.4",
+							modelName: "GPT-5.4",
 						}),
 					}),
 				]),

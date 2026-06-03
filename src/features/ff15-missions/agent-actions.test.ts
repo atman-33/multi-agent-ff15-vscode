@@ -65,7 +65,7 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["Continue"],
+			steps: [{ kind: "write", value: "Continue" }, { kind: "enter" }],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -100,7 +100,7 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["Continue"],
+			steps: [{ kind: "write", value: "Continue" }, { kind: "enter" }],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -134,7 +134,14 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "GPT-5.4", "3"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "write", value: "3" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -158,6 +165,13 @@ describe("createFf15MissionAgentActionController", () => {
 		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
 		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
 		const controller = createFf15MissionAgentActionController({
+			modelCatalog: [
+				{
+					efforts: [{ label: "Low", value: "low" }],
+					id: "github-copilot/gpt-5.4",
+					name: "GPT-5.4",
+				},
+			],
 			missionTransport: {
 				reconcileMissionAgentPanes: vi.fn(),
 				sendPaneInputSequence,
@@ -171,18 +185,95 @@ describe("createFf15MissionAgentActionController", () => {
 
 		await controller.changeAgentModel({
 			agentId: "noctis",
-			effort: "3",
+			effort: "low",
 			missionId: "mission-1",
-			modelId: "gpt-5.4",
+			modelId: "github-copilot/gpt-5.4",
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "GPT-5.4", "3"],
+			steps: [
+				{ kind: "write", value: "/models" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "enter" },
+				{ kind: "write", value: "/variants" },
+				{ kind: "enter" },
+				{ kind: "write", value: "low" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
 		expect(updateMission).toHaveBeenCalledWith("mission-1", {
-			providerState: missionRecord.providerState,
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: {
+							effort: "low",
+							modelId: "github-copilot/gpt-5.4",
+						},
+					}),
+				},
+			}),
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
+		});
+	});
+
+	it("skips the variant command for OpenCode models without explicit variants", async () => {
+		const missionRecord = createMissionRecord({
+			providerId: "opencode",
+		});
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionAgentActionController({
+			modelCatalog: [
+				{
+					efforts: [],
+					id: "anthropic/claude-haiku-4.5",
+					name: "Claude Haiku 4.5",
+				},
+			],
+			missionTransport: {
+				reconcileMissionAgentPanes: vi.fn(),
+				sendPaneInputSequence,
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.changeAgentModel({
+			agentId: "noctis",
+			effort: null,
+			missionId: "mission-1",
+			modelId: "anthropic/claude-haiku-4.5",
+		});
+
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/models" },
+				{ kind: "enter" },
+				{ kind: "write", value: "Claude Haiku 4.5" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			providerState: expect.objectContaining({
+				opencode: {
+					agentModels: expect.objectContaining({
+						noctis: {
+							effort: null,
+							modelId: "anthropic/claude-haiku-4.5",
+						},
+					}),
+				},
+			}),
 			agentPanes: missionRecord.agentPanes,
 			lastError: null,
 		});
@@ -212,7 +303,12 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "Instant"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "Instant" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_1",
 			sessionName: "ff15-session",
 		});
@@ -248,7 +344,14 @@ describe("createFf15MissionAgentActionController", () => {
 			workspaceRoot: "C:/repo",
 		});
 		expect(sendPaneInputSequence).toHaveBeenCalledWith({
-			inputs: ["/model", "GPT-5 mini", "2"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5 mini" },
+				{ kind: "enter" },
+				{ kind: "write", value: "2" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_9",
 			sessionName: "ff15-session",
 		});

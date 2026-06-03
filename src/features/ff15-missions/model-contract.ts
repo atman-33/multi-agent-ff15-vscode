@@ -30,7 +30,7 @@ export interface Ff15MissionGithubCopilotCliProviderState {
 }
 
 export interface Ff15MissionOpenCodeProviderState {
-	agentModels: null;
+	agentModels: Ff15MissionAgentModels;
 }
 
 export interface Ff15MissionProviderState {
@@ -149,7 +149,7 @@ export const createDefaultFf15MissionProviderState = (
 		agentModels: createDefaultFf15MissionAgentModels(catalog),
 	},
 	opencode: {
-		agentModels: null,
+		agentModels: createDefaultFf15MissionAgentModels(catalog),
 	},
 });
 
@@ -171,11 +171,21 @@ const normalizeFf15MissionGithubCopilotCliProviderState = (
 };
 
 const normalizeFf15MissionOpenCodeProviderState = (
-	_value: unknown,
-	_catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
-): Ff15MissionOpenCodeProviderState => ({
-	agentModels: null,
-});
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionOpenCodeProviderState => {
+	if (!value || typeof value !== "object") {
+		return createDefaultFf15MissionProviderState(catalog).opencode;
+	}
+
+	const providerState = value as Record<string, unknown>;
+	return {
+		agentModels: normalizeFf15MissionAgentModels(
+			providerState.agentModels,
+			catalog
+		),
+	};
+};
 
 export const normalizeFf15MissionProviderState = (
 	value: unknown,
@@ -215,6 +225,10 @@ export const resolveFf15MissionProviderAgentModels = (input: {
 		catalog
 	);
 
+	if (input.providerId === "opencode") {
+		return providerState.opencode.agentModels;
+	}
+
 	if (input.providerId !== "github-copilot-cli") {
 		return null;
 	}
@@ -234,6 +248,21 @@ export const patchFf15MissionProviderStateAgentModelSelection = (input: {
 		input.providerState,
 		catalog
 	);
+
+	if (input.providerId === "opencode") {
+		return {
+			...providerState,
+			opencode: {
+				agentModels: {
+					...providerState.opencode.agentModels,
+					[input.agentId]: normalizeFf15AgentModelSelection(
+						input.selection,
+						catalog
+					),
+				},
+			},
+		};
+	}
 
 	if (input.providerId !== "github-copilot-cli") {
 		return providerState;

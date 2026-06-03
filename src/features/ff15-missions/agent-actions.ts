@@ -11,6 +11,7 @@ import {
 	resolveMissionOpenCodeModelCatalog,
 } from "./opencode-model-catalog";
 import type { Ff15MissionsStore } from "./state";
+import type { Ff15MissionPaneInputStep } from "./transport";
 
 export const FF15_AGENT_ACTION_PANE_UNAVAILABLE_MESSAGE =
 	"FF15 could not resolve a live pane for that agent.";
@@ -30,7 +31,7 @@ interface Ff15MissionAgentActionTransport {
 		workspaceRoot: string;
 	}) => Promise<Record<Ff15AgentId, string | null>>;
 	sendPaneInputSequence: (input: {
-		inputs: string[];
+		steps: Ff15MissionPaneInputStep[];
 		paneId: string;
 		sessionName: string;
 	}) => Promise<void>;
@@ -139,7 +140,7 @@ export const createFf15MissionAgentActionController = (
 			);
 
 			await options.missionTransport.sendPaneInputSequence({
-				inputs: adapter.buildContinueInputSequence(),
+				steps: adapter.buildContinueInputSequence(),
 				paneId: context.paneId,
 				sessionName: context.sessionName,
 			});
@@ -212,7 +213,7 @@ export const createFf15MissionAgentActionController = (
 			};
 
 			await options.missionTransport.sendPaneInputSequence({
-				inputs: adapter.buildModelInputSequence({
+				steps: adapter.buildModelInputSequence({
 					effort: selection.effort,
 					model,
 				}),

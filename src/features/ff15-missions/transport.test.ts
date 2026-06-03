@@ -211,7 +211,7 @@ describe("createFf15MissionZellijTransport", () => {
 			],
 			cwd: undefined,
 		});
-		expect(waitForPromptDelivery).toHaveBeenCalledTimes(1);
+		expect(waitForPromptDelivery).toHaveBeenCalledTimes(2);
 		expect(runZellijCommand).toHaveBeenNthCalledWith(2, {
 			args: [
 				"--session",
@@ -235,7 +235,14 @@ describe("createFf15MissionZellijTransport", () => {
 		});
 
 		await transport.sendPaneInputSequence({
-			inputs: ["/model", "GPT-5.4", "3"],
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "write", value: "3" },
+				{ kind: "enter" },
+			],
 			paneId: "terminal_2",
 			sessionName: "ff15-session",
 		});
@@ -277,6 +284,6 @@ describe("createFf15MissionZellijTransport", () => {
 			cwd: undefined,
 		});
 		expect(runZellijCommand).toHaveBeenCalledTimes(6);
-		expect(waitForPromptDelivery).toHaveBeenCalledTimes(3);
+		expect(waitForPromptDelivery).toHaveBeenCalledTimes(6);
 	});
 });
