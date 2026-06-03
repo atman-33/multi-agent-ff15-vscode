@@ -105,6 +105,28 @@ describe("OpenCode model contract", () => {
 		);
 	});
 
+	it("preserves dynamic OpenCode model ids and variants during provider-state normalization", () => {
+		const providerState = normalizeFf15MissionProviderState({
+			opencode: {
+				agentModels: {
+					ignis: {
+						effort: "medium",
+						modelId: "github-copilot/big-pickle",
+					},
+				},
+			},
+		});
+
+		expect(providerState.opencode.agentModels.ignis).toEqual({
+			effort: "medium",
+			modelId: "github-copilot/big-pickle",
+		});
+		expect(providerState["github-copilot-cli"].agentModels.ignis).toEqual({
+			effort: "1",
+			modelId: "gpt-5.4",
+		});
+	});
+
 	it("patches only the provider-owned model state for the active provider", () => {
 		const providerState = patchFf15MissionProviderStateAgentModelSelection({
 			agentId: "noctis",

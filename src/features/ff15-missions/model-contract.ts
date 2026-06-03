@@ -112,6 +112,25 @@ export const normalizeFf15AgentModelSelection = (
 	};
 };
 
+const normalizeFf15AgentModelSelectionPreserving = (
+	value: unknown,
+	fallback: Ff15MissionAgentModelSelection = createDefaultFf15AgentModelSelection()
+): Ff15MissionAgentModelSelection => {
+	if (!value || typeof value !== "object") {
+		return fallback;
+	}
+
+	const candidate = value as Record<string, unknown>;
+	if (typeof candidate.modelId !== "string" || candidate.modelId.length === 0) {
+		return fallback;
+	}
+
+	return {
+		effort: typeof candidate.effort === "string" ? candidate.effort : null,
+		modelId: candidate.modelId,
+	};
+};
+
 export const createDefaultFf15MissionAgentModels = (
 	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
 ): Ff15MissionAgentModels =>
@@ -136,6 +155,26 @@ export const normalizeFf15MissionAgentModels = (
 		normalized[agentId] = normalizeFf15AgentModelSelection(
 			agentModels[agentId],
 			catalog
+		);
+	}
+
+	return normalized;
+};
+
+const normalizeFf15MissionAgentModelsPreserving = (
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionAgentModels => {
+	const normalized = createDefaultFf15MissionAgentModels(catalog);
+	if (!value || typeof value !== "object") {
+		return normalized;
+	}
+
+	const agentModels = value as Record<string, unknown>;
+	for (const agentId of FF15_AGENT_IDS) {
+		normalized[agentId] = normalizeFf15AgentModelSelectionPreserving(
+			agentModels[agentId],
+			normalized[agentId]
 		);
 	}
 
@@ -180,7 +219,7 @@ const normalizeFf15MissionOpenCodeProviderState = (
 
 	const providerState = value as Record<string, unknown>;
 	return {
-		agentModels: normalizeFf15MissionAgentModels(
+		agentModels: normalizeFf15MissionAgentModelsPreserving(
 			providerState.agentModels,
 			catalog
 		),
@@ -255,9 +294,9 @@ export const patchFf15MissionProviderStateAgentModelSelection = (input: {
 			opencode: {
 				agentModels: {
 					...providerState.opencode.agentModels,
-					[input.agentId]: normalizeFf15AgentModelSelection(
+					[input.agentId]: normalizeFf15AgentModelSelectionPreserving(
 						input.selection,
-						catalog
+						providerState.opencode.agentModels[input.agentId]
 					),
 				},
 			},
