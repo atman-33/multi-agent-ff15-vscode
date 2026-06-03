@@ -60,7 +60,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		const agentModels = createDefaultFf15MissionAgentModels();
 		agentModels.ignis = { effort: "3", modelId: "gpt-5-mini" };
 		const providerState = createDefaultFf15MissionProviderState();
-		providerState.opencode.agentModels = agentModels;
+		providerState["github-copilot-cli"].agentModels = agentModels;
 		const missionsStore = {
 			getMissionRecord: vi.fn(() => ({
 				agentPanes: {
@@ -73,7 +73,7 @@ describe("createFf15MissionWorkbenchController", () => {
 				id: "mission-1",
 				lastError: null,
 				operationRef: null,
-				providerId: "opencode" as const,
+				providerId: "github-copilot-cli" as const,
 				providerState,
 				schemaVersion: 2 as const,
 				sessionName: "ff15-session",
@@ -110,6 +110,9 @@ describe("createFf15MissionWorkbenchController", () => {
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
 			state: expect.objectContaining({
+				mission: expect.objectContaining({
+					providerId: "github-copilot-cli",
+				}),
 				modelCatalog: expect.arrayContaining([
 					expect.objectContaining({ name: "GPT-5.4" }),
 					expect.objectContaining({ name: "GPT-5 mini" }),
@@ -164,7 +167,7 @@ describe("createFf15MissionWorkbenchController", () => {
 				id: "mission-1",
 				lastError: null,
 				operationRef: null,
-				providerId: "github-copilot-cli" as const,
+				providerId: "opencode" as const,
 				providerState: createDefaultFf15MissionProviderState(),
 				schemaVersion: 2 as const,
 				sessionName: "ff15-session",
@@ -201,13 +204,16 @@ describe("createFf15MissionWorkbenchController", () => {
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
 			state: expect.objectContaining({
+				mission: expect.objectContaining({
+					providerId: "opencode",
+				}),
 				modelCatalog: [],
 				partyRoster: expect.arrayContaining([
 					expect.objectContaining({
 						agentId: "noctis",
 						model: expect.objectContaining({
 							effort: null,
-							modelName: "GitHub Copilot managed",
+							modelName: "OpenCode managed",
 						}),
 					}),
 				]),
@@ -233,7 +239,7 @@ describe("createFf15MissionWorkbenchController", () => {
 				id: "mission-1",
 				lastError: null,
 				operationRef: null,
-				providerId: "opencode" as const,
+				providerId: "github-copilot-cli" as const,
 				providerState: createDefaultFf15MissionProviderState(),
 				schemaVersion: 2 as const,
 				sessionName: "ff15-session",

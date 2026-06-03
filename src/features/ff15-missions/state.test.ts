@@ -75,9 +75,11 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 				expect.objectContaining({
 					providerId: "opencode",
 					providerState: expect.objectContaining({
-						"github-copilot-cli": { agentModels: null },
-						opencode: expect.objectContaining({
+						"github-copilot-cli": expect.objectContaining({
 							agentModels: expect.any(Object),
+						}),
+						opencode: expect.objectContaining({
+							agentModels: null,
 						}),
 					}),
 				})
@@ -86,9 +88,11 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 				expect.objectContaining({
 					providerId: "opencode",
 					providerState: expect.objectContaining({
-						"github-copilot-cli": { agentModels: null },
-						opencode: expect.objectContaining({
+						"github-copilot-cli": expect.objectContaining({
 							agentModels: expect.any(Object),
+						}),
+						opencode: expect.objectContaining({
+							agentModels: null,
 						}),
 					}),
 				})
@@ -115,13 +119,14 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 				getWorkspaceRoot: () => workspaceRoot,
 			});
 
-			await store.createMission({ providerId: "opencode" });
+			await store.createMission({ providerId: "github-copilot-cli" });
 			await store.updateMission("mission-1", {
 				providerState: {
 					...createDefaultFf15MissionProviderState(),
-					opencode: {
+					"github-copilot-cli": {
 						agentModels: {
-							...createDefaultFf15MissionProviderState().opencode.agentModels,
+							...createDefaultFf15MissionProviderState()["github-copilot-cli"]
+								.agentModels,
 							ignis: { effort: "3", modelId: "gpt-5-mini" },
 						},
 					},
@@ -140,7 +145,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 			expect(missionJson).toEqual(
 				expect.objectContaining({
 					providerState: expect.objectContaining({
-						opencode: {
+						"github-copilot-cli": {
 							agentModels: expect.objectContaining({
 								ignis: { effort: "3", modelId: "gpt-5-mini" },
 							}),

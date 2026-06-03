@@ -5,6 +5,7 @@ import {
 	FF15_AGENT_DISPLAY_NAMES,
 	FF15_AGENT_IDS,
 	type Ff15AgentId,
+	type Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
@@ -72,6 +73,7 @@ interface WorkbenchMissionState {
 	id: string;
 	lastError: string | null;
 	operationRef: string | null;
+	providerId: Ff15LaunchClientId;
 	sessionName: string | null;
 	status: Ff15MissionStatus;
 	terminalReady: boolean;
@@ -168,8 +170,8 @@ const toPartyRosterState = (
 				modelId: selection.modelId,
 				modelName:
 					model?.name ??
-					(mission.providerId === "github-copilot-cli"
-						? "GitHub Copilot managed"
+					(mission.providerId === "opencode"
+						? "OpenCode managed"
 						: selection.modelId),
 			},
 			paneId,
@@ -189,6 +191,7 @@ const toMissionState = (
 		id: mission.id,
 		lastError: mission.lastError,
 		operationRef: mission.operationRef,
+		providerId: mission.providerId,
 		sessionName: mission.sessionName,
 		status: mission.status,
 		terminalReady,

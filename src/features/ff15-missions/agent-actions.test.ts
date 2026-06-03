@@ -29,10 +29,10 @@ const createMissionRecord = (input?: {
 	id: "mission-1",
 	lastError: null,
 	operationRef: null,
-	providerId: input?.providerId ?? "opencode",
+	providerId: input?.providerId ?? "github-copilot-cli",
 	providerState: {
 		...createDefaultFf15MissionProviderState(),
-		opencode: {
+		"github-copilot-cli": {
 			agentModels: input?.agentModels ?? createDefaultFf15MissionAgentModels(),
 		},
 	},
@@ -79,7 +79,7 @@ describe("createFf15MissionAgentActionController", () => {
 		expect(reconcileMissionAgentPanes).not.toHaveBeenCalled();
 	});
 
-	it("routes OpenCode model changes with model-scoped effort input and persists the selection", async () => {
+	it("routes GitHub Copilot model changes with model-scoped effort input and persists the selection", async () => {
 		const missionRecord = createMissionRecord();
 		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
 		const reconcileMissionAgentPanes = vi
@@ -109,7 +109,7 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 		expect(updateMission).toHaveBeenCalledWith("mission-1", {
 			providerState: expect.objectContaining({
-				opencode: {
+				"github-copilot-cli": {
 					agentModels: expect.objectContaining({
 						noctis: { effort: "3", modelId: "gpt-5.4" },
 					}),
@@ -122,7 +122,7 @@ describe("createFf15MissionAgentActionController", () => {
 
 	it("rejects model switching when the pinned mission provider has no model catalog", async () => {
 		const missionRecord = createMissionRecord({
-			providerId: "github-copilot-cli",
+			providerId: "opencode",
 		});
 		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
 		const controller = createFf15MissionAgentActionController({
@@ -215,7 +215,7 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 		expect(updateMission).toHaveBeenCalledWith("mission-1", {
 			providerState: expect.objectContaining({
-				opencode: {
+				"github-copilot-cli": {
 					agentModels: expect.objectContaining({
 						noctis: { effort: "2", modelId: "gpt-5-mini" },
 					}),
