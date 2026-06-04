@@ -84,12 +84,12 @@
         "multi-agent-ff15-vscode.launchClient": {
           "type": "string",
           "enum": [
-            "github-copilot-cli",
-            "opencode"
+            "opencode",
+            "github-copilot-cli"
           ],
           "enumDescriptions": [
-            "Launch each FF15 roster pane with GitHub Copilot CLI (`copilot`).",
-            "Default. Launch each FF15 roster pane with OpenCode (`opencode --agent <agent>`)."
+            "Default. Launch each FF15 roster pane with OpenCode (`opencode --agent <agent>`).",
+            "Launch each FF15 roster pane with GitHub Copilot CLI (`copilot`)."
           ],
           "default": "opencode",
           "description": "Select which launch client FF15 uses for its fixed roster panes."

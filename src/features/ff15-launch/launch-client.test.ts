@@ -12,6 +12,12 @@ describe("resolveFf15LaunchClientId", () => {
 		);
 	});
 
+	it("preserves github-copilot-cli when it is explicitly selected", () => {
+		expect(resolveFf15LaunchClientId("github-copilot-cli")).toBe(
+			"github-copilot-cli"
+		);
+	});
+
 	it("falls back to the default when the setting is unsupported", () => {
 		expect(resolveFf15LaunchClientId("something-else")).toBe(
 			DEFAULT_FF15_LAUNCH_CLIENT_ID

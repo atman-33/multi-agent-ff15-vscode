@@ -58,7 +58,9 @@ const buildPaneLaunchPlan = (
 export const resolveFf15LaunchClientId = (
 	value: unknown
 ): Ff15LaunchClientId =>
-	value === "opencode" ? "opencode" : DEFAULT_FF15_LAUNCH_CLIENT_ID;
+	value === "github-copilot-cli" || value === "opencode"
+		? value
+		: DEFAULT_FF15_LAUNCH_CLIENT_ID;
 
 export const createFf15LaunchClient = (
 	id: Ff15LaunchClientId,
@@ -83,7 +85,7 @@ export const createFf15LaunchClient = (
 	}
 
 	return {
-		id: DEFAULT_FF15_LAUNCH_CLIENT_ID,
+		id,
 		ensureDependenciesAvailable: () =>
 			dependencies.ensureCommandAvailable("copilot"),
 		getMissingDependencyMessage: () =>

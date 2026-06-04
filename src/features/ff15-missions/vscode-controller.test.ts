@@ -67,8 +67,6 @@ vi.mock("../ff15-launch/launch-client", async (importOriginal) => {
 				? mockVsCodeMissionController.opencodeClient
 				: mockVsCodeMissionController.githubClient
 		),
-		resolveFf15LaunchClientId: (value: unknown) =>
-			value === "github-copilot-cli" ? "github-copilot-cli" : "opencode",
 	};
 });
 
@@ -144,6 +142,58 @@ describe("terminateZellijMissionSession", () => {
 });
 
 describe("createVsCodeFf15MissionSessionController", () => {
+	it("creates a mission pinned to github-copilot-cli when that setting is selected", async () => {
+		const workspaceRoot = mkdtempSync(
+			join(tmpdir(), "ff15-vscode-controller-")
+		);
+		let snapshot:
+			| ReturnType<
+					ReturnType<
+						typeof createWorkspaceStateFf15MissionsStore
+					>["getSnapshot"]
+			  >
+			| undefined;
+		const storage: Parameters<typeof createWorkspaceStateFf15MissionsStore>[0] =
+			{
+				get: <T>(_key: string) => snapshot as T | undefined,
+				update: vi.fn().mockImplementation((_key, value) => {
+					snapshot = value;
+					return Promise.resolve(undefined);
+				}),
+			};
+
+		try {
+			mockVsCodeMissionController.currentLaunchClientId = "github-copilot-cli";
+			mockVsCodeMissionController.resolveActiveWorkspaceRoot.mockReturnValue(
+				workspaceRoot
+			);
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-06-03T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			const controller = createVsCodeFf15MissionSessionController(
+				{ fsPath: "C:/extension" } as never,
+				missionsStore,
+				{
+					reconcileMissionAgentPanes: vi
+						.fn()
+						.mockResolvedValue(createEmptyFf15MissionAgentPanes()),
+				} as never
+			);
+
+			await controller.createMission();
+
+			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					providerId: "github-copilot-cli",
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
 	it("pins the current workspace launch client at mission creation and keeps using it after the setting changes", async () => {
 		const workspaceRoot = mkdtempSync(
 			join(tmpdir(), "ff15-vscode-controller-")
