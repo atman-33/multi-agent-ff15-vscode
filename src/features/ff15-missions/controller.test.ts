@@ -711,77 +711,79 @@ describe("createFf15MissionSendController", () => {
 		}
 	});
 
-	it("resolves the pinned mission provider adapter before delivering an operation activation prompt", async () => {
-		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
-
-		try {
-			seedRichWorkspaceOperation(workspaceRoot);
-			const { storage } = createStorage();
-			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
-				createId: () => "mission-1",
-				getNow: () => "2026-06-04T00:10:00.000Z",
-			});
-			await missionsStore.createMission({ providerId: "opencode" });
-			await selectMissionOperation(
-				missionsStore,
-				"mission-1",
-				"builtin:github-issue-openspec-dev"
-			);
-
-			const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
-			const launchClient = createLaunchClient();
-			const missionTransport = {
-				ensureMissionSession: vi.fn().mockResolvedValue({
-					agentPanes: createAgentPanes("terminal_7"),
-					paneId: "terminal_7",
-				}),
-				sendPrompt: vi.fn().mockResolvedValue(undefined),
-			};
-			const adapter = resolveFf15MissionProviderAdapter("opencode");
-			const deliverOperationActivationPrompt = vi
-				.spyOn(adapter, "deliverOperationActivationPrompt")
-				.mockResolvedValue({
-					agentPanes: createAgentPanes("adapter_7"),
-					paneId: "adapter_7",
-				});
+	for (const providerId of ["github-copilot-cli", "opencode"] as const) {
+		it(`resolves the pinned ${providerId} mission provider adapter before delivering an operation activation prompt`, async () => {
+			const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 
 			try {
-				const controller = createFf15MissionSendController({
-					ensureCommandAvailable,
-					getLaunchClient: () => launchClient,
-					getWorkspaceRoot: () => workspaceRoot,
-					missionTransport,
+				seedRichWorkspaceOperation(workspaceRoot);
+				const { storage } = createStorage();
+				const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+					createId: () => "mission-1",
+					getNow: () => "2026-06-04T00:10:00.000Z",
+				});
+				await missionsStore.createMission({ providerId });
+				await selectMissionOperation(
 					missionsStore,
-				});
-
-				await controller.submitPrompt({
-					missionId: "mission-1",
-					prompt: "Investigate the provider route",
-				});
-
-				expect(deliverOperationActivationPrompt).toHaveBeenCalledWith(
-					expect.objectContaining({
-						launchClient,
-						missionId: "mission-1",
-						sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
-						workspaceRoot,
-					})
+					"mission-1",
+					"builtin:github-issue-openspec-dev"
 				);
-				expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
-				expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
-				expect(missionsStore.getMissionRecord("mission-1")).toEqual(
-					expect.objectContaining({
+
+				const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+				const launchClient = createLaunchClient();
+				const missionTransport = {
+					ensureMissionSession: vi.fn().mockResolvedValue({
+						agentPanes: createAgentPanes("terminal_7"),
+						paneId: "terminal_7",
+					}),
+					sendPrompt: vi.fn().mockResolvedValue(undefined),
+				};
+				const adapter = resolveFf15MissionProviderAdapter(providerId);
+				const deliverOperationActivationPrompt = vi
+					.spyOn(adapter, "deliverOperationActivationPrompt")
+					.mockResolvedValue({
 						agentPanes: createAgentPanes("adapter_7"),
-						providerId: "opencode",
-					})
-				);
+						paneId: "adapter_7",
+					});
+
+				try {
+					const controller = createFf15MissionSendController({
+						ensureCommandAvailable,
+						getLaunchClient: () => launchClient,
+						getWorkspaceRoot: () => workspaceRoot,
+						missionTransport,
+						missionsStore,
+					});
+
+					await controller.submitPrompt({
+						missionId: "mission-1",
+						prompt: "Investigate the provider route",
+					});
+
+					expect(deliverOperationActivationPrompt).toHaveBeenCalledWith(
+						expect.objectContaining({
+							launchClient,
+							missionId: "mission-1",
+							sessionName: expect.stringMatching(MISSION_SESSION_NAME_PATTERN),
+							workspaceRoot,
+						})
+					);
+					expect(missionTransport.ensureMissionSession).not.toHaveBeenCalled();
+					expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
+					expect(missionsStore.getMissionRecord("mission-1")).toEqual(
+						expect.objectContaining({
+							agentPanes: createAgentPanes("adapter_7"),
+							providerId,
+						})
+					);
+				} finally {
+					deliverOperationActivationPrompt.mockRestore();
+				}
 			} finally {
-				deliverOperationActivationPrompt.mockRestore();
+				rmSync(workspaceRoot, { force: true, recursive: true });
 			}
-		} finally {
-			rmSync(workspaceRoot, { force: true, recursive: true });
-		}
-	});
+		});
+	}
 
 	it("resets probe placeholder workflow state to the operation initial step on the first operation-backed send", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));

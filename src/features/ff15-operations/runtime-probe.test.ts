@@ -284,133 +284,138 @@ describe("createFf15OperationRuntimeProbeService", () => {
 		}
 	});
 
-	it("reuses the pinned mission provider adapter for runtime follow-up dispatch", async () => {
-		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
-
-		try {
-			seedWorkerDispatchOperation(workspaceRoot);
-			const storage = {
-				get: vi.fn().mockReturnValue(undefined),
-				update: vi.fn().mockResolvedValue(undefined),
-			};
-			const store = createWorkspaceStateFf15MissionsStore(storage, {
-				createId: () => "mission-1",
-				getNow: vi.fn().mockReturnValue("2026-06-04T10:00:00.000Z"),
-				getWorkspaceRoot: () => workspaceRoot,
-			});
-			await store.createMission({ providerId: "opencode" });
-			await store.updateMission("mission-1", {
-				agentPanes: {
-					gladiolus: null,
-					ignis: null,
-					noctis: "terminal_0",
-					prompto: null,
-				},
-				operationRef: "builtin:shiritori-smoke-test",
-				sessionName: "ff15-session",
-				workflow: {
-					activeTask: "Start",
-					currentStep: "start",
-					lastReportSummary: null,
-					probe: {
-						checkedAt: "2026-06-04T09:59:00.000Z",
-						summary: "Runtime already prepared for worker dispatch.",
-						verdict: "go",
-					},
-					runtimeStatus: "ready",
-				},
-				workspaceRoot,
-			});
-
-			const reconcileMissionAgentPanes = vi.fn().mockResolvedValue({
-				gladiolus: "terminal_3",
-				ignis: "terminal_2",
-				noctis: "terminal_0",
-				prompto: "terminal_4",
-			});
-			const sendPrompt = vi.fn().mockResolvedValue(undefined);
-			const adapter = resolveFf15MissionProviderAdapter("opencode");
-			const deliverOperationFollowupPrompt = vi
-				.spyOn(adapter, "deliverOperationFollowupPrompt")
-				.mockResolvedValue({
-					agentPanes: {
-						gladiolus: "adapter_3",
-						ignis: "adapter_2",
-						noctis: "adapter_0",
-						prompto: "adapter_4",
-					},
-					paneId: "adapter_2",
-				});
-
-			const service = createFf15OperationRuntimeProbeService({
-				getNow: () => "2026-06-04T10:01:00.000Z",
-				missionsStore: store,
-				missionTransport: {
-					reconcileMissionAgentPanes,
-					sendPrompt,
-				},
-				resolveRuntimeContext: () => ({
-					activeProjects: ["frontend"],
-					executionRoot: workspaceRoot,
-					openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
-				}),
-			});
+	for (const providerId of ["github-copilot-cli", "opencode"] as const) {
+		it(`reuses the pinned ${providerId} mission provider adapter for runtime follow-up dispatch`, async () => {
+			const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
 
 			try {
-				await service.ensureMissionRuntime("mission-1");
-
-				const bridgeDir = join(
-					workspaceRoot,
-					FF15_WORKSPACE_RUNTIME_DIR_NAME,
-					FF15_WORKSPACE_BRIDGE_DIR_NAME
-				);
-				const manifest = JSON.parse(
-					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
-				) as {
-					baseUrl: string;
-					token: string;
+				seedWorkerDispatchOperation(workspaceRoot);
+				const storage = {
+					get: vi.fn().mockReturnValue(undefined),
+					update: vi.fn().mockResolvedValue(undefined),
 				};
-
-				const reportResponse = await invokeBridge({
-					body: {
-						message: "りんご",
-						next: "ignis-turn",
-						taskId: "task-start",
+				const store = createWorkspaceStateFf15MissionsStore(storage, {
+					createId: () => "mission-1",
+					getNow: vi.fn().mockReturnValue("2026-06-04T10:00:00.000Z"),
+					getWorkspaceRoot: () => workspaceRoot,
+				});
+				await store.createMission({ providerId });
+				await store.updateMission("mission-1", {
+					agentPanes: {
+						gladiolus: null,
+						ignis: null,
+						noctis: "terminal_0",
+						prompto: null,
 					},
-					method: "POST",
-					token: manifest.token,
-					url: `${manifest.baseUrl}/reports/mission-1`,
+					operationRef: "builtin:shiritori-smoke-test",
+					sessionName: "ff15-session",
+					workflow: {
+						activeTask: "Start",
+						currentStep: "start",
+						lastReportSummary: null,
+						probe: {
+							checkedAt: "2026-06-04T09:59:00.000Z",
+							summary: "Runtime already prepared for worker dispatch.",
+							verdict: "go",
+						},
+						runtimeStatus: "ready",
+					},
+					workspaceRoot,
 				});
 
-				expect(reportResponse.statusCode).toBe(200);
-				expect(deliverOperationFollowupPrompt).toHaveBeenCalledWith(
-					expect.objectContaining({
-						agentId: "ignis",
-						sessionName: "ff15-session",
-						workspaceRoot,
-					})
-				);
-				expect(reconcileMissionAgentPanes).not.toHaveBeenCalled();
-				expect(sendPrompt).not.toHaveBeenCalled();
-				expect(store.getMissionRecord("mission-1")).toEqual(
-					expect.objectContaining({
+				const reconcileMissionAgentPanes = vi.fn().mockResolvedValue({
+					gladiolus: "terminal_3",
+					ignis: "terminal_2",
+					noctis: "terminal_0",
+					prompto: "terminal_4",
+				});
+				const sendPrompt = vi.fn().mockResolvedValue(undefined);
+				const adapter = resolveFf15MissionProviderAdapter(providerId);
+				const deliverOperationFollowupPrompt = vi
+					.spyOn(adapter, "deliverOperationFollowupPrompt")
+					.mockResolvedValue({
 						agentPanes: {
 							gladiolus: "adapter_3",
 							ignis: "adapter_2",
 							noctis: "adapter_0",
 							prompto: "adapter_4",
 						},
-						providerId: "opencode",
-					})
-				);
+						paneId: "adapter_2",
+					});
+
+				const service = createFf15OperationRuntimeProbeService({
+					getNow: () => "2026-06-04T10:01:00.000Z",
+					missionsStore: store,
+					missionTransport: {
+						reconcileMissionAgentPanes,
+						sendPrompt,
+					},
+					resolveRuntimeContext: () => ({
+						activeProjects: ["frontend"],
+						executionRoot: workspaceRoot,
+						openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
+					}),
+				});
+
+				try {
+					await service.ensureMissionRuntime("mission-1");
+
+					const bridgeDir = join(
+						workspaceRoot,
+						FF15_WORKSPACE_RUNTIME_DIR_NAME,
+						FF15_WORKSPACE_BRIDGE_DIR_NAME
+					);
+					const manifest = JSON.parse(
+						readFileSync(
+							join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME),
+							"utf8"
+						)
+					) as {
+						baseUrl: string;
+						token: string;
+					};
+
+					const reportResponse = await invokeBridge({
+						body: {
+							message: "りんご",
+							next: "ignis-turn",
+							taskId: "task-start",
+						},
+						method: "POST",
+						token: manifest.token,
+						url: `${manifest.baseUrl}/reports/mission-1`,
+					});
+
+					expect(reportResponse.statusCode).toBe(200);
+					expect(deliverOperationFollowupPrompt).toHaveBeenCalledWith(
+						expect.objectContaining({
+							agentId: "ignis",
+							sessionName: "ff15-session",
+							workspaceRoot,
+						})
+					);
+					expect(reconcileMissionAgentPanes).not.toHaveBeenCalled();
+					expect(sendPrompt).not.toHaveBeenCalled();
+					expect(store.getMissionRecord("mission-1")).toEqual(
+						expect.objectContaining({
+							agentPanes: {
+								gladiolus: "adapter_3",
+								ignis: "adapter_2",
+								noctis: "adapter_0",
+								prompto: "adapter_4",
+							},
+							providerId,
+						})
+					);
+				} finally {
+					deliverOperationFollowupPrompt.mockRestore();
+					await service.dispose();
+				}
 			} finally {
-				deliverOperationFollowupPrompt.mockRestore();
-				await service.dispose();
+				rmSync(workspaceRoot, { force: true, recursive: true });
 			}
-		} finally {
-			rmSync(workspaceRoot, { force: true, recursive: true });
-		}
-	});
+		});
+	}
 
 	it("auto-dispatches worker steps with newly recorded step outputs available to placeholder resolution", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-runtime-probe-"));
