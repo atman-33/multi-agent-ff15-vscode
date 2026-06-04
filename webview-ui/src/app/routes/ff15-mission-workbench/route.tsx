@@ -72,6 +72,20 @@ interface MissionWorkbenchPartyAgent {
 	paneId: string | null;
 }
 
+interface MissionWorkbenchProviderActionState {
+	enabled: boolean;
+	supported: boolean;
+	unavailableReason: string | null;
+}
+
+interface MissionWorkbenchProviderState {
+	capabilities: {
+		continueAgent: MissionWorkbenchProviderActionState;
+		modelSelection: MissionWorkbenchProviderActionState;
+	};
+	id: "github-copilot-cli" | "opencode";
+}
+
 interface MissionWorkbenchState {
 	modelCatalog: MissionWorkbenchModelDefinition[];
 	modelCatalogStatusMessage: string | null;
@@ -82,6 +96,7 @@ interface MissionWorkbenchState {
 		unsupported: MissionWorkbenchCatalogEntry[];
 	};
 	partyRoster: MissionWorkbenchPartyAgent[];
+	provider: MissionWorkbenchProviderState | null;
 }
 
 const EMPTY_STATE: MissionWorkbenchState = {
@@ -94,6 +109,7 @@ const EMPTY_STATE: MissionWorkbenchState = {
 		unsupported: [],
 	},
 	partyRoster: [],
+	provider: null,
 };
 
 const RUNTIME_STATUS_LABELS = {
@@ -1050,6 +1066,7 @@ const Route = () => {
 					onContinueAgent={handleContinueAgent}
 					partyRoster={state.partyRoster}
 					partyRosterEnabled={mission.terminalReady}
+					provider={state.provider}
 				/>
 
 				<PromptComposerPanel

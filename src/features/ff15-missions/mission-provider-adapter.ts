@@ -1,9 +1,14 @@
 import type {
 	CreateFf15LaunchClientDependencies,
+	Ff15AgentId,
 	Ff15LaunchClient,
 	Ff15LaunchClientId,
+	Ff15PaneLaunchPlanEntry,
 } from "../ff15-launch/launch-client";
-import { createFf15LaunchClient } from "../ff15-launch/launch-client";
+import {
+	createFf15LaunchClient,
+	FF15_AGENT_DISPLAY_NAMES,
+} from "../ff15-launch/launch-client";
 import {
 	FF15_OPENCODE_MODEL_CATALOG,
 	patchFf15MissionProviderStateAgentModelSelection,
@@ -18,6 +23,39 @@ import {
 	createFf15MissionPaneInputSteps,
 	type Ff15MissionPaneInputStep,
 } from "./transport";
+import type { Ff15MissionAgentPanes } from "./state";
+
+export const FF15_MISSION_PROVIDER_MISSING_NOCTIS_PLAN_MESSAGE =
+	"FF15 could not resolve a Noctis launch plan for the selected client.";
+
+export interface Ff15MissionProviderActivationTransport {
+	ensureMissionSession: (input: {
+		allowCreateNoctisPane?: boolean;
+		agentPanes?: Ff15MissionAgentPanes;
+		missionId: string;
+		paneLaunchPlanEntry: Ff15PaneLaunchPlanEntry;
+		sessionName: string;
+		workspaceRoot: string;
+	}) => Promise<{ agentPanes?: Ff15MissionAgentPanes; paneId: string }>;
+	sendPrompt: (input: {
+		paneId: string;
+		prompt: string;
+		sessionName: string;
+	}) => Promise<void>;
+}
+
+export interface Ff15MissionProviderFollowupTransport {
+	reconcileMissionAgentPanes: (input: {
+		agentPanes: Ff15MissionAgentPanes;
+		sessionName: string;
+		workspaceRoot: string;
+	}) => Promise<Ff15MissionAgentPanes>;
+	sendPrompt: (input: {
+		paneId: string;
+		prompt: string;
+		sessionName: string;
+	}) => Promise<void>;
+}
 
 export interface Ff15MissionProviderCapabilities {
 	modelSelection: boolean;
@@ -38,6 +76,24 @@ export interface Ff15MissionProviderAdapter {
 	createLaunchClient: (
 		dependencies: CreateFf15LaunchClientDependencies
 	) => Ff15LaunchClient;
+	deliverOperationActivationPrompt: (input: {
+		agentPanes: Ff15MissionAgentPanes;
+		allowCreateNoctisPane?: boolean;
+		launchClient: Ff15LaunchClient;
+		missionId: string;
+		prompt: string;
+		sessionName: string;
+		transport: Ff15MissionProviderActivationTransport;
+		workspaceRoot: string;
+	}) => Promise<{ agentPanes: Ff15MissionAgentPanes; paneId: string }>;
+	deliverOperationFollowupPrompt: (input: {
+		agentId: Ff15AgentId;
+		agentPanes: Ff15MissionAgentPanes;
+		prompt: string;
+		sessionName: string;
+		transport: Ff15MissionProviderFollowupTransport;
+		workspaceRoot: string;
+	}) => Promise<{ agentPanes: Ff15MissionAgentPanes; paneId: string }>;
 	getFallbackModelName: (modelId: string) => string;
 	getMissionAgentModels: (input: {
 		catalog?: readonly Ff15OpenCodeModelDefinition[];
@@ -105,6 +161,13 @@ const buildOpenCodeVariantInputSequence = (input: {
 	];
 };
 
+const getNoctisPaneLaunchPlanEntry = (
+	launchClient: Ff15LaunchClient
+): Ff15PaneLaunchPlanEntry | undefined =>
+	launchClient
+		.getPaneLaunchPlan()
+		.find((paneLaunchPlanEntry) => paneLaunchPlanEntry.agentId === "noctis");
+
 const createAdapter = (
 	id: Ff15LaunchClientId,
 	overrides: Partial<Ff15MissionProviderAdapter> = {}
@@ -119,6 +182,77 @@ const createAdapter = (
 	},
 	createLaunchClient: (dependencies) =>
 		createFf15LaunchClient(id, dependencies),
+	deliverOperationActivationPrompt: async ({
+		agentPanes,
+		allowCreateNoctisPane,
+		launchClient,
+		missionId,
+		prompt,
+		sessionName,
+		transport,
+		workspaceRoot,
+	}) => {
+		const paneLaunchPlanEntry = getNoctisPaneLaunchPlanEntry(launchClient);
+		if (!paneLaunchPlanEntry) {
+			throw new Error(FF15_MISSION_PROVIDER_MISSING_NOCTIS_PLAN_MESSAGE);
+		}
+
+		const { agentPanes: resolvedAgentPanes, paneId } =
+			await transport.ensureMissionSession({
+				allowCreateNoctisPane,
+				agentPanes,
+				missionId,
+				paneLaunchPlanEntry,
+				sessionName,
+				workspaceRoot,
+			});
+		const nextAgentPanes = resolvedAgentPanes ?? {
+			...agentPanes,
+			noctis: paneId,
+		};
+
+		await transport.sendPrompt({
+			paneId,
+			prompt,
+			sessionName,
+		});
+
+		return {
+			agentPanes: nextAgentPanes,
+			paneId,
+		};
+	},
+	deliverOperationFollowupPrompt: async ({
+		agentId,
+		agentPanes,
+		prompt,
+		sessionName,
+		transport,
+		workspaceRoot,
+	}) => {
+		const reconciledAgentPanes = await transport.reconcileMissionAgentPanes({
+			agentPanes,
+			sessionName,
+			workspaceRoot,
+		});
+		const paneId = reconciledAgentPanes[agentId];
+		if (!paneId) {
+			throw new Error(
+				`FF15 could not resolve a live ${FF15_AGENT_DISPLAY_NAMES[agentId]} pane for this mission.`
+			);
+		}
+
+		await transport.sendPrompt({
+			paneId,
+			prompt,
+			sessionName,
+		});
+
+		return {
+			agentPanes: reconciledAgentPanes,
+			paneId,
+		};
+	},
 	getFallbackModelName: (modelId) =>
 		id === "opencode" ? "OpenCode managed" : modelId,
 	getMissionAgentModels: ({ catalog, providerState }) =>

@@ -9,10 +9,7 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
-import {
-	FF15_AGENT_DISPLAY_NAMES,
-	type Ff15AgentId,
-} from "../ff15-launch/launch-client";
+import type { Ff15AgentId } from "../ff15-launch/launch-client";
 import {
 	createEmptyFf15MissionWorkflowState,
 	getWorkspaceMissionOutputFilePath,
@@ -24,6 +21,7 @@ import {
 	type Ff15MissionsStore,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
+import { resolveFf15MissionProviderAdapter } from "../ff15-missions/mission-provider-adapter";
 import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 import {
 	buildWorkerOperationAwarePrompt,
@@ -549,23 +547,9 @@ export const createFf15OperationRuntimeProbeService = (
 			);
 		}
 
-		const reconciledAgentPanes =
-			await options.missionTransport.reconcileMissionAgentPanes({
-				agentPanes: input.mission.agentPanes,
-				sessionName,
-				workspaceRoot,
-			});
 		const stepAgent = input.activation.stepAgent;
 		if (!(input.activation.step && isMissionAgentId(stepAgent))) {
 			throw new Error("Follow-up dispatch requires an FF15-owned step.");
-		}
-
-		const paneId = reconciledAgentPanes[stepAgent];
-
-		if (!paneId) {
-			throw new Error(
-				`FF15 could not resolve a live ${FF15_AGENT_DISPLAY_NAMES[stepAgent]} pane for this mission.`
-			);
 		}
 
 		const taskId = getOperationStepTaskId({
@@ -575,8 +559,10 @@ export const createFf15OperationRuntimeProbeService = (
 		const runtimeContext = resolveRuntimeContext({
 			workspaceRoot,
 		});
-		await options.missionTransport.sendPrompt({
-			paneId,
+		const adapter = resolveFf15MissionProviderAdapter(input.mission.providerId);
+		const dispatch = await adapter.deliverOperationFollowupPrompt({
+			agentId: stepAgent,
+			agentPanes: input.mission.agentPanes,
 			prompt: buildWorkerOperationAwarePrompt({
 				activation: input.activation,
 				activeProjects: runtimeContext.activeProjects,
@@ -587,11 +573,13 @@ export const createFf15OperationRuntimeProbeService = (
 				workspaceRoot,
 			}),
 			sessionName,
+			transport: options.missionTransport,
+			workspaceRoot,
 		});
 
 		return {
 			agentId: stepAgent,
-			agentPanes: reconciledAgentPanes,
+			agentPanes: dispatch.agentPanes,
 			taskId,
 		};
 	};

@@ -115,6 +115,20 @@ interface PartyRosterAgent {
 	paneId: string | null;
 }
 
+interface ProviderActionState {
+	enabled: boolean;
+	supported: boolean;
+	unavailableReason: string | null;
+}
+
+interface ProviderState {
+	capabilities: {
+		continueAgent: ProviderActionState;
+		modelSelection: ProviderActionState;
+	};
+	id: "github-copilot-cli" | "opencode";
+}
+
 interface PartyRosterPanelProps {
 	modelCatalog: OpenCodeModelDefinition[];
 	modelCatalogStatusMessage: string | null;
@@ -132,12 +146,15 @@ interface PartyRosterPanelProps {
 	onContinueAgent: (agentId: PartyRosterAgent["agentId"]) => void;
 	partyRosterEnabled: boolean;
 	partyRoster: PartyRosterAgent[];
+	provider: ProviderState | null;
 }
 
 interface AgentModelPickerProps {
 	agent: PartyRosterAgent;
 	disabled: boolean;
 	modelCatalog: OpenCodeModelDefinition[];
+	modelSelectionEnabled: boolean;
+	modelSelectionSupported: boolean;
 	modelSelectionDisabledReason: string | null;
 	onChangeAgentModel: (input: {
 		agentId: PartyRosterAgentId;
@@ -155,11 +172,31 @@ const AgentModelPicker = ({
 	agent,
 	disabled,
 	modelCatalog,
+	modelSelectionEnabled,
+	modelSelectionSupported,
 	modelSelectionDisabledReason,
 	onChangeAgentModel,
 	onChangeAgentVariant,
 }: AgentModelPickerProps) => {
 	const panelId = useId();
+
+	if (!modelSelectionSupported) {
+		return (
+			<div
+				className="flex min-h-6 items-center rounded-md border border-white/10 border-dashed bg-black/25 px-2"
+				style={{
+					color: "var(--vscode-descriptionForeground,rgba(255,255,255,0.64))",
+					fontFamily: "var(--vscode-editor-font-family, monospace)",
+					fontSize: "9px",
+					letterSpacing: "0.14em",
+					textTransform: "uppercase",
+				}}
+			>
+				{modelSelectionDisabledReason ?? "Model controls unavailable"}
+			</div>
+		);
+	}
+
 	const activeModel =
 		modelCatalog.find((model) => model.id === agent.model.modelId) ??
 		modelCatalog[0] ??
@@ -199,7 +236,7 @@ const AgentModelPicker = ({
 		<div className="flex items-stretch gap-1.5" id={panelId}>
 			<div className="min-w-0 flex-1 basis-0">
 				<Select
-					disabled={disabled || modelSelectionDisabledReason !== null}
+					disabled={!modelSelectionEnabled || disabled}
 					onValueChange={handleModelChange}
 					value={activeModel?.id ?? agent.model.modelId}
 				>
@@ -234,9 +271,7 @@ const AgentModelPicker = ({
 			</div>
 			<div className="min-w-0 flex-1 basis-0">
 				<Select
-					disabled={
-						disabled || modelSelectionDisabledReason !== null || !effortEnabled
-					}
+					disabled={disabled || !modelSelectionEnabled || !effortEnabled}
 					onValueChange={handleEffortChange}
 					value={effortValue}
 				>
@@ -284,146 +319,173 @@ export const PartyRosterPanel = ({
 	onContinueAgent,
 	partyRosterEnabled,
 	partyRoster,
-}: PartyRosterPanelProps) => (
-	<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.16)]">
-		<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-			<div>
-				<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
-					Party Roster
-				</div>
-				<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
-					Right-click a card to continue. Model controls stay on each card.
-				</div>
-				{modelCatalogStatusMessage ? (
-					<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
-						{modelCatalogStatusMessage}
-					</div>
-				) : null}
-				{modelSelectionDisabledReason ? (
-					<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
-						{modelSelectionDisabledReason}
-					</div>
-				) : null}
-			</div>
-			<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-				{partyRoster.filter((agent) => agent.available).length} Live Panes
-			</span>
-		</div>
+	provider,
+}: PartyRosterPanelProps) =>
+	(() => {
+		const continueAction = provider?.capabilities.continueAgent ?? {
+			enabled: partyRosterEnabled,
+			supported: true,
+			unavailableReason: partyRosterEnabled
+				? null
+				: "Launch Terminal before using party roster actions.",
+		};
+		const modelAction = provider?.capabilities.modelSelection ?? {
+			enabled: modelSelectionDisabledReason === null,
+			supported: true,
+			unavailableReason: modelSelectionDisabledReason,
+		};
+		const showContinueReason =
+			continueAction.unavailableReason !== null &&
+			continueAction.unavailableReason !== modelAction.unavailableReason;
 
-		<div className="grid gap-2">
-			{partyRoster.map((agent) => {
-				const theme = AGENT_THEMES[agent.agentId];
-				const portraitFilter = [
-					`drop-shadow(0 0 3px ${theme.glowSoft})`,
-					`drop-shadow(0 0 7px ${theme.glow})`,
-					agent.available
-						? `drop-shadow(0 0 12px ${theme.accent})`
-						: `drop-shadow(0 0 5px ${theme.glow})`,
-				].join(" ");
-
-				return (
-					<ContextMenu key={agent.agentId}>
-						<ContextMenuTrigger asChild>
-							<div
-								className={cn(
-									"min-w-0",
-									"rounded-xl",
-									"border border-transparent",
-									"px-3 py-3",
-									"transition-transform",
-									"hover:-translate-y-0.5",
-									"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
-								)}
-								style={{
-									background: theme.surface,
-									boxShadow: `0 16px 34px rgba(0,0,0,0.34), 0 1px 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 18px ${theme.glow}`,
-								}}
-							>
-								<div className="flex min-w-0 items-center gap-3.5">
-									<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
-										<span
-											aria-hidden="true"
-											className="pointer-events-none absolute rounded-full"
-											style={{
-												background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
-												bottom: 0,
-												height: "2rem",
-												left: "50%",
-												opacity: agent.available ? 1 : 0.72,
-												transform: "translateX(-50%)",
-												width: "2rem",
-											}}
-										/>
-										{agent.available ? (
-											<span
-												aria-hidden="true"
-												className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
-												style={{
-													background: theme.glow,
-													filter: "blur(16px)",
-												}}
-											/>
-										) : null}
-										<img
-											alt={agent.displayName}
-											className="relative z-10 h-full w-full object-contain object-bottom"
-											height={64}
-											src={AGENT_PORTRAITS[agent.agentId]}
-											style={{ filter: portraitFilter }}
-											width={40}
-										/>
-									</div>
-									<div className="min-w-0 flex-1">
-										<div className="flex items-center gap-2">
-											<div
-												className="truncate font-bold text-sm uppercase tracking-wider"
-												style={{ color: theme.text }}
-											>
-												{agent.displayName}
-											</div>
-											<div
-												className="font-mono text-[9px]"
-												style={{
-													color:
-														"var(--vscode-descriptionForeground, rgba(255,255,255,0.76))",
-													letterSpacing: "0.12em",
-													textTransform: "uppercase",
-												}}
-											>
-												{AGENT_ROLE_LABELS[agent.agentId]}
-											</div>
-										</div>
-										<div className="mt-1 w-full max-w-[17rem]">
-											<AgentModelPicker
-												agent={agent}
-												disabled={!partyRosterEnabled}
-												modelCatalog={modelCatalog}
-												modelSelectionDisabledReason={
-													modelSelectionDisabledReason
-												}
-												onChangeAgentModel={onChangeAgentModel}
-												onChangeAgentVariant={onChangeAgentVariant}
-											/>
-										</div>
-									</div>
-								</div>
+		return (
+			<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.16)]">
+				<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+					<div>
+						<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
+							Party Roster
+						</div>
+						<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
+							Right-click a card to continue. Model controls stay on each card.
+						</div>
+						{modelCatalogStatusMessage ? (
+							<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
+								{modelCatalogStatusMessage}
 							</div>
-						</ContextMenuTrigger>
-						<ContextMenuContent className="w-52">
-							<ContextMenuLabel>{agent.displayName}</ContextMenuLabel>
-							<ContextMenuSeparator />
-							<ContextMenuItem
-								disabled={!partyRosterEnabled}
-								onSelect={() => {
-									onContinueAgent(agent.agentId);
-								}}
-							>
-								Continue
-							</ContextMenuItem>
-						</ContextMenuContent>
-					</ContextMenu>
-				);
-			})}
-		</div>
-	</div>
-);
+						) : null}
+						{showContinueReason ? (
+							<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+								{continueAction.unavailableReason}
+							</div>
+						) : null}
+						{modelAction.unavailableReason ? (
+							<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+								{modelAction.unavailableReason}
+							</div>
+						) : null}
+					</div>
+					<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+						{partyRoster.filter((agent) => agent.available).length} Live Panes
+					</span>
+				</div>
+
+				<div className="grid gap-2">
+					{partyRoster.map((agent) => {
+						const theme = AGENT_THEMES[agent.agentId];
+						const portraitFilter = [
+							`drop-shadow(0 0 3px ${theme.glowSoft})`,
+							`drop-shadow(0 0 7px ${theme.glow})`,
+							agent.available
+								? `drop-shadow(0 0 12px ${theme.accent})`
+								: `drop-shadow(0 0 5px ${theme.glow})`,
+						].join(" ");
+
+						return (
+							<ContextMenu key={agent.agentId}>
+								<ContextMenuTrigger asChild>
+									<div
+										className={cn(
+											"min-w-0",
+											"rounded-xl",
+											"border border-transparent",
+											"px-3 py-3",
+											"transition-transform",
+											"hover:-translate-y-0.5",
+											"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
+										)}
+										style={{
+											background: theme.surface,
+											boxShadow: `0 16px 34px rgba(0,0,0,0.34), 0 1px 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 18px ${theme.glow}`,
+										}}
+									>
+										<div className="flex min-w-0 items-center gap-3.5">
+											<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
+												<span
+													aria-hidden="true"
+													className="pointer-events-none absolute rounded-full"
+													style={{
+														background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
+														bottom: 0,
+														height: "2rem",
+														left: "50%",
+														opacity: agent.available ? 1 : 0.72,
+														transform: "translateX(-50%)",
+														width: "2rem",
+													}}
+												/>
+												{agent.available ? (
+													<span
+														aria-hidden="true"
+														className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
+														style={{
+															background: theme.glow,
+															filter: "blur(16px)",
+														}}
+													/>
+												) : null}
+												<img
+													alt={agent.displayName}
+													className="relative z-10 h-full w-full object-contain object-bottom"
+													height={64}
+													src={AGENT_PORTRAITS[agent.agentId]}
+													style={{ filter: portraitFilter }}
+													width={40}
+												/>
+											</div>
+											<div className="min-w-0 flex-1">
+												<div className="flex items-center gap-2">
+													<div
+														className="truncate font-bold text-sm uppercase tracking-wider"
+														style={{ color: theme.text }}
+													>
+														{agent.displayName}
+													</div>
+													<div
+														className="font-mono text-[9px]"
+														style={{
+															color:
+																"var(--vscode-descriptionForeground, rgba(255,255,255,0.76))",
+															letterSpacing: "0.12em",
+															textTransform: "uppercase",
+														}}
+													>
+														{AGENT_ROLE_LABELS[agent.agentId]}
+													</div>
+												</div>
+												<div className="mt-1 w-full max-w-[17rem]">
+													<AgentModelPicker
+														agent={agent}
+														disabled={false}
+														modelCatalog={modelCatalog}
+														modelSelectionDisabledReason={
+															modelAction.unavailableReason
+														}
+														modelSelectionEnabled={modelAction.enabled}
+														modelSelectionSupported={modelAction.supported}
+														onChangeAgentModel={onChangeAgentModel}
+														onChangeAgentVariant={onChangeAgentVariant}
+													/>
+												</div>
+											</div>
+										</div>
+									</div>
+								</ContextMenuTrigger>
+								<ContextMenuContent className="w-52">
+									<ContextMenuLabel>{agent.displayName}</ContextMenuLabel>
+									<ContextMenuSeparator />
+									<ContextMenuItem
+										disabled={!continueAction.enabled}
+										onSelect={() => {
+											onContinueAgent(agent.agentId);
+										}}
+									>
+										Continue
+									</ContextMenuItem>
+								</ContextMenuContent>
+							</ContextMenu>
+						);
+					})}
+				</div>
+			</div>
+		);
+	})();
