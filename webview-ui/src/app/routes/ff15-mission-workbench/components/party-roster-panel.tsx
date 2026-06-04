@@ -1,3 +1,4 @@
+import { SidebarActionButton } from "@/components/sidebar-action-button";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -14,7 +15,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 
 type PartyRosterAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
 
@@ -102,6 +103,11 @@ interface OpenCodeModelDefinition {
 	name: string;
 }
 
+interface BulkModelSelection {
+	effort: string | null;
+	modelId: string;
+}
+
 interface PartyRosterAgent {
 	agentId: PartyRosterAgentId;
 	available: boolean;
@@ -130,9 +136,15 @@ interface ProviderState {
 }
 
 interface PartyRosterPanelProps {
+	bulkLiveApplyEnabled: boolean;
+	bulkLiveApplyReason: string | null;
+	bulkModelSelection: BulkModelSelection | null;
+	bulkModelSelectionSupported: boolean;
 	modelCatalog: OpenCodeModelDefinition[];
 	modelCatalogStatusMessage: string | null;
 	modelSelectionDisabledReason: string | null;
+	onApplyBulkModel: (input: BulkModelSelection) => void;
+	onReapplyBulkModel: () => void;
 	onChangeAgentModel: (input: {
 		agentId: PartyRosterAgent["agentId"];
 		effort: string | null;
@@ -167,6 +179,57 @@ interface AgentModelPickerProps {
 		modelId: string;
 	}) => void;
 }
+
+interface BulkModelPresetPanelProps {
+	bulkLiveApplyEnabled: boolean;
+	bulkLiveApplyReason: string | null;
+	bulkModelSelection: BulkModelSelection | null;
+	bulkModelSelectionSupported: boolean;
+	modelCatalog: OpenCodeModelDefinition[];
+	onApplyBulkModel: (input: BulkModelSelection) => void;
+	onReapplyBulkModel: () => void;
+	provider: ProviderState | null;
+}
+
+const normalizeBulkModelSelection = (
+	selection: BulkModelSelection | null,
+	modelCatalog: OpenCodeModelDefinition[]
+): BulkModelSelection | null => {
+	const fallbackModel = modelCatalog[0] ?? null;
+	if (!fallbackModel) {
+		return null;
+	}
+
+	const model =
+		modelCatalog.find((candidate) => candidate.id === selection?.modelId) ??
+		fallbackModel;
+	const effort =
+		typeof selection?.effort === "string" &&
+		model.efforts.some((option) => option.value === selection.effort)
+			? selection.effort
+			: (model.efforts[0]?.value ?? null);
+
+	return {
+		effort,
+		modelId: model.id,
+	};
+};
+
+const isBulkSelectionEnabled = (
+	supported: boolean,
+	modelCatalog: OpenCodeModelDefinition[],
+	selection: BulkModelSelection | null
+) => {
+	if (!supported) {
+		return false;
+	}
+
+	if (modelCatalog.length === 0) {
+		return false;
+	}
+
+	return selection !== null;
+};
 
 const AgentModelPicker = ({
 	agent,
@@ -310,182 +373,392 @@ const AgentModelPicker = ({
 	);
 };
 
+const BulkModelPresetPanel = ({
+	bulkLiveApplyEnabled,
+	bulkLiveApplyReason,
+	bulkModelSelection,
+	bulkModelSelectionSupported,
+	modelCatalog,
+	onApplyBulkModel,
+	onReapplyBulkModel,
+	provider,
+}: BulkModelPresetPanelProps) => {
+	const [bulkDraft, setBulkDraft] = useState<BulkModelSelection | null>(() =>
+		normalizeBulkModelSelection(bulkModelSelection, modelCatalog)
+	);
+
+	useEffect(() => {
+		setBulkDraft(normalizeBulkModelSelection(bulkModelSelection, modelCatalog));
+	}, [bulkModelSelection, modelCatalog]);
+
+	const bulkSelectionEnabled = isBulkSelectionEnabled(
+		bulkModelSelectionSupported,
+		modelCatalog,
+		bulkDraft
+	);
+	const bulkModel =
+		bulkDraft === null
+			? null
+			: (modelCatalog.find((model) => model.id === bulkDraft.modelId) ?? null);
+	let bulkEffortDisabled = true;
+	if (
+		bulkSelectionEnabled &&
+		bulkModel !== null &&
+		bulkModel.efforts.length > 0
+	) {
+		bulkEffortDisabled = false;
+	}
+	const applyDisabled = !bulkSelectionEnabled;
+	let reapplyDisabled = true;
+	if (bulkSelectionEnabled && bulkLiveApplyEnabled) {
+		reapplyDisabled = false;
+	}
+	const bulkSelectionStatusMessage = bulkLiveApplyEnabled
+		? null
+		: "Apply to All saves this preset now and live-switches everyone after Launch Terminal.";
+
+	const handleBulkModelChange = (modelId: string) => {
+		const model = modelCatalog.find((entry) => entry.id === modelId);
+		if (!model) {
+			return;
+		}
+
+		setBulkDraft({
+			effort: model.efforts.some((option) => option.value === bulkDraft?.effort)
+				? (bulkDraft?.effort ?? null)
+				: (model.efforts[0]?.value ?? null),
+			modelId,
+		});
+	};
+
+	const handleBulkEffortChange = (effort: string) => {
+		if (!bulkDraft) {
+			return;
+		}
+
+		setBulkDraft({
+			...bulkDraft,
+			effort,
+		});
+	};
+
+	return (
+		<div className="mb-3 rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-black/20 px-3 py-3">
+			<div className="flex flex-wrap items-start justify-between gap-2">
+				<div>
+					<div className="font-semibold text-[10px] text-[color:var(--vscode-foreground)] uppercase tracking-[0.18em]">
+						Bulk Model Setup
+					</div>
+					<div className="mt-1 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
+						Save one provider-specific preset, apply it across the full party,
+						and reuse it on the next mission.
+					</div>
+					{bulkSelectionStatusMessage ? (
+						<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] leading-4">
+							{bulkSelectionStatusMessage}
+						</div>
+					) : null}
+					{bulkLiveApplyReason && !bulkLiveApplyEnabled ? (
+						<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+							{bulkLiveApplyReason}
+						</div>
+					) : null}
+				</div>
+				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+					{provider?.id === "opencode"
+						? "OpenCode Preset"
+						: "GitHub Copilot Preset"}
+				</span>
+			</div>
+			<div className="mt-3 flex flex-wrap items-end gap-2">
+				<div className="min-w-[12rem] flex-1">
+					<Select
+						disabled={!bulkSelectionEnabled}
+						onValueChange={handleBulkModelChange}
+						value={bulkDraft?.modelId}
+					>
+						<SelectTrigger
+							className={cn(
+								"h-8 w-full min-w-0 px-2 font-mono text-[10px] uppercase tracking-[0.18em]",
+								"hover:bg-black/60",
+								"disabled:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.58))]",
+								"data-[placeholder]:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.82))]",
+								"[&_svg]:text-[color:var(--vscode-foreground)]"
+							)}
+							size="sm"
+							style={{
+								backgroundColor: "rgba(0, 0, 0, 0.5)",
+								borderColor: "rgba(255, 255, 255, 0.12)",
+								boxShadow: "none",
+								color: "var(--vscode-foreground)",
+							}}
+						>
+							<SelectValue placeholder="Select model" />
+						</SelectTrigger>
+						<SelectContent
+							align="end"
+							className="border-white/12 bg-[rgba(8,10,16,0.98)] text-[color:var(--vscode-foreground)]"
+						>
+							{modelCatalog.map((model) => (
+								<SelectItem key={model.id} value={model.id}>
+									{model.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+				<div className="min-w-[9rem] flex-1">
+					<Select
+						disabled={bulkEffortDisabled}
+						onValueChange={handleBulkEffortChange}
+						value={bulkDraft?.effort ?? undefined}
+					>
+						<SelectTrigger
+							className={cn(
+								"h-8 w-full min-w-0 px-2 font-mono text-[10px] uppercase tracking-[0.18em]",
+								"hover:bg-black/60",
+								"disabled:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.58))]",
+								"data-[placeholder]:text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.82))]",
+								"[&_svg]:text-[color:var(--vscode-foreground)]"
+							)}
+							size="sm"
+							style={{
+								backgroundColor: "rgba(0, 0, 0, 0.5)",
+								borderColor: "rgba(255, 255, 255, 0.12)",
+								boxShadow: "none",
+								color: "var(--vscode-foreground)",
+							}}
+						>
+							<SelectValue placeholder="Effort unavailable" />
+						</SelectTrigger>
+						<SelectContent
+							align="end"
+							className="border-white/12 bg-[rgba(8,10,16,0.98)] text-[color:var(--vscode-foreground)]"
+						>
+							{bulkModel?.efforts.map((effort) => (
+								<SelectItem key={effort.value} value={effort.value}>
+									{effort.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+				<SidebarActionButton
+					className="h-8 px-3 text-[11px]"
+					disabled={applyDisabled}
+					onClick={() => {
+						if (!bulkDraft) {
+							return;
+						}
+
+						onApplyBulkModel(bulkDraft);
+					}}
+				>
+					Apply to All
+				</SidebarActionButton>
+				<SidebarActionButton
+					className="h-8 px-3 text-[11px]"
+					disabled={reapplyDisabled}
+					onClick={onReapplyBulkModel}
+				>
+					Reapply Last
+				</SidebarActionButton>
+			</div>
+		</div>
+	);
+};
+
 export const PartyRosterPanel = ({
+	bulkLiveApplyEnabled,
+	bulkLiveApplyReason,
+	bulkModelSelection,
+	bulkModelSelectionSupported,
 	modelCatalog,
 	modelCatalogStatusMessage,
 	modelSelectionDisabledReason,
+	onApplyBulkModel,
+	onReapplyBulkModel,
 	onChangeAgentModel,
 	onChangeAgentVariant,
 	onContinueAgent,
 	partyRosterEnabled,
 	partyRoster,
 	provider,
-}: PartyRosterPanelProps) =>
-	(() => {
-		const continueAction = provider?.capabilities.continueAgent ?? {
-			enabled: partyRosterEnabled,
-			supported: true,
-			unavailableReason: partyRosterEnabled
-				? null
-				: "Launch Terminal before using party roster actions.",
-		};
-		const modelAction = provider?.capabilities.modelSelection ?? {
-			enabled: modelSelectionDisabledReason === null,
-			supported: true,
-			unavailableReason: modelSelectionDisabledReason,
-		};
-		const showContinueReason =
-			continueAction.unavailableReason !== null &&
-			continueAction.unavailableReason !== modelAction.unavailableReason;
+}: PartyRosterPanelProps) => {
+	const continueAction = provider?.capabilities.continueAgent ?? {
+		enabled: partyRosterEnabled,
+		supported: true,
+		unavailableReason: partyRosterEnabled
+			? null
+			: "Launch Terminal before using party roster actions.",
+	};
+	const modelAction = provider?.capabilities.modelSelection ?? {
+		enabled: modelSelectionDisabledReason === null,
+		supported: true,
+		unavailableReason: modelSelectionDisabledReason,
+	};
+	const showContinueReason =
+		continueAction.unavailableReason !== null &&
+		continueAction.unavailableReason !== modelAction.unavailableReason;
 
-		return (
-			<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.16)]">
-				<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-					<div>
-						<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
-							Party Roster
-						</div>
-						<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
-							Right-click a card to continue. Model controls stay on each card.
-						</div>
-						{modelCatalogStatusMessage ? (
-							<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
-								{modelCatalogStatusMessage}
-							</div>
-						) : null}
-						{showContinueReason ? (
-							<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
-								{continueAction.unavailableReason}
-							</div>
-						) : null}
-						{modelAction.unavailableReason ? (
-							<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
-								{modelAction.unavailableReason}
-							</div>
-						) : null}
+	return (
+		<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.16)]">
+			<BulkModelPresetPanel
+				bulkLiveApplyEnabled={bulkLiveApplyEnabled}
+				bulkLiveApplyReason={bulkLiveApplyReason}
+				bulkModelSelection={bulkModelSelection}
+				bulkModelSelectionSupported={bulkModelSelectionSupported}
+				modelCatalog={modelCatalog}
+				onApplyBulkModel={onApplyBulkModel}
+				onReapplyBulkModel={onReapplyBulkModel}
+				provider={provider}
+			/>
+			<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+				<div>
+					<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
+						Party Roster
 					</div>
-					<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-						{partyRoster.filter((agent) => agent.available).length} Live Panes
-					</span>
+					<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
+						Right-click a card to continue. Bulk presets sit above, and
+						per-agent overrides stay on each card.
+					</div>
+					{modelCatalogStatusMessage ? (
+						<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
+							{modelCatalogStatusMessage}
+						</div>
+					) : null}
+					{showContinueReason ? (
+						<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+							{continueAction.unavailableReason}
+						</div>
+					) : null}
+					{modelAction.unavailableReason ? (
+						<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+							{modelAction.unavailableReason}
+						</div>
+					) : null}
 				</div>
+				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+					{partyRoster.filter((agent) => agent.available).length} Live Panes
+				</span>
+			</div>
+			<div className="grid gap-2">
+				{partyRoster.map((agent) => {
+					const theme = AGENT_THEMES[agent.agentId];
+					const portraitFilter = [
+						`drop-shadow(0 0 3px ${theme.glowSoft})`,
+						`drop-shadow(0 0 7px ${theme.glow})`,
+						agent.available
+							? `drop-shadow(0 0 12px ${theme.accent})`
+							: `drop-shadow(0 0 5px ${theme.glow})`,
+					].join(" ");
 
-				<div className="grid gap-2">
-					{partyRoster.map((agent) => {
-						const theme = AGENT_THEMES[agent.agentId];
-						const portraitFilter = [
-							`drop-shadow(0 0 3px ${theme.glowSoft})`,
-							`drop-shadow(0 0 7px ${theme.glow})`,
-							agent.available
-								? `drop-shadow(0 0 12px ${theme.accent})`
-								: `drop-shadow(0 0 5px ${theme.glow})`,
-						].join(" ");
-
-						return (
-							<ContextMenu key={agent.agentId}>
-								<ContextMenuTrigger asChild>
-									<div
-										className={cn(
-											"min-w-0",
-											"rounded-xl",
-											"border border-transparent",
-											"px-3 py-3",
-											"transition-transform",
-											"hover:-translate-y-0.5",
-											"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
-										)}
-										style={{
-											background: theme.surface,
-											boxShadow: `0 16px 34px rgba(0,0,0,0.34), 0 1px 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 18px ${theme.glow}`,
-										}}
-									>
-										<div className="flex min-w-0 items-center gap-3.5">
-											<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
+					return (
+						<ContextMenu key={agent.agentId}>
+							<ContextMenuTrigger asChild>
+								<div
+									className={cn(
+										"min-w-0",
+										"rounded-xl",
+										"border border-transparent",
+										"px-3 py-3",
+										"transition-transform",
+										"hover:-translate-y-0.5",
+										"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
+									)}
+									style={{
+										background: theme.surface,
+										boxShadow: `0 16px 34px rgba(0,0,0,0.34), 0 1px 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.03) inset, 0 0 18px ${theme.glow}`,
+									}}
+								>
+									<div className="flex min-w-0 items-center gap-3.5">
+										<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
+											<span
+												aria-hidden="true"
+												className="pointer-events-none absolute rounded-full"
+												style={{
+													background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
+													bottom: 0,
+													height: "2rem",
+													left: "50%",
+													opacity: agent.available ? 1 : 0.72,
+													transform: "translateX(-50%)",
+													width: "2rem",
+												}}
+											/>
+											{agent.available ? (
 												<span
 													aria-hidden="true"
-													className="pointer-events-none absolute rounded-full"
+													className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
 													style={{
-														background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
-														bottom: 0,
-														height: "2rem",
-														left: "50%",
-														opacity: agent.available ? 1 : 0.72,
-														transform: "translateX(-50%)",
-														width: "2rem",
+														background: theme.glow,
+														filter: "blur(16px)",
 													}}
 												/>
-												{agent.available ? (
-													<span
-														aria-hidden="true"
-														className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
-														style={{
-															background: theme.glow,
-															filter: "blur(16px)",
-														}}
-													/>
-												) : null}
-												<img
-													alt={agent.displayName}
-													className="relative z-10 h-full w-full object-contain object-bottom"
-													height={64}
-													src={AGENT_PORTRAITS[agent.agentId]}
-													style={{ filter: portraitFilter }}
-													width={40}
-												/>
+											) : null}
+											<img
+												alt={agent.displayName}
+												className="relative z-10 h-full w-full object-contain object-bottom"
+												height={64}
+												src={AGENT_PORTRAITS[agent.agentId]}
+												style={{ filter: portraitFilter }}
+												width={40}
+											/>
+										</div>
+										<div className="min-w-0 flex-1">
+											<div className="flex items-center gap-2">
+												<div
+													className="truncate font-bold text-sm uppercase tracking-wider"
+													style={{ color: theme.text }}
+												>
+													{agent.displayName}
+												</div>
+												<div
+													className="font-mono text-[9px]"
+													style={{
+														color:
+															"var(--vscode-descriptionForeground, rgba(255,255,255,0.76))",
+														letterSpacing: "0.12em",
+														textTransform: "uppercase",
+													}}
+												>
+													{AGENT_ROLE_LABELS[agent.agentId]}
+												</div>
 											</div>
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2">
-													<div
-														className="truncate font-bold text-sm uppercase tracking-wider"
-														style={{ color: theme.text }}
-													>
-														{agent.displayName}
-													</div>
-													<div
-														className="font-mono text-[9px]"
-														style={{
-															color:
-																"var(--vscode-descriptionForeground, rgba(255,255,255,0.76))",
-															letterSpacing: "0.12em",
-															textTransform: "uppercase",
-														}}
-													>
-														{AGENT_ROLE_LABELS[agent.agentId]}
-													</div>
-												</div>
-												<div className="mt-1 w-full max-w-[17rem]">
-													<AgentModelPicker
-														agent={agent}
-														disabled={false}
-														modelCatalog={modelCatalog}
-														modelSelectionDisabledReason={
-															modelAction.unavailableReason
-														}
-														modelSelectionEnabled={modelAction.enabled}
-														modelSelectionSupported={modelAction.supported}
-														onChangeAgentModel={onChangeAgentModel}
-														onChangeAgentVariant={onChangeAgentVariant}
-													/>
-												</div>
+											<div className="mt-1 w-full max-w-[17rem]">
+												<AgentModelPicker
+													agent={agent}
+													disabled={false}
+													modelCatalog={modelCatalog}
+													modelSelectionDisabledReason={
+														modelAction.unavailableReason
+													}
+													modelSelectionEnabled={modelAction.enabled}
+													modelSelectionSupported={modelAction.supported}
+													onChangeAgentModel={onChangeAgentModel}
+													onChangeAgentVariant={onChangeAgentVariant}
+												/>
 											</div>
 										</div>
 									</div>
-								</ContextMenuTrigger>
-								<ContextMenuContent className="w-52">
-									<ContextMenuLabel>{agent.displayName}</ContextMenuLabel>
-									<ContextMenuSeparator />
-									<ContextMenuItem
-										disabled={!continueAction.enabled}
-										onSelect={() => {
-											onContinueAgent(agent.agentId);
-										}}
-									>
-										Continue
-									</ContextMenuItem>
-								</ContextMenuContent>
-							</ContextMenu>
-						);
-					})}
-				</div>
+								</div>
+							</ContextMenuTrigger>
+							<ContextMenuContent className="w-52">
+								<ContextMenuLabel>{agent.displayName}</ContextMenuLabel>
+								<ContextMenuSeparator />
+								<ContextMenuItem
+									disabled={!continueAction.enabled}
+									onSelect={() => {
+										onContinueAgent(agent.agentId);
+									}}
+								>
+									Continue
+								</ContextMenuItem>
+							</ContextMenuContent>
+						</ContextMenu>
+					);
+				})}
 			</div>
-		);
-	})();
+		</div>
+	);
+};

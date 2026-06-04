@@ -8,8 +8,10 @@ import {
 	type Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
 import {
+	createDefaultFf15MissionBulkModelPresets,
 	FF15_OPENCODE_MODEL_CATALOG,
 	resolveFf15OpenCodeModelDefinition,
+	type Ff15MissionAgentModelSelection,
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
 import {
@@ -123,6 +125,7 @@ interface WorkbenchProviderState {
 }
 
 interface WorkbenchState {
+	bulkModelSelection: Ff15MissionAgentModelSelection | null;
 	modelCatalog: Ff15OpenCodeModelDefinition[];
 	modelCatalogStatusMessage: string | null;
 	mission: WorkbenchMissionState | null;
@@ -316,11 +319,15 @@ export const createFf15MissionWorkbenchController = (
 		});
 	};
 	const panels = new Map<string, WebviewPanel>();
+	const getBulkModelPresets = () =>
+		options.missionsStore.getBulkModelPresets?.() ??
+		createDefaultFf15MissionBulkModelPresets();
 
 	const buildState = async (missionId: string): Promise<WorkbenchState> => {
 		const mission = options.missionsStore.getMissionRecord(missionId);
 		if (!mission) {
 			return {
+				bulkModelSelection: null,
 				modelCatalog: [],
 				modelCatalogStatusMessage: null,
 				mission: null,
@@ -340,6 +347,7 @@ export const createFf15MissionWorkbenchController = (
 		const modelCatalog = adapter.getModelCatalog(resolvedCatalog.modelCatalog);
 
 		return {
+			bulkModelSelection: getBulkModelPresets()[mission.providerId],
 			modelCatalog,
 			modelCatalogStatusMessage: resolvedCatalog.modelCatalogStatusMessage,
 			mission: missionState,
@@ -546,6 +554,87 @@ export const createFf15MissionWorkbenchController = (
 		await postState(missionId, panel);
 	};
 
+	const applyBulkModelSelection = async (input: {
+		mission: NonNullable<ReturnType<Ff15MissionsStore["getMissionRecord"]>>;
+		selection: Ff15MissionAgentModelSelection;
+		terminalReady: boolean;
+	}) => {
+		await options.missionsStore.updateBulkModelPreset?.(
+			input.mission.providerId,
+			input.selection
+		);
+
+		if (!(input.terminalReady && options.missionAgentActionController)) {
+			return;
+		}
+
+		for (const agentId of FF15_AGENT_IDS) {
+			await options.missionAgentActionController.changeAgentModel({
+				agentId,
+				effort: input.selection.effort,
+				missionId: input.mission.id,
+				modelId: input.selection.modelId,
+			});
+		}
+	};
+
+	const handleApplyBulkModelMessage = async (
+		missionId: string,
+		panel: WebviewPanel,
+		message: { effort?: unknown; modelId?: unknown }
+	) => {
+		if (
+			typeof message.modelId !== "string" ||
+			!(message.effort === null || typeof message.effort === "string")
+		) {
+			return;
+		}
+
+		const mission = options.missionsStore.getMissionRecord(missionId);
+		if (!mission) {
+			return;
+		}
+
+		const terminalReady =
+			options.missionSessionController.isMissionTerminalReady?.(missionId) ??
+			false;
+
+		await applyBulkModelSelection({
+			mission,
+			selection: {
+				effort: message.effort,
+				modelId: message.modelId,
+			},
+			terminalReady,
+		});
+		await postState(missionId, panel);
+	};
+
+	const handleReapplyBulkModelMessage = async (
+		missionId: string,
+		panel: WebviewPanel
+	) => {
+		const mission = options.missionsStore.getMissionRecord(missionId);
+		if (!mission) {
+			return;
+		}
+
+		const terminalReady =
+			options.missionSessionController.isMissionTerminalReady?.(missionId) ??
+			false;
+		if (!terminalReady) {
+			await postState(missionId, panel);
+			return;
+		}
+
+		await applyBulkModelSelection({
+			mission,
+			selection: getBulkModelPresets()[mission.providerId],
+			terminalReady,
+		});
+		await postState(missionId, panel);
+	};
+
 	const handlePanelMessage = async (
 		missionId: string,
 		panel: WebviewPanel,
@@ -598,6 +687,14 @@ export const createFf15MissionWorkbenchController = (
 			}
 			case "ff15-mission-workbench.change-agent-variant": {
 				await handleChangeAgentVariantMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.apply-bulk-model": {
+				await handleApplyBulkModelMessage(missionId, panel, message);
+				return;
+			}
+			case "ff15-mission-workbench.reapply-bulk-model": {
+				await handleReapplyBulkModelMessage(missionId, panel);
 				return;
 			}
 			default:

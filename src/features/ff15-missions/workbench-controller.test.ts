@@ -486,6 +486,246 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 	});
 
+	it("publishes the saved bulk model preset for the active provider", async () => {
+		const missionPanel = createPanelDouble();
+		const missionsStore = {
+			getBulkModelPresets: vi.fn(() => ({
+				"github-copilot-cli": { effort: "3", modelId: "gpt-5-mini" },
+				opencode: {
+					effort: "low",
+					modelId: "github-copilot/big-pickle",
+				},
+			})),
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: "terminal_2",
+					noctis: "terminal_1",
+					prompto: null,
+				},
+				createdAt: "2026-06-05T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-05T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+			updateBulkModelPreset: vi.fn().mockResolvedValue(undefined),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(true),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				bulkModelSelection: {
+					effort: "low",
+					modelId: "github-copilot/big-pickle",
+				},
+			}),
+		});
+	});
+
+	it("saves the bulk preset without live model changes when the mission terminal is not ready", async () => {
+		const missionPanel = createPanelDouble();
+		const missionAgentActionController = {
+			changeAgentModel: vi.fn().mockResolvedValue(undefined),
+			changeAgentVariant: vi.fn().mockResolvedValue(undefined),
+			continueAgent: vi.fn().mockResolvedValue(undefined),
+		};
+		const missionsStore = {
+			getBulkModelPresets: vi.fn(() => ({
+				"github-copilot-cli": { effort: "1", modelId: "gpt-5.4" },
+				opencode: { effort: "1", modelId: "gpt-5.4" },
+			})),
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: null,
+					prompto: null,
+				},
+				createdAt: "2026-06-05T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "github-copilot-cli" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: null,
+				status: "draft" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-05T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+			updateBulkModelPreset: vi.fn().mockResolvedValue(undefined),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionAgentActionController,
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(false),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: {
+					command: string;
+					effort?: string;
+					modelId?: string;
+			  }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.apply-bulk-model",
+			effort: "3",
+			modelId: "gpt-5-mini",
+		});
+
+		expect(missionsStore.updateBulkModelPreset).toHaveBeenCalledWith(
+			"github-copilot-cli",
+			{
+				effort: "3",
+				modelId: "gpt-5-mini",
+			}
+		);
+		expect(
+			missionAgentActionController.changeAgentModel
+		).not.toHaveBeenCalled();
+	});
+
+	it("reapplies the saved bulk preset across the full party roster when the mission terminal is ready", async () => {
+		const missionPanel = createPanelDouble();
+		const missionAgentActionController = {
+			changeAgentModel: vi.fn().mockResolvedValue(undefined),
+			changeAgentVariant: vi.fn().mockResolvedValue(undefined),
+			continueAgent: vi.fn().mockResolvedValue(undefined),
+		};
+		const missionsStore = {
+			getBulkModelPresets: vi.fn(() => ({
+				"github-copilot-cli": { effort: "2", modelId: "gpt-5-mini" },
+				opencode: { effort: "1", modelId: "gpt-5.4" },
+			})),
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: "terminal_3",
+					ignis: "terminal_2",
+					noctis: "terminal_1",
+					prompto: "terminal_4",
+				},
+				createdAt: "2026-06-05T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "github-copilot-cli" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: "ff15-session",
+				status: "active" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-05T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+			updateBulkModelPreset: vi.fn().mockResolvedValue(undefined),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionAgentActionController,
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(true),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: { command: string }) => Promise<void>)
+			| undefined;
+
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.reapply-bulk-model",
+		});
+
+		expect(missionAgentActionController.changeAgentModel).toHaveBeenCalledTimes(
+			4
+		);
+		expect(
+			missionAgentActionController.changeAgentModel
+		).toHaveBeenNthCalledWith(1, {
+			agentId: "noctis",
+			effort: "2",
+			missionId: "mission-1",
+			modelId: "gpt-5-mini",
+		});
+		expect(
+			missionAgentActionController.changeAgentModel
+		).toHaveBeenNthCalledWith(4, {
+			agentId: "prompto",
+			effort: "2",
+			missionId: "mission-1",
+			modelId: "gpt-5-mini",
+		});
+	});
+
 	it("forwards OpenCode party roster model changes through the action controller", async () => {
 		const missionPanel = createPanelDouble();
 		const missionAgentActionController = {
