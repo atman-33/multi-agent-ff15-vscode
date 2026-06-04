@@ -7,6 +7,7 @@ vi.mock("vscode", () => ({
 }));
 
 import { ViewColumn } from "vscode";
+import { FF15_AGENT_ACTION_SESSION_UNAVAILABLE_MESSAGE } from "./agent-actions";
 import {
 	createFf15MissionWorkbenchController,
 	FF15_MISSION_WORKBENCH_PANEL_VIEW_TYPE,
@@ -113,6 +114,21 @@ describe("createFf15MissionWorkbenchController", () => {
 				mission: expect.objectContaining({
 					providerId: "github-copilot-cli",
 				}),
+				provider: {
+					capabilities: {
+						continueAgent: {
+							enabled: true,
+							supported: true,
+							unavailableReason: null,
+						},
+						modelSelection: {
+							enabled: true,
+							supported: true,
+							unavailableReason: null,
+						},
+					},
+					id: "github-copilot-cli",
+				},
 				modelCatalog: expect.arrayContaining([
 					expect.objectContaining({ name: "GPT-5.4" }),
 					expect.objectContaining({ name: "GPT-5 mini" }),
@@ -290,12 +306,98 @@ describe("createFf15MissionWorkbenchController", () => {
 				mission: expect.objectContaining({
 					providerId: "opencode",
 				}),
+				provider: {
+					capabilities: {
+						continueAgent: {
+							enabled: true,
+							supported: true,
+							unavailableReason: null,
+						},
+						modelSelection: {
+							enabled: false,
+							supported: true,
+							unavailableReason:
+								"FF15 could not refresh OpenCode models: opencode models failed",
+						},
+					},
+					id: "opencode",
+				},
 				partyRoster: expect.arrayContaining([
 					expect.objectContaining({
 						agentId: "noctis",
 						available: true,
 					}),
 				]),
+			}),
+		});
+	});
+
+	it("publishes runtime-specific roster action reasons before the mission terminal is ready", async () => {
+		const missionPanel = createPanelDouble();
+		const missionsStore = {
+			getMissionRecord: vi.fn(() => ({
+				agentPanes: {
+					gladiolus: null,
+					ignis: null,
+					noctis: null,
+					prompto: null,
+				},
+				createdAt: "2026-06-04T00:00:00.000Z",
+				id: "mission-1",
+				lastError: null,
+				operationRef: null,
+				providerId: "opencode" as const,
+				providerState: createDefaultFf15MissionProviderState(),
+				schemaVersion: 2 as const,
+				sessionName: null,
+				status: "draft" as const,
+				title: "Mission 1",
+				updatedAt: "2026-06-04T00:00:00.000Z",
+				workflow: createEmptyWorkflowState(),
+				workspaceRoot: "C:/repo",
+			})),
+			updateMission: vi.fn(),
+		};
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionSendController: {
+				submitPrompt: vi.fn(),
+			},
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: vi.fn().mockReturnValue(false),
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: missionsStore as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		await controller.showMission("mission-1");
+
+		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-mission-workbench.state",
+			state: expect.objectContaining({
+				provider: {
+					capabilities: {
+						continueAgent: {
+							enabled: false,
+							supported: true,
+							unavailableReason: FF15_AGENT_ACTION_SESSION_UNAVAILABLE_MESSAGE,
+						},
+						modelSelection: {
+							enabled: false,
+							supported: true,
+							unavailableReason: FF15_AGENT_ACTION_SESSION_UNAVAILABLE_MESSAGE,
+						},
+					},
+					id: "opencode",
+				},
 			}),
 		});
 	});

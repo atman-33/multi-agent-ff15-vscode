@@ -12,6 +12,10 @@ import {
 	resolveFf15OpenCodeModelDefinition,
 	type Ff15OpenCodeModelDefinition,
 } from "./model-contract";
+import {
+	FF15_AGENT_ACTION_SESSION_UNAVAILABLE_MESSAGE,
+	FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE,
+} from "./agent-actions";
 import { resolveFf15MissionProviderAdapter } from "./mission-provider-adapter";
 import {
 	createDefaultMissionOpenCodeModelCatalogResolution,
@@ -104,6 +108,20 @@ interface WorkbenchPartyRosterAgent {
 	paneId: string | null;
 }
 
+interface WorkbenchProviderActionState {
+	enabled: boolean;
+	supported: boolean;
+	unavailableReason: string | null;
+}
+
+interface WorkbenchProviderState {
+	capabilities: {
+		continueAgent: WorkbenchProviderActionState;
+		modelSelection: WorkbenchProviderActionState;
+	};
+	id: Ff15LaunchClientId;
+}
+
 interface WorkbenchState {
 	modelCatalog: Ff15OpenCodeModelDefinition[];
 	modelCatalogStatusMessage: string | null;
@@ -111,6 +129,7 @@ interface WorkbenchState {
 	modelSelectionDisabledReason: string | null;
 	operations: Ff15MissionWorkbenchCatalog;
 	partyRoster: WorkbenchPartyRosterAgent[];
+	provider: WorkbenchProviderState | null;
 }
 
 interface CreateFf15MissionWorkbenchControllerOptions {
@@ -151,6 +170,9 @@ const EMPTY_CATALOG: Ff15MissionWorkbenchCatalog = {
 	supported: [],
 	unsupported: [],
 };
+
+const MODEL_CATALOG_UNAVAILABLE_MESSAGE =
+	"FF15 could not resolve model choices for the pinned mission provider.";
 
 const isFf15AgentId = (value: unknown): value is Ff15AgentId =>
 	typeof value === "string" &&
@@ -223,6 +245,48 @@ const toMissionState = (
 	};
 };
 
+const toProviderState = (input: {
+	mission: NonNullable<ReturnType<Ff15MissionsStore["getMissionRecord"]>>;
+	modelCatalog: readonly Ff15OpenCodeModelDefinition[];
+	modelSelectionDisabledReason: string | null;
+	terminalReady: boolean;
+}): WorkbenchProviderState => {
+	const adapter = resolveFf15MissionProviderAdapter(input.mission.providerId);
+	const continueUnavailableReason = input.terminalReady
+		? null
+		: FF15_AGENT_ACTION_SESSION_UNAVAILABLE_MESSAGE;
+	let modelSelectionUnavailableReason: string | null = null;
+	if (!adapter.capabilities.modelSelection) {
+		modelSelectionUnavailableReason =
+			FF15_AGENT_MODEL_PROVIDER_UNAVAILABLE_MESSAGE;
+	} else if (!input.terminalReady) {
+		modelSelectionUnavailableReason =
+			FF15_AGENT_ACTION_SESSION_UNAVAILABLE_MESSAGE;
+	} else if (input.modelSelectionDisabledReason) {
+		modelSelectionUnavailableReason = input.modelSelectionDisabledReason;
+	} else if (input.modelCatalog.length === 0) {
+		modelSelectionUnavailableReason = MODEL_CATALOG_UNAVAILABLE_MESSAGE;
+	}
+
+	return {
+		capabilities: {
+			continueAgent: {
+				enabled: continueUnavailableReason === null,
+				supported: true,
+				unavailableReason: continueUnavailableReason,
+			},
+			modelSelection: {
+				enabled:
+					adapter.capabilities.modelSelection &&
+					modelSelectionUnavailableReason === null,
+				supported: adapter.capabilities.modelSelection,
+				unavailableReason: modelSelectionUnavailableReason,
+			},
+		},
+		id: input.mission.providerId,
+	};
+};
+
 export const createFf15MissionWorkbenchController = (
 	options: CreateFf15MissionWorkbenchControllerOptions
 ): Ff15MissionWorkbenchController => {
@@ -263,14 +327,14 @@ export const createFf15MissionWorkbenchController = (
 				modelSelectionDisabledReason: null,
 				operations: EMPTY_CATALOG,
 				partyRoster: [],
+				provider: null,
 			};
 		}
 
-		const missionState = toMissionState(
-			mission,
+		const terminalReady =
 			options.missionSessionController.isMissionTerminalReady?.(missionId) ??
-				false
-		);
+			false;
+		const missionState = toMissionState(mission, terminalReady);
 		const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
 		const resolvedCatalog = await getResolvedCatalog(mission);
 		const modelCatalog = adapter.getModelCatalog(resolvedCatalog.modelCatalog);
@@ -283,6 +347,13 @@ export const createFf15MissionWorkbenchController = (
 				resolvedCatalog.modelSelectionDisabledReason,
 			operations: await options.loadOperationsCatalog(mission.workspaceRoot),
 			partyRoster: toPartyRosterState(mission, modelCatalog),
+			provider: toProviderState({
+				mission,
+				modelCatalog,
+				modelSelectionDisabledReason:
+					resolvedCatalog.modelSelectionDisabledReason,
+				terminalReady,
+			}),
 		};
 	};
 
