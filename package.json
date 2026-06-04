@@ -88,10 +88,10 @@
             "opencode"
           ],
           "enumDescriptions": [
-            "Default. Launch each FF15 roster pane with GitHub Copilot CLI (`copilot`).",
-            "Launch each FF15 roster pane with OpenCode (`opencode --agent <agent>`)."
+            "Launch each FF15 roster pane with GitHub Copilot CLI (`copilot`).",
+            "Default. Launch each FF15 roster pane with OpenCode (`opencode --agent <agent>`)."
           ],
-          "default": "github-copilot-cli",
+          "default": "opencode",
           "description": "Select which launch client FF15 uses for its fixed roster panes."
         }
       }

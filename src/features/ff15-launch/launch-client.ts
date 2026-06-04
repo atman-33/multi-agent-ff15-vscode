@@ -39,7 +39,7 @@ export interface CreateFf15LaunchClientDependencies {
 	resolveOpenCodeCommand: () => string;
 }
 
-export const DEFAULT_FF15_LAUNCH_CLIENT_ID = "github-copilot-cli";
+export const DEFAULT_FF15_LAUNCH_CLIENT_ID = "opencode";
 const FF15_COPILOT_PERMISSION_ARGS = [
 	"--allow-all-tools",
 	"--deny-tool=shell(git push)",

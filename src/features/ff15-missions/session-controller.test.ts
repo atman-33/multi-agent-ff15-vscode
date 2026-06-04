@@ -2,6 +2,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import type {
+	Ff15LaunchClient,
+	Ff15LaunchClientId,
+} from "../ff15-launch/launch-client";
 import {
 	createFf15MissionSessionController,
 	MISSING_MISSION_WORKSPACE_MESSAGE,
@@ -16,35 +20,46 @@ const MISSION_SESSION_NAME_PATTERN = /^ff15-[a-f0-9]{10}-mission-1$/;
 
 const createStorage = () => {
 	let persistedSnapshot:
-		| ReturnType<typeof createWorkspaceStateFf15MissionsStore>["getSnapshot"]
+		| ReturnType<
+				ReturnType<typeof createWorkspaceStateFf15MissionsStore>["getSnapshot"]
+		  >
 		| undefined;
+	const getStorageValue: Parameters<
+		typeof createWorkspaceStateFf15MissionsStore
+	>[0]["get"] = <T>(_key: string) => persistedSnapshot as T | undefined;
+	const storage: Parameters<typeof createWorkspaceStateFf15MissionsStore>[0] = {
+		get: getStorageValue,
+		update: vi.fn().mockImplementation((_key: string, value) => {
+			persistedSnapshot = value;
+			return Promise.resolve(undefined);
+		}),
+	};
 
 	return {
-		storage: {
-			get: vi.fn(() => persistedSnapshot),
-			update: vi.fn().mockImplementation((_key: string, value) => {
-				persistedSnapshot = value;
-				return Promise.resolve(undefined);
-			}),
-		},
+		storage,
 	};
 };
 
 const createWorkspaceRoot = (): string =>
 	mkdtempSync(join(tmpdir(), "ff15-session-controller-"));
 
-const createLaunchClient = () => ({
+const createLaunchClient = (
+	id: Ff15LaunchClientId = "opencode"
+): Ff15LaunchClient => ({
+	id,
 	ensureDependenciesAvailable: vi.fn().mockResolvedValue(undefined),
 	getMissingDependencyMessage: vi
 		.fn()
 		.mockReturnValue(
-			"FF15 launch requires GitHub Copilot CLI `copilot` on PATH."
+			id === "opencode"
+				? "FF15 launch requires `opencode` on PATH."
+				: "FF15 launch requires GitHub Copilot CLI `copilot` on PATH."
 		),
 	getPaneLaunchPlan: vi.fn().mockReturnValue([
 		{
 			agentId: "noctis",
 			args: ["--agent", "noctis"],
-			executable: "copilot",
+			executable: id === "opencode" ? "opencode" : "copilot",
 		},
 	]),
 });
@@ -105,7 +120,7 @@ describe("createFf15MissionSessionController", () => {
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
 					agentPanes: createEmptyFf15MissionAgentPanes(),
-					providerId: "github-copilot-cli",
+					providerId: "opencode",
 				})
 			);
 		} finally {
@@ -125,8 +140,8 @@ describe("createFf15MissionSessionController", () => {
 			});
 			await missionsStore.createMission({ providerId: "opencode" });
 
-			const githubClient = createLaunchClient();
-			const opencodeClient = createLaunchClient();
+			const githubClient = createLaunchClient("github-copilot-cli");
+			const opencodeClient = createLaunchClient("opencode");
 			const launchTerminal = vi.fn().mockResolvedValue(undefined);
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
@@ -171,7 +186,7 @@ describe("createFf15MissionSessionController", () => {
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
 				getPinnedProviderId: () => "opencode",
-				getLaunchClient: createLaunchClient,
+				getLaunchClient: () => createLaunchClient(),
 				getLaunchLayoutPath: vi
 					.fn()
 					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
@@ -212,7 +227,7 @@ describe("createFf15MissionSessionController", () => {
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
 				getPinnedProviderId: () => "github-copilot-cli",
-				getLaunchClient: createLaunchClient,
+				getLaunchClient: () => createLaunchClient(),
 				getLaunchLayoutPath: vi
 					.fn()
 					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
@@ -265,7 +280,7 @@ describe("createFf15MissionSessionController", () => {
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
 				getPinnedProviderId: () => "github-copilot-cli",
-				getLaunchClient: createLaunchClient,
+				getLaunchClient: () => createLaunchClient(),
 				getLaunchLayoutPath: vi
 					.fn()
 					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
@@ -390,7 +405,8 @@ describe("createFf15MissionSessionController", () => {
 				.mockResolvedValue(undefined);
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
-				getLaunchClient: createLaunchClient,
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: () => createLaunchClient(),
 				getLaunchLayoutPath: vi
 					.fn()
 					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
@@ -437,7 +453,8 @@ describe("createFf15MissionSessionController", () => {
 			const terminateMissionSession = vi.fn().mockResolvedValue(undefined);
 			const controller = createFf15MissionSessionController({
 				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
-				getLaunchClient: createLaunchClient,
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: () => createLaunchClient(),
 				getLaunchLayoutPath: vi
 					.fn()
 					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
@@ -479,7 +496,8 @@ describe("createFf15MissionSessionController", () => {
 		const showErrorMessage = vi.fn();
 		const controller = createFf15MissionSessionController({
 			ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
-			getLaunchClient: createLaunchClient,
+			getPinnedProviderId: () => "opencode",
+			getLaunchClient: () => createLaunchClient(),
 			getLaunchLayoutPath: vi.fn().mockReturnValue("C:/repo/.ff15/layout.kdl"),
 			getWorkspaceRoot: () => ["C:/repo"][1],
 			launchTerminal: vi.fn().mockResolvedValue(undefined),
@@ -520,7 +538,8 @@ describe("createFf15MissionSessionController", () => {
 				ensureCommandAvailable: vi
 					.fn()
 					.mockRejectedValue(new Error("missing zellij")),
-				getLaunchClient: createLaunchClient,
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: () => createLaunchClient(),
 				getLaunchLayoutPath: vi
 					.fn()
 					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),

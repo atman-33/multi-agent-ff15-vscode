@@ -18,9 +18,7 @@ const mockVsCodeMissionController = vi.hoisted(() => {
 	});
 
 	return {
-		currentLaunchClientId: "github-copilot-cli" as
-			| "github-copilot-cli"
-			| "opencode",
+		currentLaunchClientId: "opencode" as "github-copilot-cli" | "opencode",
 		ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
 		githubClient: createLaunchClient("github-copilot-cli"),
 		launchZellijTerminal: vi.fn().mockResolvedValue(undefined),
@@ -70,7 +68,7 @@ vi.mock("../ff15-launch/launch-client", async (importOriginal) => {
 				: mockVsCodeMissionController.githubClient
 		),
 		resolveFf15LaunchClientId: (value: unknown) =>
-			value === "opencode" ? "opencode" : "github-copilot-cli",
+			value === "github-copilot-cli" ? "github-copilot-cli" : "opencode",
 	};
 });
 
@@ -151,27 +149,30 @@ describe("createVsCodeFf15MissionSessionController", () => {
 			join(tmpdir(), "ff15-vscode-controller-")
 		);
 		let snapshot:
-			| ReturnType<typeof createWorkspaceStateFf15MissionsStore>["getSnapshot"]
+			| ReturnType<
+					ReturnType<
+						typeof createWorkspaceStateFf15MissionsStore
+					>["getSnapshot"]
+			  >
 			| undefined;
+		const storage: Parameters<typeof createWorkspaceStateFf15MissionsStore>[0] =
+			{
+				get: <T>(_key: string) => snapshot as T | undefined,
+				update: vi.fn().mockImplementation((_key, value) => {
+					snapshot = value;
+					return Promise.resolve(undefined);
+				}),
+			};
 
 		try {
 			mockVsCodeMissionController.resolveActiveWorkspaceRoot.mockReturnValue(
 				workspaceRoot
 			);
-			const missionsStore = createWorkspaceStateFf15MissionsStore(
-				{
-					get: vi.fn(() => snapshot),
-					update: vi.fn().mockImplementation((_key, value) => {
-						snapshot = value;
-						return Promise.resolve(undefined);
-					}),
-				},
-				{
-					createId: () => "mission-1",
-					getNow: () => "2026-06-03T00:20:00.000Z",
-					getWorkspaceRoot: () => workspaceRoot,
-				}
-			);
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-06-03T00:20:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
 			const controller = createVsCodeFf15MissionSessionController(
 				{ fsPath: "C:/extension" } as never,
 				missionsStore,
