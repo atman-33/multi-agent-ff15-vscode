@@ -415,6 +415,54 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 	});
 
+	it("applies one bulk model selection across the full live party and persists it in a single mission update", async () => {
+		const missionRecord = createMissionRecord();
+		missionRecord.agentPanes = {
+			gladiolus: "terminal_3",
+			ignis: "terminal_2",
+			noctis: "terminal_1",
+			prompto: "terminal_4",
+		};
+		const reconcileMissionAgentPanes = vi
+			.fn()
+			.mockResolvedValue(missionRecord.agentPanes);
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: { reconcileMissionAgentPanes, sendPaneInputSequence },
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.applyBulkModelSelection({
+			missionId: "mission-1",
+			selection: {
+				effort: "3",
+				modelId: "gpt-5-mini",
+			},
+		});
+
+		expect(sendPaneInputSequence).toHaveBeenCalledTimes(4);
+		expect(updateMission).toHaveBeenCalledTimes(1);
+		expect(updateMission).toHaveBeenCalledWith("mission-1", {
+			providerState: expect.objectContaining({
+				"github-copilot-cli": {
+					agentModels: expect.objectContaining({
+						gladiolus: { effort: "3", modelId: "gpt-5-mini" },
+						ignis: { effort: "3", modelId: "gpt-5-mini" },
+						noctis: { effort: "3", modelId: "gpt-5-mini" },
+						prompto: { effort: "3", modelId: "gpt-5-mini" },
+					}),
+				},
+			}),
+			agentPanes: missionRecord.agentPanes,
+			lastError: null,
+		});
+	});
+
 	it("skips the effort input for models that do not expose effort options", async () => {
 		const missionRecord = createMissionRecord();
 		const reconcileMissionAgentPanes = vi

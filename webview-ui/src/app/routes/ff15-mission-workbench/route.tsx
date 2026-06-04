@@ -1026,12 +1026,6 @@ const Route = () => {
 		});
 	};
 
-	const handleReapplyBulkModel = () => {
-		vscode.postMessage({
-			command: "ff15-mission-workbench.reapply-bulk-model",
-		});
-	};
-
 	if (!mission) {
 		return (
 			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
@@ -1098,7 +1092,6 @@ const Route = () => {
 					onChangeAgentModel={handleChangeAgentModel}
 					onChangeAgentVariant={handleChangeAgentVariant}
 					onContinueAgent={handleContinueAgent}
-					onReapplyBulkModel={handleReapplyBulkModel}
 					partyRoster={state.partyRoster}
 					partyRosterEnabled={mission.terminalReady}
 					provider={state.provider}

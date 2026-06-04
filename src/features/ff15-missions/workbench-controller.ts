@@ -66,6 +66,10 @@ interface Ff15MissionSessionController {
 }
 
 interface Ff15MissionAgentActionController {
+	applyBulkModelSelection?: (input: {
+		missionId: string;
+		selection: Ff15MissionAgentModelSelection;
+	}) => Promise<unknown>;
 	changeAgentModel: (input: {
 		agentId: Ff15AgentId;
 		effort: string | null;
@@ -565,6 +569,14 @@ export const createFf15MissionWorkbenchController = (
 		);
 
 		if (!(input.terminalReady && options.missionAgentActionController)) {
+			return;
+		}
+
+		if (options.missionAgentActionController.applyBulkModelSelection) {
+			await options.missionAgentActionController.applyBulkModelSelection({
+				missionId: input.mission.id,
+				selection: input.selection,
+			});
 			return;
 		}
 

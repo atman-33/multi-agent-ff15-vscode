@@ -144,7 +144,6 @@ interface PartyRosterPanelProps {
 	modelCatalogStatusMessage: string | null;
 	modelSelectionDisabledReason: string | null;
 	onApplyBulkModel: (input: BulkModelSelection) => void;
-	onReapplyBulkModel: () => void;
 	onChangeAgentModel: (input: {
 		agentId: PartyRosterAgent["agentId"];
 		effort: string | null;
@@ -187,7 +186,6 @@ interface BulkModelPresetPanelProps {
 	bulkModelSelectionSupported: boolean;
 	modelCatalog: OpenCodeModelDefinition[];
 	onApplyBulkModel: (input: BulkModelSelection) => void;
-	onReapplyBulkModel: () => void;
 	provider: ProviderState | null;
 }
 
@@ -380,7 +378,6 @@ const BulkModelPresetPanel = ({
 	bulkModelSelectionSupported,
 	modelCatalog,
 	onApplyBulkModel,
-	onReapplyBulkModel,
 	provider,
 }: BulkModelPresetPanelProps) => {
 	const [bulkDraft, setBulkDraft] = useState<BulkModelSelection | null>(() =>
@@ -409,13 +406,9 @@ const BulkModelPresetPanel = ({
 		bulkEffortDisabled = false;
 	}
 	const applyDisabled = !bulkSelectionEnabled;
-	let reapplyDisabled = true;
-	if (bulkSelectionEnabled && bulkLiveApplyEnabled) {
-		reapplyDisabled = false;
-	}
 	const bulkSelectionStatusMessage = bulkLiveApplyEnabled
-		? null
-		: "Apply to All saves this preset now and live-switches everyone after Launch Terminal.";
+		? "Apply again any time to re-sync the current preset across the party."
+		: "Apply to Party saves this preset now and live-switches everyone after Launch Terminal.";
 
 	const handleBulkModelChange = (modelId: string) => {
 		const model = modelCatalog.find((entry) => entry.id === modelId);
@@ -554,14 +547,7 @@ const BulkModelPresetPanel = ({
 						onApplyBulkModel(bulkDraft);
 					}}
 				>
-					Apply to All
-				</SidebarActionButton>
-				<SidebarActionButton
-					className="h-8 px-3 text-[11px]"
-					disabled={reapplyDisabled}
-					onClick={onReapplyBulkModel}
-				>
-					Reapply Last
+					Apply to Party
 				</SidebarActionButton>
 			</div>
 		</div>
@@ -577,7 +563,6 @@ export const PartyRosterPanel = ({
 	modelCatalogStatusMessage,
 	modelSelectionDisabledReason,
 	onApplyBulkModel,
-	onReapplyBulkModel,
 	onChangeAgentModel,
 	onChangeAgentVariant,
 	onContinueAgent,
@@ -610,7 +595,6 @@ export const PartyRosterPanel = ({
 				bulkModelSelectionSupported={bulkModelSelectionSupported}
 				modelCatalog={modelCatalog}
 				onApplyBulkModel={onApplyBulkModel}
-				onReapplyBulkModel={onReapplyBulkModel}
 				provider={provider}
 			/>
 			<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
