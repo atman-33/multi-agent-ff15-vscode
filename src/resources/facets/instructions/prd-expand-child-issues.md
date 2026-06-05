@@ -1,0 +1,11 @@
+# Expand To Child Issues — Instructions
+
+1. Read `{{ output("draft-prd", "latest", "prd-draft.md") }}` and `{{ output("publish-parent-issue", "latest", "parent-prd-issue.md") }}`.
+2. Use `issue_number` from `parent-prd-issue.md` as the parent issue. Do not ask User for the parent PRD issue number again.
+3. If additional codebase exploration is needed to size the work correctly, do that before proposing the breakdown.
+4. Break the PRD into tracer-bullet vertical slices. Each slice must deliver a narrow but complete path through the relevant integration layers, be demoable or verifiable on its own, and stay small enough for one focused implementation pass. Prefer many thin slices over a few thick ones.
+5. Mark each slice as `HITL` or `AFK`. Prefer `AFK` where possible, and make dependencies explicit instead of burying them inside a broad catch-all issue.
+6. Present the proposed breakdown to User as a numbered list. For each slice, show `Title`, `Type`, `Blocked by`, and `User stories covered`. Confirm the granularity, dependency structure, and HITL versus AFK classification with User, and iterate until the breakdown is approved.
+7. After approval, create the child issues in dependency order. In each issue body, reference the parent issue and relevant user stories correctly, keep the content consistent with the PRD, and include these sections: `Parent PRD`, `What to build`, `Acceptance criteria`, `Blocked by`, and `User stories addressed`.
+8. In addition to issue body text, set the parent relationship on GitHub, and set blocked-by relationships for issues that have dependencies.
+9. Write the child issue proposals, the created child issue titles and bodies, and the body of `child-issues.md` in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested. After completion, summarize the created issues, their dependencies, the parent issue number, the main covered user stories, and the actual parent / blocked by relationships that were set.
