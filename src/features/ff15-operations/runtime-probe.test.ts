@@ -1392,7 +1392,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			});
 			await store.createMission();
 			await store.updateMission("mission-1", {
-				operationRef: "builtin:noctis-autonomous",
+				operationRef: "builtin:idea-to-prd-and-issues",
 			});
 
 			const service = createFf15OperationRuntimeProbeService({
@@ -1429,7 +1429,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(missionResponse.body).toEqual(
 					expect.objectContaining({
 						id: "mission-1",
-						operationRef: "builtin:noctis-autonomous",
+						operationRef: "builtin:idea-to-prd-and-issues",
 					})
 				);
 

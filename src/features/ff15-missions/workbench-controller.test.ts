@@ -1126,20 +1126,20 @@ describe("createFf15MissionWorkbenchController", () => {
 		const loadOperationsCatalog = vi.fn().mockResolvedValue({
 			supported: [
 				{
-					fileName: "noctis-autonomous.yaml",
-					name: "noctis-autonomous",
-					ref: "builtin:noctis-autonomous",
+					fileName: "idea-to-prd-and-issues.yaml",
+					name: "idea-to-prd-and-issues",
+					ref: "builtin:idea-to-prd-and-issues",
 					supported: true,
 					unavailableReason: null,
 				},
 			],
 			unsupported: [
 				{
-					fileName: "lunafreya-autonomous.yaml",
-					name: "lunafreya-autonomous",
-					ref: "builtin:lunafreya-autonomous",
+					fileName: "unsupported.yaml",
+					name: "unsupported",
+					ref: "builtin:unsupported",
 					supported: false,
-					unavailableReason: "Requires unsupported agents: lunafreya",
+					unavailableReason: "Requires unsupported agents: test-agent",
 				},
 			],
 		});
@@ -1167,24 +1167,24 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		await onDidReceiveMessage?.({
 			command: "ff15-mission-workbench.select-operation",
-			operationRef: "builtin:lunafreya-autonomous",
+			operationRef: "builtin:unsupported",
 		});
 		await onDidReceiveMessage?.({
 			command: "ff15-mission-workbench.select-operation",
-			operationRef: "builtin:noctis-autonomous",
+			operationRef: "builtin:idea-to-prd-and-issues",
 		});
 
 		expect(missionsStore.updateMission).toHaveBeenCalledTimes(1);
 		expect(missionsStore.updateMission).toHaveBeenCalledWith("mission-1", {
 			lastError: null,
-			operationRef: "builtin:noctis-autonomous",
+			operationRef: "builtin:idea-to-prd-and-issues",
 		});
-		expect(record.operationRef).toBe("builtin:noctis-autonomous");
+		expect(record.operationRef).toBe("builtin:idea-to-prd-and-issues");
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenLastCalledWith({
 			command: "ff15-mission-workbench.state",
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
-					operationRef: "builtin:noctis-autonomous",
+					operationRef: "builtin:idea-to-prd-and-issues",
 				}),
 			}),
 		});
@@ -1352,7 +1352,7 @@ describe("createFf15MissionWorkbenchController", () => {
 			createdAt: "2026-05-27T00:00:00.000Z",
 			id: "mission-1",
 			lastError: null,
-			operationRef: "builtin:noctis-autonomous",
+			operationRef: "builtin:idea-to-prd-and-issues",
 			providerId: "opencode" as const,
 			providerState: createDefaultFf15MissionProviderState(),
 			schemaVersion: 2 as const,
@@ -1392,9 +1392,9 @@ describe("createFf15MissionWorkbenchController", () => {
 			loadOperationsCatalog: vi.fn().mockResolvedValue({
 				supported: [
 					{
-						fileName: "noctis-autonomous.yaml",
-						name: "noctis-autonomous",
-						ref: "builtin:noctis-autonomous",
+						fileName: "idea-to-prd-and-issues.yaml",
+						name: "idea-to-prd-and-issues",
+						ref: "builtin:idea-to-prd-and-issues",
 						supported: true,
 						unavailableReason: null,
 					},

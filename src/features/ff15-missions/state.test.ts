@@ -646,7 +646,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 
 			await store.createMission();
 			await store.updateMission("mission-1", {
-				operationRef: "builtin:noctis-autonomous",
+				operationRef: "builtin:idea-to-prd-and-issues",
 			} as never);
 
 			const missionFilePath = join(
@@ -659,12 +659,12 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 
 			expect(store.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:noctis-autonomous",
+					operationRef: "builtin:idea-to-prd-and-issues",
 				})
 			);
 			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:noctis-autonomous",
+					operationRef: "builtin:idea-to-prd-and-issues",
 				})
 			);
 		} finally {
