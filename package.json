@@ -45,7 +45,7 @@
         {
           "id": "multi-agent-ff15-vscode",
           "title": "FF15",
-          "icon": "./icons/sample.svg"
+          "icon": "./icons/sidebar.svg"
         }
       ]
     },
