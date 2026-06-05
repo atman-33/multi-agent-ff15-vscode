@@ -120,7 +120,7 @@ describe("createFf15MissionSessionController", () => {
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
 					agentPanes: createEmptyFf15MissionAgentPanes(),
-					providerId: "opencode",
+					providerId: "github-copilot-cli",
 				})
 			);
 		} finally {
