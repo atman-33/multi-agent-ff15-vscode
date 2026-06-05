@@ -1,0 +1,9 @@
+# Review Against Change Artifacts — Instructions
+
+1. Do not modify code. Review the implementation against the change artifacts directly.
+2. Read `{{ output("spec-planning", "latest", "spec-plan.md") }}` and resolve `change_name` and `change_path` as the verification target. If `change_path` is absent, use `openspec/changes/<change_name>/` under `openspec_root` from `<tooling-context>`. If the change cannot be resolved safely, report the step as blocked.
+3. Load the available proposal, specs, design, tasks, and implementation diff. If the OpenSpec CLI is available, prefer its status or apply instructions to discover the schema and concrete context files. Otherwise inspect the change directory directly.
+4. Structure the review across three dimensions. `Completeness`: unfinished tasks, missing requirements, or missing artifact coverage. `Correctness`: implementation and tests that diverge from the intended requirement or scenario behavior. `Coherence`: design decisions not followed, inconsistent patterns, or integration risks introduced by the implementation.
+5. Treat incorrect behavior, missing requirements, broken tests, or unsafe design mismatches as blocking. When uncertain, prefer a lower-severity finding instead of overstating the problem.
+6. When delta specs exist, inspect each requirement and scenario and map them to implementation evidence. Call out gaps explicitly. When tasks exist, inspect every incomplete checkbox and treat it as a blocking completeness issue unless the implementation clearly proves the task is already done.
+7. Write the report using the `code-review` output contract in `{{ setting("language", "name") }}`. Every blocking finding must include concrete evidence and a precise location in `file:line` form where possible. Non-blocking findings may recommend follow-up without changing the verdict.

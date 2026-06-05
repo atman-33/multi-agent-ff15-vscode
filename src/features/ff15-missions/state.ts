@@ -15,13 +15,19 @@ import {
 	type Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
 import {
+	createFf15MissionProviderStateFromBulkModelPresets,
 	createDefaultFf15MissionProviderState,
+	normalizeFf15MissionBulkModelPresets,
+	type Ff15MissionBulkModelPresets,
+	type Ff15MissionAgentModelSelection,
 	normalizeFf15MissionProviderState,
 	type Ff15MissionProviderState,
 } from "./model-contract";
 
 export const FF15_MISSIONS_STATE_STORAGE_KEY =
 	"multi-agent-ff15-vscode.missionsState";
+export const FF15_MISSIONS_BULK_MODEL_PRESETS_STORAGE_KEY =
+	"multi-agent-ff15-vscode.missionsBulkModelPresets";
 export const FF15_WORKSPACE_RUNTIME_DIR_NAME = ".ff15";
 export const FF15_MISSION_TITLE_MAX_LENGTH = 80;
 
@@ -102,6 +108,7 @@ export interface Ff15MissionsStoreSnapshot {
 
 export interface Ff15MissionsStore {
 	getSnapshot: () => Ff15MissionsStoreSnapshot;
+	getBulkModelPresets: () => Ff15MissionBulkModelPresets;
 	getMissionRecord: (missionId: string) => Ff15MissionRecord | null;
 	createMission: (options?: {
 		providerId?: Ff15LaunchClientId;
@@ -112,6 +119,10 @@ export interface Ff15MissionsStore {
 		missionId: string,
 		patch: Ff15MissionRecordPatch
 	) => Promise<Ff15MissionsStoreSnapshot>;
+	updateBulkModelPreset: (
+		providerId: Ff15LaunchClientId,
+		selection: Ff15MissionAgentModelSelection
+	) => Promise<Ff15MissionBulkModelPresets>;
 }
 
 interface Ff15MissionsStateStorage {
@@ -535,6 +546,11 @@ export const createWorkspaceStateFf15MissionsStore = (
 	let snapshot = normalizeSnapshot(
 		storage.get<Ff15MissionsStoreSnapshot>(FF15_MISSIONS_STATE_STORAGE_KEY)
 	);
+	let bulkModelPresets = normalizeFf15MissionBulkModelPresets(
+		storage.get<Ff15MissionBulkModelPresets>(
+			FF15_MISSIONS_BULK_MODEL_PRESETS_STORAGE_KEY
+		)
+	);
 	let missionRecords = snapshot.missions.map((mission) =>
 		createMissionRecordFromSummary(mission)
 	);
@@ -596,6 +612,15 @@ export const createWorkspaceStateFf15MissionsStore = (
 		return snapshot;
 	};
 
+	const persistBulkModelPresets =
+		async (): Promise<Ff15MissionBulkModelPresets> => {
+			await storage.update(
+				FF15_MISSIONS_BULK_MODEL_PRESETS_STORAGE_KEY,
+				bulkModelPresets
+			);
+			return bulkModelPresets;
+		};
+
 	const persistMissionRecord = (mission: Ff15MissionRecord) => {
 		const workspaceRoot = mission.workspaceRoot ?? getActiveWorkspaceRoot();
 		if (!workspaceRoot) {
@@ -612,6 +637,7 @@ export const createWorkspaceStateFf15MissionsStore = (
 
 	return {
 		getSnapshot: () => syncSnapshotFromMissionRecords(),
+		getBulkModelPresets: () => bulkModelPresets,
 		getMissionRecord: (missionId: string) =>
 			hydrateMissionRecords().find((mission) => mission.id === missionId) ??
 			null,
@@ -627,7 +653,8 @@ export const createWorkspaceStateFf15MissionsStore = (
 				operationRef: null,
 				providerId:
 					createMissionOptions.providerId ?? DEFAULT_FF15_LAUNCH_CLIENT_ID,
-				providerState: createDefaultFf15MissionProviderState(),
+				providerState:
+					createFf15MissionProviderStateFromBulkModelPresets(bulkModelPresets),
 				sessionName: null,
 				status: "draft",
 				title: createGeneratedMissionTitle(missionNumber),
@@ -717,6 +744,14 @@ export const createWorkspaceStateFf15MissionsStore = (
 			}
 
 			return persistSnapshot();
+		},
+		updateBulkModelPreset: (providerId, selection) => {
+			bulkModelPresets = normalizeFf15MissionBulkModelPresets({
+				...bulkModelPresets,
+				[providerId]: selection,
+			});
+
+			return persistBulkModelPresets();
 		},
 	};
 };

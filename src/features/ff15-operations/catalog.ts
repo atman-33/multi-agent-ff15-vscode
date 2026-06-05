@@ -54,18 +54,6 @@ export const FF15_BUNDLED_OPERATION_DEFINITIONS = [
 		ref: "builtin:idea-to-prd-and-issues",
 	},
 	{
-		fileName: "lunafreya-autonomous.yaml",
-		name: "lunafreya-autonomous",
-		requiredAgents: ["lunafreya"],
-		ref: "builtin:lunafreya-autonomous",
-	},
-	{
-		fileName: "noctis-autonomous.yaml",
-		name: "noctis-autonomous",
-		requiredAgents: ["noctis"],
-		ref: "builtin:noctis-autonomous",
-	},
-	{
 		fileName: "shiritori-smoke-test.yaml",
 		name: "shiritori-smoke-test",
 		requiredAgents: ["noctis", "ignis", "gladiolus", "prompto"],

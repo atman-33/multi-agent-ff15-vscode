@@ -112,6 +112,10 @@ const seedBundledPromptResolutionOperation = (
 	workspaceRoot: string,
 	options?: {
 		operationFileName?: string;
+		transformFacetFiles?: Array<{
+			relativePath: string[];
+			transform: (content: string) => string;
+		}>;
 		transformOperation?: (content: string) => string;
 	}
 ) => {
@@ -139,6 +143,15 @@ const seedBundledPromptResolutionOperation = (
 	cpSync(join(repoRoot, "src", "resources", "facets"), facetsDir, {
 		recursive: true,
 	});
+
+	for (const facetTransform of options?.transformFacetFiles ?? []) {
+		const facetPath = join(facetsDir, ...facetTransform.relativePath);
+		writeFileSync(
+			facetPath,
+			facetTransform.transform(readFileSync(facetPath, "utf8")),
+			"utf8"
+		);
+	}
 };
 
 const createCompletedStepWorkflow = (
@@ -516,11 +529,16 @@ describe("ff15 operation definition", () => {
 
 		try {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
-				transformOperation: (content) =>
-					content.replace(
-						'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}',
-						'{{ output("clarify-requirements", "latest", "missing-output.md") }}'
-					),
+				transformFacetFiles: [
+					{
+						relativePath: ["instructions", "prd-draft.md"],
+						transform: (content) =>
+							content.replace(
+								'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}',
+								'{{ output("clarify-requirements", "latest", "missing-output.md") }}'
+							),
+					},
+				],
 			});
 			writeMissionOutputFile({
 				content: "# Missing Output\n",
@@ -564,11 +582,16 @@ describe("ff15 operation definition", () => {
 
 		try {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
-				transformOperation: (content) =>
-					content.replace(
-						"2. Before starting, read `.opencode/skills/write-a-prd/SKILL.md`. In this step, stop after drafting the PRD and do not post the GitHub issue yet.",
-						'2. Confirm the execution root at `{{ root("execution_root") }}`. Then read `.opencode/skills/write-a-prd/SKILL.md`. In this step, stop after drafting the PRD and do not post the GitHub issue yet.'
-					),
+				transformFacetFiles: [
+					{
+						relativePath: ["instructions", "prd-draft.md"],
+						transform: (content) =>
+							content.replace(
+								"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
+								'2. Confirm the execution root at `{{ root("execution_root") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
+							),
+					},
+				],
 			});
 			writeMissionOutputFile({
 				content: "# Requirements Brief\n",

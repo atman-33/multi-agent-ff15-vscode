@@ -38,6 +38,11 @@ export interface Ff15MissionProviderState {
 	opencode: Ff15MissionOpenCodeProviderState;
 }
 
+export interface Ff15MissionBulkModelPresets {
+	"github-copilot-cli": Ff15MissionAgentModelSelection;
+	opencode: Ff15MissionAgentModelSelection;
+}
+
 export const FF15_OPENCODE_MODEL_CATALOG: Ff15OpenCodeModelDefinition[] = [
 	{
 		efforts: [
@@ -189,6 +194,62 @@ export const createDefaultFf15MissionProviderState = (
 	},
 	opencode: {
 		agentModels: createDefaultFf15MissionAgentModels(catalog),
+	},
+});
+
+export const createDefaultFf15MissionBulkModelPresets = (
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionBulkModelPresets => ({
+	"github-copilot-cli": createDefaultFf15AgentModelSelection(catalog),
+	opencode: createDefaultFf15AgentModelSelection(catalog),
+});
+
+export const normalizeFf15MissionBulkModelPresets = (
+	value: unknown,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionBulkModelPresets => {
+	const presets =
+		value && typeof value === "object"
+			? (value as Record<string, unknown>)
+			: {};
+
+	return {
+		"github-copilot-cli": normalizeFf15AgentModelSelection(
+			presets["github-copilot-cli"],
+			catalog
+		),
+		opencode: normalizeFf15AgentModelSelectionPreserving(
+			presets.opencode,
+			createDefaultFf15AgentModelSelection(catalog)
+		),
+	};
+};
+
+export const createFf15MissionProviderStateFromBulkModelPresets = (
+	presets: Ff15MissionBulkModelPresets,
+	catalog: readonly Ff15OpenCodeModelDefinition[] = FF15_OPENCODE_MODEL_CATALOG
+): Ff15MissionProviderState => ({
+	"github-copilot-cli": {
+		agentModels: Object.fromEntries(
+			FF15_AGENT_IDS.map((agentId) => [
+				agentId,
+				normalizeFf15AgentModelSelection(
+					presets["github-copilot-cli"],
+					catalog
+				),
+			])
+		) as Ff15MissionAgentModels,
+	},
+	opencode: {
+		agentModels: Object.fromEntries(
+			FF15_AGENT_IDS.map((agentId) => [
+				agentId,
+				normalizeFf15AgentModelSelectionPreserving(
+					presets.opencode,
+					createDefaultFf15AgentModelSelection(catalog)
+				),
+			])
+		) as Ff15MissionAgentModels,
 	},
 });
 

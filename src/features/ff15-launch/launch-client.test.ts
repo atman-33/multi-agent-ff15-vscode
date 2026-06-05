@@ -6,9 +6,15 @@ import {
 } from "./launch-client";
 
 describe("resolveFf15LaunchClientId", () => {
-	it("defaults to GitHub Copilot CLI when no setting is present", () => {
+	it("defaults to OpenCode when no setting is present", () => {
 		expect(resolveFf15LaunchClientId(undefined)).toBe(
 			DEFAULT_FF15_LAUNCH_CLIENT_ID
+		);
+	});
+
+	it("preserves github-copilot-cli when it is explicitly selected", () => {
+		expect(resolveFf15LaunchClientId("github-copilot-cli")).toBe(
+			"github-copilot-cli"
 		);
 	});
 

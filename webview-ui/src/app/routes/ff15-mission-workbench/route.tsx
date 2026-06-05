@@ -87,6 +87,10 @@ interface MissionWorkbenchProviderState {
 }
 
 interface MissionWorkbenchState {
+	bulkModelSelection: {
+		effort: string | null;
+		modelId: string;
+	} | null;
 	modelCatalog: MissionWorkbenchModelDefinition[];
 	modelCatalogStatusMessage: string | null;
 	mission: MissionWorkbenchMission | null;
@@ -100,6 +104,7 @@ interface MissionWorkbenchState {
 }
 
 const EMPTY_STATE: MissionWorkbenchState = {
+	bulkModelSelection: null,
 	modelCatalog: [],
 	modelCatalogStatusMessage: null,
 	mission: null,
@@ -1010,6 +1015,17 @@ const Route = () => {
 		});
 	};
 
+	const handleApplyBulkModel = (input: {
+		effort: string | null;
+		modelId: string;
+	}) => {
+		vscode.postMessage({
+			command: "ff15-mission-workbench.apply-bulk-model",
+			effort: input.effort,
+			modelId: input.modelId,
+		});
+	};
+
 	if (!mission) {
 		return (
 			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
@@ -1058,9 +1074,21 @@ const Route = () => {
 				/>
 
 				<PartyRosterPanel
+					bulkLiveApplyEnabled={Boolean(
+						state.provider?.capabilities.modelSelection.enabled
+					)}
+					bulkLiveApplyReason={
+						state.provider?.capabilities.modelSelection.unavailableReason ??
+						null
+					}
+					bulkModelSelection={state.bulkModelSelection}
+					bulkModelSelectionSupported={Boolean(
+						state.provider?.capabilities.modelSelection.supported
+					)}
 					modelCatalog={state.modelCatalog}
 					modelCatalogStatusMessage={state.modelCatalogStatusMessage}
 					modelSelectionDisabledReason={state.modelSelectionDisabledReason}
+					onApplyBulkModel={handleApplyBulkModel}
 					onChangeAgentModel={handleChangeAgentModel}
 					onChangeAgentVariant={handleChangeAgentVariant}
 					onContinueAgent={handleContinueAgent}

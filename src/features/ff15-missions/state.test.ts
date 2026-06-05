@@ -6,6 +6,7 @@ import { createDefaultFf15MissionProviderState } from "./model-contract";
 import {
 	createEmptyFf15MissionAgentPanes,
 	createWorkspaceStateFf15MissionsStore,
+	FF15_MISSIONS_BULK_MODEL_PRESETS_STORAGE_KEY,
 	FF15_MISSIONS_STATE_STORAGE_KEY,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "./state";
@@ -100,6 +101,99 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
+	});
+
+	it("seeds new mission provider state from the saved provider-specific bulk presets", async () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
+
+		try {
+			const storage = {
+				get: <T>(key: string): T | undefined => {
+					if (key === FF15_MISSIONS_BULK_MODEL_PRESETS_STORAGE_KEY) {
+						return {
+							"github-copilot-cli": {
+								effort: "3",
+								modelId: "gpt-5-mini",
+							},
+							opencode: {
+								effort: "low",
+								modelId: "github-copilot/big-pickle",
+							},
+						} as T;
+					}
+				},
+				update: vi.fn().mockResolvedValue(undefined),
+			};
+			const store = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-06-05T00:00:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+
+			await store.createMission({ providerId: "opencode" });
+
+			expect(store.getMissionRecord("mission-1")).toEqual(
+				expect.objectContaining({
+					providerState: expect.objectContaining({
+						"github-copilot-cli": expect.objectContaining({
+							agentModels: expect.objectContaining({
+								ignis: { effort: "3", modelId: "gpt-5-mini" },
+								noctis: { effort: "3", modelId: "gpt-5-mini" },
+							}),
+						}),
+						opencode: expect.objectContaining({
+							agentModels: expect.objectContaining({
+								ignis: {
+									effort: "low",
+									modelId: "github-copilot/big-pickle",
+								},
+								noctis: {
+									effort: "low",
+									modelId: "github-copilot/big-pickle",
+								},
+							}),
+						}),
+					}),
+				})
+			);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("persists provider-specific bulk presets separately from mission snapshots", async () => {
+		const update = vi.fn().mockResolvedValue(undefined);
+		const storage = {
+			get: vi.fn().mockReturnValue(undefined),
+			update,
+		};
+		const store = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-05T00:00:00.000Z",
+		});
+
+		await store.updateBulkModelPreset("opencode", {
+			effort: "low",
+			modelId: "github-copilot/big-pickle",
+		});
+
+		expect(store.getBulkModelPresets()).toEqual(
+			expect.objectContaining({
+				opencode: {
+					effort: "low",
+					modelId: "github-copilot/big-pickle",
+				},
+			})
+		);
+		expect(update).toHaveBeenCalledWith(
+			FF15_MISSIONS_BULK_MODEL_PRESETS_STORAGE_KEY,
+			expect.objectContaining({
+				opencode: {
+					effort: "low",
+					modelId: "github-copilot/big-pickle",
+				},
+			})
+		);
 	});
 
 	it("persists provider-aware model state without writing the legacy shared model field", async () => {
@@ -552,7 +646,7 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 
 			await store.createMission();
 			await store.updateMission("mission-1", {
-				operationRef: "builtin:noctis-autonomous",
+				operationRef: "builtin:idea-to-prd-and-issues",
 			} as never);
 
 			const missionFilePath = join(
@@ -565,12 +659,12 @@ describe("createWorkspaceStateFf15MissionsStore", () => {
 
 			expect(store.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:noctis-autonomous",
+					operationRef: "builtin:idea-to-prd-and-issues",
 				})
 			);
 			expect(JSON.parse(readFileSync(missionFilePath, "utf8"))).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:noctis-autonomous",
+					operationRef: "builtin:idea-to-prd-and-issues",
 				})
 			);
 		} finally {

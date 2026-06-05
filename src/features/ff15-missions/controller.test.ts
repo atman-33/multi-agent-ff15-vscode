@@ -67,7 +67,7 @@ const createAgentPanes = (noctisPaneId: string | null) => ({
 const selectMissionOperation = (
 	missionsStore: ReturnType<typeof createWorkspaceStateFf15MissionsStore>,
 	missionId = "mission-1",
-	operationRef = "builtin:noctis-autonomous"
+	operationRef = "builtin:idea-to-prd-and-issues"
 ) =>
 	missionsStore.updateMission(missionId, {
 		operationRef,
@@ -88,25 +88,25 @@ const seedWorkspaceOperation = (workspaceRoot: string) => {
 	mkdirSync(join(facetsDir, "instructions"), { recursive: true });
 	mkdirSync(operationsDir, { recursive: true });
 	writeFileSync(
-		join(facetsDir, "jobs", "noctis-autonomous.md"),
+		join(facetsDir, "jobs", "planner.md"),
 		"Handle the user request directly when Noctis owns the step.\n",
 		"utf8"
 	);
 	writeFileSync(
-		join(facetsDir, "instructions", "noctis-autonomous.md"),
+		join(facetsDir, "instructions", "planner.md"),
 		"Continue the conversation directly unless runtime guidance says otherwise.\n",
 		"utf8"
 	);
 	writeFileSync(
-		join(operationsDir, "noctis-autonomous.yaml"),
+		join(operationsDir, "idea-to-prd-and-issues.yaml"),
 		[
-			"name: noctis-autonomous",
+			"name: idea-to-prd-and-issues",
 			"description: >",
-			"  Default autonomous operation for Noctis.",
-			"initial_step: autonomous",
+			"  Minimal idea-to-prd test operation.",
+			"initial_step: clarify-requirements",
 			"",
 			"steps:",
-			"  - name: autonomous",
+			"  - name: clarify-requirements",
 			"    agent: noctis",
 			"    instruction:",
 			"      inline: |",
@@ -216,7 +216,7 @@ const seedPersistedMission = async (
 	await seedStore.updateMission("mission-1", {
 		agentPanes: createAgentPanes("terminal_7"),
 		lastError: null,
-		operationRef: "builtin:noctis-autonomous",
+		operationRef: "builtin:idea-to-prd-and-issues",
 		sessionName: "ff15-session",
 		status: "active",
 		workspaceRoot,
@@ -801,7 +801,7 @@ describe("createFf15MissionSendController", () => {
 			});
 			await missionsStore.createMission();
 			await missionsStore.updateMission("mission-1", {
-				operationRef: "builtin:noctis-autonomous",
+				operationRef: "builtin:idea-to-prd-and-issues",
 				workflow: {
 					activeTask: "Validate loopback bridge readiness",
 					currentStep: "probe:ready",
@@ -847,19 +847,19 @@ describe("createFf15MissionSendController", () => {
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("step: autonomous"),
+					prompt: expect.stringContaining("step: clarify-requirements"),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("task: Autonomous"),
+					prompt: expect.stringContaining("task: Clarify Requirements"),
 				})
 			);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
 					workflow: expect.objectContaining({
-						activeTask: "Autonomous",
-						currentStep: "autonomous",
+						activeTask: "Clarify Requirements",
+						currentStep: "clarify-requirements",
 					}),
 				})
 			);
