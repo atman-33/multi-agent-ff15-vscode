@@ -1,124 +1,299 @@
-# VSCode Extension Boilerplate (React + TypeScript + Vite)
+# multi-agent-ff15-vscode
 
-A ready-to-use boilerplate for building VSCode extensions with a React-based WebView UI, written in TypeScript, and bundled with Vite and esbuild.
+`multi-agent-ff15-vscode` is a VS Code extension that lets an FF15-inspired party orchestrate work inside your workspace.
 
-This boilerplate provides a clean foundation with essential features already set up, allowing you to focus on building your extension's unique functionality.
+The current working roster is fixed to four agents:
 
-![image](./screenshots/image.png)
+- `Noctis` coordinates the mission.
+- `Ignis` handles analysis and planning.
+- `Gladiolus` focuses on robust implementation and hardening.
+- `Prompto` is used for quick reconnaissance and first-pass work.
 
-## Features
+Inside VS Code, the extension adds an `FF15` activity bar container with three views:
 
--   **Extension & WebView:** A clear separation between the extension's backend logic and the WebView UI.
--   **React + TypeScript:** Build your UI with modern web technologies.
--   **Vite for WebViews:** Fast and efficient bundling for the WebView UI.
--   **esbuild for Extension:** Quick and lightweight bundling for the extension's main process.
--   **Sample Commands:** Includes basic commands to demonstrate functionality.
-    -   `Boilerplate: Show Information`: Displays a simple information message.
-    -   `Boilerplate: Reverse Selection`: Reverses the currently selected text in the editor.
--   **Sample WebViews:**
-    -   **Simple View:** A static WebView that displays text and an image.
-    -   **Interactive View:** A WebView that demonstrates two-way communication between the UI and the extension.
--   **Theming:** The WebView UI uses VS Code's theme variables for a consistent look and feel.
--   **Testing:** Pre-configured with Vitest for unit and integration testing.
--   **Linting & Formatting:** Integrated with Biome for code quality.
+- `Projects` for choosing the active project context and OpenSpec source.
+- `Missions` for creating and reopening mission workbenches.
+- `Settings` for launching the FF15 roster and opening VS Code settings for the extension.
 
-## Tech Stack
+The extension is currently Windows-first and launches Zellij in an external terminal window on Windows.
 
-- VS Code Extension runtime powered by TypeScript and the VS Code API.
-- Extension bundling handled by esbuild with incremental rebuild support.
-- Webview UI built with React 18 + TypeScript and bundled via Vite.
-- Styling composed with Tailwind-style utility classes defined in `webview-ui/src/app.css`.
-- Quality tooling through Vitest (testing) and Biome (linting/formatting).
+## What You Can Do
 
-## Key Packages
+Use this extension when you want to:
 
-- `esbuild`: bundles the extension runtime from `src/extension.ts` into `dist/extension.js`.
-- `ultracite`: wraps Biome to apply the shared lint/format/check commands defined in project scripts.
-- `@biomejs/biome`: delivers linting and formatting rules enforced across the monorepo.
-- `vitest`: executes unit and integration tests for both extension and webview layers.
-- `husky`: manages Git hooks to enforce linting and testing before commits.
-- `tailwindcss`: provides the utility-first styling primitives referenced through `webview-ui/src/app.css`.
-- `class-variance-authority`: centralizes Tailwind class variants for consistent UI theming.
-- `shadcn/ui`: ships reusable headless UI components consumed from `webview-ui/src/components/ui`.
-- `@radix-ui/react-slot`: underpins the composable primitives used by the shadcn/ui component layer.
+- keep a reusable mission history per workspace,
+- launch an FF15 party into a target repository,
+- choose an operation template before messaging Noctis,
+- continue or steer individual agents from a mission workbench,
+- switch between supported launch providers without changing your workspace flow.
 
-## Project Structure
+## Requirements
 
-```
-.
-├── src/                          # Extension source code
-│   ├── commands/                 # Sample command implementations
-│   ├── providers/                # WebView providers
-│   ├── utils/                    # Utility functions
-│   └── extension.ts              # Main extension entry point
-├── webview-ui/                   # WebView UI source code (React + Vite)
-│   ├── src/
-│   │   ├── components/           # React components for the views
-│   │   ├── bridge/               # Communication bridge to VSCode
-│   │   └── index.tsx             # UI entry point
-│   └── vite.config.ts            # Vite configuration
-├── package.json                  # Extension manifest and dependencies
-└── ...
+Before using the extension, make sure the following tools are available on `PATH`:
+
+- `zellij`
+- `opencode` if you want to use the default provider
+- `copilot` if you want to use GitHub Copilot CLI instead
+
+Provider behavior:
+
+- `opencode` launches panes with `opencode --agent <agent>`.
+- `github-copilot-cli` launches panes with `copilot --agent <agent>`.
+
+If you work in a multi-root workspace, FF15 uses the workspace folder of the active editor first. If there is no active editor, it falls back to the first workspace folder.
+
+## Install And Build From Source
+
+If you are using this repository directly, build the extension from source:
+
+```bash
+npm install
+npm run compile
 ```
 
-## Getting Started
+This produces a `.vsix` package that you can install in VS Code.
 
-### Prerequisites
+## Quick Start
 
--   Node.js 16+
--   VS Code 1.84.0+
+1. Open the target repository as a workspace folder in VS Code.
+2. Make sure `zellij` and your preferred launch client are installed.
+3. Open the `FF15` icon in the activity bar.
+4. Open `Projects` and confirm the active project context.
+5. Open `Settings` and click `Launch FF15` if you want to start the full party roster.
+6. Open `Missions`, create a mission, and select it to open the Mission Workbench.
+7. In the Mission Workbench, choose an operation, launch the mission terminal, and send your first prompt to Noctis.
 
-### Setup
+## Recommended First Workflow
 
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/atman-33/vscode-extension-boilerplate.git
-    cd vscode-extension-boilerplate
-    ```
+The intended day-to-day flow is:
 
-2.  Install dependencies for both the extension and the webview UI:
-    ```bash
-    npm run install:all
-    ```
+1. Set up the workspace context in `Projects`.
+2. Create or reopen a mission from `Missions`.
+3. Pick an operation in the Mission Workbench.
+4. Click `Launch Terminal`.
+5. Draft the mission prompt and send it to Noctis.
+6. Use the party roster to continue agents or adjust models when supported.
+7. Reopen the same mission later and continue from the stored mission state.
 
-### Development
+## Using The Sidebar
 
--   **Run the extension in development mode:** Press `F5` in VS Code to open a new Extension Development Host window with the extension loaded.
--   **Watch for changes:** The provided launch configuration will automatically recompile the extension and webview on file changes.
+### Projects
 
-## Available Scripts
+The `Projects` view is the workspace context summary.
 
--   `npm run install:all`: Installs all dependencies.
--   `npm run build`: Builds both the extension and the webview UI for production.
--   `npm run test`: Runs tests using Vitest.
--   `npm run lint`: Lints the codebase with Biome.
--   `npm run format`: Formats the codebase with Biome.
--   `npm run package`: Packages the extension into a `.vsix` file for distribution.
+Use it to:
 
-## How It Works
+- see which harness source is active,
+- review `active_projects`,
+- confirm how `OpenSpec` is currently resolved,
+- notice warnings for incomplete project profiles,
+- open the full `Projects Editor`.
 
-### Commands
+Click `Open Projects Editor` to edit the live configuration.
 
-Commands are defined in `src/commands/` and registered in `src/extension.ts`. They are also declared in `package.json` under the `contributes.commands` section.
+### Projects Editor
 
-### WebViews
+The Projects Editor is the main place to configure FF15 for a workspace.
 
-The extension uses VS Code's `WebviewViewProvider` to create views in the activity bar.
+It lets you:
 
-1.  **Providers:** `src/providers/` contains the logic for creating and managing the webviews.
-2.  **UI:** The UI for each webview is a separate React application located in `webview-ui/`.
-3.  **Communication:** Messages are passed between the extension and the WebView UI using `postMessage`. The `webview-ui/src/bridge/vscode.ts` file provides a simple `vscode` object for this purpose.
+- choose one or more `active_projects`,
+- switch `OpenSpec` mode between `project` and `harness`,
+- choose the project that supplies the OpenSpec root when `project` mode is active,
+- review the resolved config source path and warnings.
 
-## Customization
+Changes are autosaved back to the harness config.
 
-1.  **Rename the extension:** Update the `name`, `displayName`, `publisher`, and `repository` fields in `package.json`.
-2.  **Add new commands:** Create new command files in `src/commands/` and register them in `extension.ts` and `package.json`.
-3.  **Add new WebViews:**
-    -   Create a new React component in `webview-ui/src/components/`.
-    -   Add a new case in the `switch` statement in `webview-ui/src/index.tsx`.
-    -   Create a new `WebviewViewProvider` in `src/providers/`.
-    -   Register the provider in `extension.ts` and `package.json`.
+Source resolution order:
 
-## License
+1. `.agents/harness`
+2. `.ff15/harness`
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+If neither exists, FF15 bootstraps a default harness under `.ff15/harness`.
+
+### Missions
+
+The `Missions` view is your navigator.
+
+Use it to:
+
+- create a new mission,
+- reopen an existing mission workbench,
+- see whether a mission is `Draft`, `Sending`, `Active`, or in `Delivery Error` state,
+- identify whether the mission already has an attached Zellij session.
+
+Selecting a mission opens the Mission Workbench.
+
+### Settings
+
+The `Settings` view gives you two actions:
+
+- `Launch FF15` starts the fixed four-agent roster in Zellij.
+- `Open FF15 Settings` opens the VS Code settings page filtered to this extension.
+
+On Windows, launching FF15 opens a separate terminal window and starts Zellij there.
+
+## Working In The Mission Workbench
+
+The Mission Workbench is where the main workflow happens.
+
+### 1. Choose An Operation
+
+Before you can send a mission prompt, select a supported operation from the catalog.
+
+Bundled operations currently include:
+
+- `github-issue-openspec-dev`
+- `idea-to-openspec-dev`
+- `idea-to-prd-and-issues`
+- `shiritori-smoke-test`
+
+The workbench shows both supported and unsupported entries. Unsupported entries stay visible with a reason.
+
+### 2. Launch The Mission Terminal
+
+Click `Launch Terminal` to attach or create the mission terminal session.
+
+If a mission was previously launched, the button becomes `Reopen Terminal`.
+
+You must launch the terminal before sending a prompt to Noctis.
+
+### 3. Send A Prompt To Noctis
+
+After selecting an operation and launching the terminal:
+
+1. Write your mission prompt in the composer.
+2. Click `Send to Noctis`.
+
+If delivery fails, the mission moves into `Delivery Error` and the composer switches to `Retry Delivery`.
+
+### 4. Continue The Party
+
+The party roster shows the four active agents and their current pane availability.
+
+From the roster, you can:
+
+- inspect whether each agent is currently available,
+- continue an individual agent,
+- apply model changes when the selected provider supports model selection,
+- apply bulk model presets to the party.
+
+Provider capabilities are surfaced directly in the workbench. If an action is unavailable, the UI explains why.
+
+### 5. Rename Or Reopen A Mission
+
+Each mission keeps its own title, workspace root, workflow state, error state, and session name.
+
+You can:
+
+- rename the mission title,
+- reopen the terminal later,
+- delete the mission from the workbench,
+- continue from persisted mission context after reloading VS Code.
+
+## Launch Providers
+
+The extension supports two providers:
+
+### OpenCode
+
+- Default provider.
+- Selected through `multi-agent-ff15-vscode.launchClient = opencode`.
+- FF15 validates that `opencode` is available before launch.
+
+### GitHub Copilot CLI
+
+- Selected through `multi-agent-ff15-vscode.launchClient = github-copilot-cli`.
+- FF15 validates that `copilot` is available before launch.
+- The extension uses agent-specific pane launches for the FF15 roster.
+
+To change providers, open VS Code settings and update `FF15: Launch Client`.
+
+## Workspace Files FF15 Creates
+
+When the extension activates, it materializes workspace helper files so the mission flow can run with repository-local assets.
+
+You will typically see FF15-managed files under:
+
+- `.ff15/harness/` for bootstrapped harness config when no `.agents/harness` exists
+- `.ff15/operations/` for bundled operation definitions
+- `.ff15/facets/` for bundled operation facets and prompt references
+- `.ff15/missions/` for canonical mission runtime data and mission-scoped outputs
+- `.ff15/bridge/` for runtime bridge assets used by operation-backed flows
+- `.github/agents/` and `.opencode/agents/` for bundled agent templates copied into the workspace
+
+Important behavior:
+
+- `.agents/harness` takes precedence over `.ff15/harness` when both exist.
+- bundled operations are refreshed into `.ff15/operations/`, while unmanaged custom files are preserved,
+- mission state persists per workspace so you can reopen the same mission later.
+
+## Minimal Harness Example
+
+If FF15 bootstraps a local harness, the default config is effectively shaped like this:
+
+```yaml
+version: 3
+
+active_projects:
+	- default
+
+openspec:
+	mode: project
+	project_id: default
+```
+
+The default project profile is effectively shaped like this:
+
+```yaml
+id: default
+openspec_root: .
+repos:
+	- id: extension
+		root: .
+summary: |
+	Default local FF15 workspace profile.
+```
+
+Use the Projects Editor instead of manually editing these files unless you specifically want to manage them as text.
+
+## Troubleshooting
+
+### `Launch FF15` fails immediately
+
+Check that:
+
+- `zellij` is installed and available on `PATH`,
+- the selected launch client is installed and available on `PATH`,
+- the correct workspace folder is active in a multi-root workspace.
+
+### You cannot send a prompt to Noctis
+
+Check that:
+
+- a supported operation is selected,
+- you clicked `Launch Terminal` first,
+- the workspace folder is open,
+- the mission is not stuck on a missing provider dependency.
+
+### Projects shows warnings
+
+Warnings usually mean one of these is incomplete in the selected harness profile:
+
+- `openspec_root`
+- repository `root`
+- `default_checks`
+
+The Projects sidebar and Projects Editor surface those warnings without blocking normal inspection.
+
+## Current Scope
+
+This extension currently focuses on:
+
+- Windows-first FF15 orchestration,
+- a fixed visible party of four agents,
+- operation-backed mission delivery through Noctis,
+- project context management inside VS Code,
+- mission persistence and mission reopening.
+
+If you are documenting or onboarding users, describe the extension as a mission-driven FF15 workspace companion for VS Code, not just a launcher.
