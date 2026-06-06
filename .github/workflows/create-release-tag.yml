@@ -1,16 +1,15 @@
-name: Release Only (Tag and Trigger)
+name: Create Release Tag
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., 1.2.3)'
+        description: 'Version to tag (e.g., 1.2.3)'
         required: true
         type: string
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   tag:
@@ -47,9 +46,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # NOTE: This workflow does not modify CHANGELOG.md.
-      # If no section exists for the version, the Release job will inject a placeholder.
-
       - name: Check if tag exists on origin
         id: tag_check
         run: |
@@ -69,26 +65,11 @@ jobs:
           git tag -a "v$VERSION" -m "chore(release): v$VERSION"
           git push origin "refs/tags/v$VERSION"
 
-      - name: Trigger release workflow
-        if: steps.tag_check.outputs.exists == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'release.yml',
-              ref: context.ref,
-              inputs: {
-                version: '${{ inputs.version }}'
-              }
-            });
-
       - name: Summary
         run: |
           if [ "${{ steps.tag_check.outputs.exists }}" = "true" ]; then
-            echo "Tag v${{ inputs.version }} already existed. Triggered release.yml via workflow_dispatch instead of creating a new tag."
+            echo "Tag v${{ inputs.version }} already exists. Skipping tag creation."
           else
-            echo "Tagged commit $(git rev-parse --short HEAD) as v${{ inputs.version }}."
+            echo "Created and pushed tag v${{ inputs.version }}."
             echo "This push triggers .github/workflows/release.yml (push: tags: v*)."
           fi
