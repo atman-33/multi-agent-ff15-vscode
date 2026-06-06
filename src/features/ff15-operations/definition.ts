@@ -780,7 +780,7 @@ const buildStepCompletionContract = (input: {
 		input.workspaceRoot,
 		FF15_WORKSPACE_RUNTIME_DIR_NAME,
 		"bridge",
-		"submit-report.ps1"
+		"submit-report.py"
 	);
 	const taskId = getOperationStepTaskId({
 		stepName: input.activation.stepName,
@@ -797,7 +797,7 @@ const buildStepCompletionContract = (input: {
 			),
 			"",
 			"Report completion with the runtime bridge command:",
-			`- ${submitReportPath} -MissionId ${input.missionId} -TaskId ${taskId} -Next <next> -Message "<message>"`,
+			`- ${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`,
 			"",
 			"Message guidance:",
 			...input.activation.step.rules.map(

@@ -1045,7 +1045,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining("submit-report.ps1"),
+						prompt: expect.stringContaining("submit-report.py"),
 					})
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
@@ -1238,12 +1238,12 @@ describe("createFf15OperationRuntimeProbeService", () => {
 					FF15_WORKSPACE_BRIDGE_DIR_NAME
 				);
 				const reportScript = readFileSync(
-					join(bridgeDir, "submit-report.ps1"),
+					join(bridgeDir, "submit-report.py"),
 					"utf8"
 				);
-				expect(reportScript).toContain("[string]$TaskId");
-				expect(reportScript).toContain("[string]$Next");
-				expect(reportScript).toContain("[string]$Message");
+				expect(reportScript).toContain("task_id = sys.argv[2]");
+				expect(reportScript).toContain("next_step = sys.argv[3]");
+				expect(reportScript).toContain("message = sys.argv[4]");
 
 				const manifest = JSON.parse(
 					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
@@ -1410,10 +1410,10 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				);
 				const manifestPath = join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME);
 
-				expect(existsSync(join(bridgeDir, "get-mission.ps1"))).toBe(true);
-				expect(existsSync(join(bridgeDir, "get-workflow.ps1"))).toBe(true);
-				expect(existsSync(join(bridgeDir, "submit-task.ps1"))).toBe(true);
-				expect(existsSync(join(bridgeDir, "submit-report.ps1"))).toBe(true);
+				expect(existsSync(join(bridgeDir, "get-mission.py"))).toBe(true);
+				expect(existsSync(join(bridgeDir, "get-workflow.py"))).toBe(true);
+				expect(existsSync(join(bridgeDir, "submit-task.py"))).toBe(true);
+				expect(existsSync(join(bridgeDir, "submit-report.py"))).toBe(true);
 
 				const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
 					baseUrl: string;

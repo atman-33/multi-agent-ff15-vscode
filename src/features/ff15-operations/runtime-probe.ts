@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import {
 	createServer,
 	request,
@@ -241,7 +241,7 @@ const getStringBodyValue = (
 const getReportMessage = (body: Record<string, unknown>): string | null =>
 	getStringBodyValue(body, "message") ?? getStringBodyValue(body, "summary");
 
-const createPowerShellScript = ({
+const createPythonScript = ({
 	bodyExpression,
 	method,
 	pathExpression,
@@ -251,17 +251,28 @@ const createPowerShellScript = ({
 	method: "GET" | "POST";
 	pathExpression: string;
 	parameters: string;
-}) => `param(${parameters})
-$manifestPath = Join-Path $PSScriptRoot "${FF15_BRIDGE_MANIFEST_FILE_NAME}"
-$manifest = Get-Content -Raw -Path $manifestPath | ConvertFrom-Json
-$headers = @{ Authorization = "Bearer $($manifest.token)" }
-$uri = "$($manifest.baseUrl)${pathExpression}"
+}) => `#!/usr/bin/env python3
+import json
+import os
+import sys
+import urllib.request
+
+manifest_path = os.path.join(os.path.dirname(__file__), "${FF15_BRIDGE_MANIFEST_FILE_NAME}")
+with open(manifest_path, "r") as f:
+    manifest = json.load(f)
+
+${parameters}
+headers = {"Authorization": f"Bearer {manifest['token']}"}
+uri = f"{manifest['baseUrl']}${pathExpression}"
 ${
 	bodyExpression
-		? `$body = ${bodyExpression}
-Invoke-RestMethod -Headers $headers -Method ${method} -ContentType "application/json" -Body $body -Uri $uri`
-		: `Invoke-RestMethod -Headers $headers -Method ${method} -Uri $uri`
+		? `headers["Content-Type"] = "application/json"
+body = json.dumps(${bodyExpression}).encode("utf-8")
+req = urllib.request.Request(uri, data=body, headers=headers, method="${method}")`
+		: `req = urllib.request.Request(uri, headers=headers, method="${method}")`
 }
+with urllib.request.urlopen(req) as resp:
+    print(resp.read().decode("utf-8"))
 `;
 
 const writeBridgeAssets = (
@@ -276,48 +287,58 @@ const writeBridgeAssets = (
 		`${JSON.stringify(manifest, null, 2)}\n`,
 		"utf8"
 	);
+	const getMissionPath = join(bridgeDir, "get-mission.py");
 	writeFileSync(
-		join(bridgeDir, "get-mission.ps1"),
-		createPowerShellScript({
+		getMissionPath,
+		createPythonScript({
 			method: "GET",
-			parameters: "[Parameter(Mandatory=$true)][string]$MissionId",
-			pathExpression: "/missions/$MissionId",
+			parameters: "mission_id = sys.argv[1]",
+			pathExpression: "/missions/{mission_id}",
 		}),
 		"utf8"
 	);
+	chmodSync(getMissionPath, 0o755);
+
+	const getWorkflowPath = join(bridgeDir, "get-workflow.py");
 	writeFileSync(
-		join(bridgeDir, "get-workflow.ps1"),
-		createPowerShellScript({
+		getWorkflowPath,
+		createPythonScript({
 			method: "GET",
-			parameters: "[Parameter(Mandatory=$true)][string]$MissionId",
-			pathExpression: "/workflows/$MissionId",
+			parameters: "mission_id = sys.argv[1]",
+			pathExpression: "/workflows/{mission_id}",
 		}),
 		"utf8"
 	);
+	chmodSync(getWorkflowPath, 0o755);
+
+	const submitTaskPath = join(bridgeDir, "submit-task.py");
 	writeFileSync(
-		join(bridgeDir, "submit-task.ps1"),
-		createPowerShellScript({
-			bodyExpression:
-				"(@{ step = $Step; task = $Task } | ConvertTo-Json -Compress)",
+		submitTaskPath,
+		createPythonScript({
+			bodyExpression: '{"step": step, "task": task}',
 			method: "POST",
 			parameters:
-				"[Parameter(Mandatory=$true)][string]$MissionId, [Parameter(Mandatory=$true)][string]$Task, [string]$Step = ''",
-			pathExpression: "/tasks/$MissionId",
+				"mission_id = sys.argv[1]\ntask = sys.argv[2]\nstep = sys.argv[3] if len(sys.argv) > 3 else ''",
+			pathExpression: "/tasks/{mission_id}",
 		}),
 		"utf8"
 	);
+	chmodSync(submitTaskPath, 0o755);
+
+	const submitReportPath = join(bridgeDir, "submit-report.py");
 	writeFileSync(
-		join(bridgeDir, "submit-report.ps1"),
-		createPowerShellScript({
+		submitReportPath,
+		createPythonScript({
 			bodyExpression:
-				"(@{ taskId = $TaskId; next = $Next; message = $Message } | ConvertTo-Json -Compress)",
+				'{"taskId": task_id, "next": next_step, "message": message}',
 			method: "POST",
 			parameters:
-				"[Parameter(Mandatory=$true)][string]$MissionId, [Parameter(Mandatory=$true)][string]$TaskId, [Parameter(Mandatory=$true)][string]$Next, [Parameter(Mandatory=$true)][string]$Message",
-			pathExpression: "/reports/$MissionId",
+				"mission_id = sys.argv[1]\ntask_id = sys.argv[2]\nnext_step = sys.argv[3]\nmessage = sys.argv[4]",
+			pathExpression: "/reports/{mission_id}",
 		}),
 		"utf8"
 	);
+	chmodSync(submitReportPath, 0o755);
 };
 
 const invokeRuntime = async ({
