@@ -21,6 +21,11 @@ vi.mock("vscode", () => ({
 	commands: {
 		registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
 	},
+	ExtensionMode: {
+		Development: 1,
+		Production: 2,
+		Test: 3,
+	},
 	workspace: {
 		getConfiguration: vi.fn(() => ({ get: vi.fn() })),
 		getWorkspaceFolder: vi.fn(),
