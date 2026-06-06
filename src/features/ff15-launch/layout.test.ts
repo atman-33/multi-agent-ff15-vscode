@@ -43,14 +43,7 @@ const paneLaunchPlan = [
 describe("resolveBundledFf15LayoutTemplatePath", () => {
 	it("resolves the bundled roster layout beneath the extension root", () => {
 		expect(resolveBundledFf15LayoutTemplatePath(process.cwd())).toBe(
-			join(
-				process.cwd(),
-				"src",
-				"features",
-				"ff15-launch",
-				"assets",
-				"ff15-roster.kdl"
-			)
+			join(process.cwd(), "media", "ff15-launch", "ff15-roster.kdl")
 		);
 	});
 
@@ -185,10 +178,8 @@ describe("prepareFf15LaunchLayout", () => {
 		const extensionRoot = join(tempDir, "extension");
 		const templatePath = join(
 			extensionRoot,
-			"src",
-			"features",
+			"media",
 			"ff15-launch",
-			"assets",
 			"ff15-roster.kdl"
 		);
 
