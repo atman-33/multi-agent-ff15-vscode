@@ -12,10 +12,8 @@ import {
 } from "./launch-client";
 
 const FF15_LAYOUT_TEMPLATE_PATH_SEGMENTS = [
-	"src",
-	"features",
+	"media",
 	"ff15-launch",
-	"assets",
 	"ff15-roster.kdl",
 ] as const;
 const FF15_LAYOUT_TEMP_DIR_SEGMENTS = [

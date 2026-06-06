@@ -59,6 +59,7 @@ describe("Ff15ProjectsViewProvider", () => {
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
 			command: "ff15-projects.state",
+			devMode: false,
 			snapshot: resolverSnapshot,
 		});
 
@@ -66,6 +67,7 @@ describe("Ff15ProjectsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-projects.state",
+			devMode: false,
 			snapshot: resolverSnapshot,
 		});
 	});
@@ -172,6 +174,7 @@ describe("Ff15ProjectsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
 			command: "ff15-projects.state",
+			devMode: false,
 			snapshot: initialSnapshot,
 		});
 
@@ -179,6 +182,7 @@ describe("Ff15ProjectsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-projects.state",
+			devMode: false,
 			snapshot: updatedSnapshot,
 		});
 	});
@@ -209,6 +213,7 @@ describe("Ff15ProjectsViewProvider", () => {
 		expect(resolveProjectsContext).not.toHaveBeenCalled();
 		expect(webviewView.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects.state",
+			devMode: false,
 			snapshot: expect.objectContaining({
 				error: expect.stringContaining("workspace root"),
 				profiles: [],

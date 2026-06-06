@@ -1,4 +1,4 @@
-import { commands, type ExtensionContext, window } from "vscode";
+import { commands, ExtensionMode, type ExtensionContext, window } from "vscode";
 import { FF15_OPEN_SETTINGS_COMMAND_ID } from "./config/extension-ids";
 import { materializeBundledFf15WorkspaceTemplateFiles } from "./features/ff15-agents/materialize";
 import { resolveActiveWorkspaceRoot } from "./features/ff15-launch/workspace-root";
@@ -29,6 +29,7 @@ let activeRuntimeProbeService: ReturnType<
 > | null = null;
 
 export const activate = (context: ExtensionContext) => {
+	const isDevMode = context.extensionMode === ExtensionMode.Development;
 	const activationWorkspaceRoot = resolveActiveWorkspaceRoot();
 	if (activationWorkspaceRoot) {
 		materializeBundledFf15WorkspaceTemplateFiles({
@@ -110,6 +111,7 @@ export const activate = (context: ExtensionContext) => {
 	const ff15ProjectsViewProvider = new Ff15ProjectsViewProvider(
 		context.extensionUri,
 		{
+			devMode: isDevMode,
 			projectsWorkbenchController: ff15ProjectsWorkbenchController,
 		}
 	);

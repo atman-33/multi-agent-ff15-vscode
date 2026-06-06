@@ -18,6 +18,7 @@ import type { Ff15ProjectsWorkbenchController } from "./workbench-controller";
 const FF15_PROJECTS_PAGE_ID = "ff15-projects";
 
 interface Ff15ProjectsViewProviderDependencies {
+	devMode?: boolean;
 	getWorkspaceRoot?: () => string | undefined;
 	projectsWorkbenchController?: Ff15ProjectsWorkbenchController;
 	resolveProjectsContext?: (input: {
@@ -29,6 +30,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	static readonly viewId = FF15_PROJECTS_VIEW_ID;
 
 	private readonly extensionUri: Uri;
+	private readonly devMode: boolean;
 	private readonly getWorkspaceRoot: () => string | undefined;
 	private readonly projectsWorkbenchController: Ff15ProjectsWorkbenchController;
 	private readonly projectsWorkbenchSubscription: Disposable;
@@ -56,6 +58,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		dependencies: Ff15ProjectsViewProviderDependencies = {}
 	) {
 		this.extensionUri = extensionUri;
+		this.devMode = dependencies.devMode ?? false;
 		this.getWorkspaceRoot =
 			dependencies.getWorkspaceRoot ?? resolveActiveWorkspaceRoot;
 		this.projectsWorkbenchController =
@@ -145,6 +148,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		this.latestSnapshot = snapshot;
 		this.view?.webview.postMessage({
 			command: "ff15-projects.state",
+			devMode: this.devMode,
 			snapshot,
 		});
 	}

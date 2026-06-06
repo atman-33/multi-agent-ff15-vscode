@@ -1,3 +1,4 @@
+import { DevBadge } from "@/components/dev-badge";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
@@ -9,6 +10,7 @@ import {
 
 const Route = () => {
 	const [snapshot, setSnapshot] = useState<ProjectsSnapshot>(EMPTY_SNAPSHOT);
+	const [devMode, setDevMode] = useState(false);
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -18,6 +20,7 @@ const Route = () => {
 			}
 
 			setSnapshot(payload.snapshot ?? EMPTY_SNAPSHOT);
+			setDevMode(payload.devMode ?? false);
 		};
 
 		window.addEventListener("message", listener);
@@ -50,6 +53,7 @@ const Route = () => {
 
 	return (
 		<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-2">
+			{devMode ? <DevBadge /> : null}
 			<SidebarActionButton
 				onClick={() => {
 					vscode.postMessage({ command: "ff15-projects.open-editor" });
