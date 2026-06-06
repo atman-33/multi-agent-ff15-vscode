@@ -7,7 +7,12 @@ import type {
 	Ff15LaunchClientId,
 } from "../ff15-launch/launch-client";
 import {
+	MISSING_REMOTE_WSL_DISTRO_MESSAGE,
+	REMOTE_WSL_BRIDGE_FAILURE_MESSAGE,
+} from "../ff15-launch/launch-terminal";
+import {
 	createFf15MissionSessionController,
+	MISSION_LAUNCH_FAILED_MESSAGE,
 	MISSING_MISSION_WORKSPACE_MESSAGE,
 	MISSING_MISSION_ZELLIJ_MESSAGE,
 } from "./session-controller";
@@ -520,6 +525,148 @@ describe("createFf15MissionSessionController", () => {
 				workspaceRoot: null,
 			}),
 		]);
+	});
+
+	it("stores a Remote - WSL distro-missing error when no WSL_DISTRO_NAME is available", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-05-26T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+			const showErrorMessage = vi.fn();
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: () => createLaunchClient(),
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal: vi
+					.fn()
+					.mockRejectedValue(new Error(MISSING_REMOTE_WSL_DISTRO_MESSAGE)),
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage,
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+
+			const snapshot = await controller.openMissionSession("mission-1");
+
+			expect(showErrorMessage).toHaveBeenCalledWith(
+				MISSING_REMOTE_WSL_DISTRO_MESSAGE
+			);
+			expect(snapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					lastError: MISSING_REMOTE_WSL_DISTRO_MESSAGE,
+					status: "error",
+				}),
+			]);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("stores a Remote - WSL bridge failure error distinct from dependency errors", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-05-26T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+			const showErrorMessage = vi.fn();
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: () => createLaunchClient(),
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal: vi
+					.fn()
+					.mockRejectedValue(new Error(REMOTE_WSL_BRIDGE_FAILURE_MESSAGE)),
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage,
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+
+			const snapshot = await controller.openMissionSession("mission-1");
+
+			expect(showErrorMessage).toHaveBeenCalledWith(
+				REMOTE_WSL_BRIDGE_FAILURE_MESSAGE
+			);
+			expect(snapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					lastError: REMOTE_WSL_BRIDGE_FAILURE_MESSAGE,
+					status: "error",
+				}),
+			]);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("falls back to the generic launch failure message for non-Error rejections", async () => {
+		const workspaceRoot = createWorkspaceRoot();
+
+		try {
+			const { storage } = createStorage();
+			const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+				createId: () => "mission-1",
+				getNow: () => "2026-05-26T00:10:00.000Z",
+				getWorkspaceRoot: () => workspaceRoot,
+			});
+			await missionsStore.createMission();
+			const showErrorMessage = vi.fn();
+			const controller = createFf15MissionSessionController({
+				ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+				getPinnedProviderId: () => "opencode",
+				getLaunchClient: () => createLaunchClient(),
+				getLaunchLayoutPath: vi
+					.fn()
+					.mockReturnValue(`${workspaceRoot}/.ff15/layout.kdl`),
+				getWorkspaceRoot: () => workspaceRoot,
+				launchTerminal: vi.fn().mockRejectedValue("unexpected failure"),
+				missionsStore,
+				reconcileMissionAgentPanes: vi
+					.fn()
+					.mockResolvedValue(createAgentPanes()),
+				showErrorMessage,
+				terminateMissionSession: vi.fn().mockResolvedValue(undefined),
+			});
+
+			const snapshot = await controller.openMissionSession("mission-1");
+
+			expect(showErrorMessage).toHaveBeenCalledWith(
+				MISSION_LAUNCH_FAILED_MESSAGE
+			);
+			expect(snapshot.missions).toEqual([
+				expect.objectContaining({
+					id: "mission-1",
+					lastError: MISSION_LAUNCH_FAILED_MESSAGE,
+					status: "error",
+				}),
+			]);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
 	});
 
 	it("stores a zellij availability error when the binary is unavailable", async () => {
