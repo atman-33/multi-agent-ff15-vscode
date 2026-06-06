@@ -8,6 +8,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-06
+
+### Added
+
+- Updated icon to new design.
+- Added FF15 roster launch support in Remote - WSL.
+- Added WSL error handling for mission terminal reopen.
+- Unified bridge scripts to Python for cross-platform support (replaces PowerShell `.ps1` scripts with `.py` equivalents).
+- Updated command line for cross-platform compatibility.
+
+### Changed
+
+- Updated package name and repository URL.
+- Updated icon image for improved visual quality.
+
+### Removed
+
+- Removed workspace operation customization skill and validator.
+
 ## [0.1.0] - 2026-06-05
 
 ### Added
