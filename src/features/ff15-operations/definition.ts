@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { parse } from "yaml";
+import { env } from "vscode";
 import {
 	createEmptyFf15MissionWorkflowState,
 	getWorkspaceMissionOutputFilePath,
@@ -787,6 +788,11 @@ const buildStepCompletionContract = (input: {
 		workflow: input.workflow,
 	});
 
+	const isUnixLike = process.platform !== "win32" || env.remoteName === "wsl";
+	const commandLine = isUnixLike
+		? `${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`
+		: `python ${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`;
+
 	return buildTextSection(
 		"step-completion-contract",
 		[
@@ -797,7 +803,7 @@ const buildStepCompletionContract = (input: {
 			),
 			"",
 			"Report completion with the runtime bridge command:",
-			`- ${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`,
+			`- ${commandLine}`,
 			"",
 			"Message guidance:",
 			...input.activation.step.rules.map(
