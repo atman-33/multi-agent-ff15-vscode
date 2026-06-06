@@ -182,4 +182,43 @@ describe("createFf15LaunchController", () => {
 		expect(getLaunchLayoutPath).not.toHaveBeenCalled();
 		expect(launchTerminal).not.toHaveBeenCalled();
 	});
+
+	it("shows a distinct launch error when the terminal bridge fails", async () => {
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const getLaunchLayoutPath = vi
+			.fn<
+				(
+					workspaceRoot: string,
+					paneLaunchPlan: ReturnType<typeof createPaneLaunchPlan>
+				) => string
+			>()
+			.mockReturnValue("/home/atman/repo/ff15-roster.kdl");
+		const launchTerminal = vi
+			.fn()
+			.mockRejectedValue(
+				new Error("FF15 Remote WSL launch failed to start a host terminal.")
+			);
+		const showErrorMessage = vi.fn().mockResolvedValue(undefined);
+
+		const controller = createFf15LaunchController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getLaunchLayoutPath,
+			getWorkspaceRoot: () => "/home/atman/repo",
+			launchTerminal,
+			showErrorMessage,
+		});
+
+		const result = await controller.launch();
+
+		expect(result).toEqual({
+			cwd: "/home/atman/repo",
+			message: "FF15 Remote WSL launch failed to start a host terminal.",
+			status: "error",
+		});
+		expect(showErrorMessage).toHaveBeenCalledWith(
+			"FF15 Remote WSL launch failed to start a host terminal."
+		);
+	});
 });

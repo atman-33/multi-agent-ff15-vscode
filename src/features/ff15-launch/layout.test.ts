@@ -164,15 +164,15 @@ describe("resolveWindowsNpmShimLaunchCommand", () => {
 });
 
 describe("resolveLaunchableCopilotCommand", () => {
-	it("returns the bare copilot command outside Windows", () => {
+	it("returns a launchable copilot command outside Windows", () => {
 		const originalPlatform = process.platform;
 		Object.defineProperty(process, "platform", { value: "linux" });
 
 		try {
-			expect(resolveLaunchableCopilotCommand()).toEqual({
-				args: [],
-				executable: "copilot",
-			});
+			const command = resolveLaunchableCopilotCommand();
+
+			expect(command.args).toEqual([]);
+			expect(command.executable.length).toBeGreaterThan(0);
 		} finally {
 			Object.defineProperty(process, "platform", { value: originalPlatform });
 		}

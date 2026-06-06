@@ -1,8 +1,13 @@
 import { spawn } from "node:child_process";
-import { window } from "vscode";
+import { env, window } from "vscode";
 import type { LaunchTerminalInput } from "./types";
 
 const SHELL_ARGUMENT_NEEDS_QUOTING_REGEX = /[\s'"]/;
+
+export const MISSING_REMOTE_WSL_DISTRO_MESSAGE =
+	"FF15 Remote WSL launch requires WSL_DISTRO_NAME in the remote environment.";
+export const REMOTE_WSL_BRIDGE_FAILURE_MESSAGE =
+	"FF15 Remote WSL launch failed to start a host terminal.";
 
 const escapePowerShellSingleQuotedString = (value: string): string =>
 	value.replaceAll("'", "''");
@@ -29,33 +34,61 @@ export const buildWindowsStartProcessScript = ({
 	args = [],
 	cwd,
 	executable,
-}: LaunchTerminalInput): string => {
+}: {
+	args?: string[];
+	cwd?: string;
+	executable: string;
+}): string => {
 	const escapedExecutable = escapePowerShellSingleQuotedString(executable);
-	const escapedCwd = escapePowerShellSingleQuotedString(cwd);
 	const argumentList =
 		args.length === 0
 			? ""
 			: ` -ArgumentList @(${args
 					.map((arg) => `'${escapePowerShellSingleQuotedString(arg)}'`)
 					.join(", ")})`;
+	const workingDirectory =
+		cwd === undefined
+			? ""
+			: ` -WorkingDirectory '${escapePowerShellSingleQuotedString(cwd)}'`;
 
 	return [
 		"$ErrorActionPreference = 'Stop'",
-		`Start-Process -FilePath '${escapedExecutable}'${argumentList} -WorkingDirectory '${escapedCwd}'`,
+		`Start-Process -FilePath '${escapedExecutable}'${argumentList}${workingDirectory}`,
 	].join("; ");
 };
 
-const launchExternalWindowsTerminal = ({
-	args,
+export const buildRemoteWslLaunchArgs = ({
+	args = [],
 	cwd,
 	executable,
-	name,
-}: LaunchTerminalInput): Promise<void> => {
+}: LaunchTerminalInput): string[] => {
+	const distroName = process.env.WSL_DISTRO_NAME;
+	if (!distroName) {
+		throw new Error(MISSING_REMOTE_WSL_DISTRO_MESSAGE);
+	}
+
+	return ["-d", distroName, "--cd", cwd, executable, ...args];
+};
+
+const toLaunchFailureError = (message: string, code?: number | null): Error =>
+	new Error(
+		code === undefined || code === null
+			? message
+			: `${message} (exit code: ${code})`
+	);
+
+const launchExternalTerminal = (
+	{
+		args,
+		cwd,
+		executable,
+	}: Pick<LaunchTerminalInput, "args" | "cwd" | "executable">,
+	failureMessage: string
+): Promise<void> => {
 	const script = buildWindowsStartProcessScript({
 		args,
 		cwd,
 		executable,
-		name,
 	});
 
 	return new Promise((resolve, reject) => {
@@ -69,17 +102,57 @@ const launchExternalWindowsTerminal = ({
 			}
 		);
 
-		helper.once("error", reject);
+		helper.once("error", () => reject(toLaunchFailureError(failureMessage)));
 		helper.once("exit", (code) => {
 			if (code === 0) {
 				resolve();
 				return;
 			}
 
-			reject(new Error(`Failed to launch external terminal: ${code}`));
+			reject(toLaunchFailureError(failureMessage, code));
 		});
 	});
 };
+
+const launchExternalWindowsTerminal = ({
+	args,
+	cwd,
+	executable,
+}: LaunchTerminalInput): Promise<void> =>
+	launchExternalTerminal(
+		{
+			args,
+			cwd,
+			executable,
+		},
+		"Failed to launch external terminal"
+	);
+
+const launchRemoteWslTerminal = ({
+	args,
+	cwd,
+	executable,
+	name,
+}: LaunchTerminalInput): Promise<void> => {
+	try {
+		return launchExternalTerminal(
+			{
+				args: buildRemoteWslLaunchArgs({
+					args,
+					cwd,
+					executable,
+					name,
+				}),
+				executable: "wsl.exe",
+			},
+			REMOTE_WSL_BRIDGE_FAILURE_MESSAGE
+		);
+	} catch (error) {
+		return Promise.reject(error);
+	}
+};
+
+const isRemoteWsl = (): boolean => env.remoteName === "wsl";
 
 export const launchZellijTerminal = ({
 	args,
@@ -89,6 +162,15 @@ export const launchZellijTerminal = ({
 }: LaunchTerminalInput): Promise<void> | void => {
 	if (process.platform === "win32") {
 		return launchExternalWindowsTerminal({
+			args,
+			cwd,
+			executable,
+			name,
+		});
+	}
+
+	if (isRemoteWsl()) {
+		return launchRemoteWslTerminal({
 			args,
 			cwd,
 			executable,

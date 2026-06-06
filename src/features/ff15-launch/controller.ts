@@ -3,6 +3,7 @@ import type { Ff15LaunchControllerDependencies, LaunchResult } from "./types";
 export const MISSING_WORKSPACE_MESSAGE =
 	"Open a workspace folder to launch FF15.";
 export const MISSING_ZELLIJ_MESSAGE = "FF15 launch requires `zellij` on PATH.";
+const LAUNCH_FAILED_MESSAGE = "FF15 launch failed.";
 
 const TERMINAL_EXECUTABLE = "zellij";
 const TERMINAL_NAME = "FF15";
@@ -53,12 +54,26 @@ export const createFf15LaunchController = (
 			paneLaunchPlan
 		);
 
-		await dependencies.launchTerminal({
-			cwd: workspaceRoot,
-			executable: TERMINAL_EXECUTABLE,
-			args: ["--layout", layoutPath],
-			name: TERMINAL_NAME,
-		});
+		try {
+			await dependencies.launchTerminal({
+				cwd: workspaceRoot,
+				executable: TERMINAL_EXECUTABLE,
+				args: ["--layout", layoutPath],
+				name: TERMINAL_NAME,
+			});
+		} catch (error) {
+			const message =
+				error instanceof Error && error.message.length > 0
+					? error.message
+					: LAUNCH_FAILED_MESSAGE;
+
+			await dependencies.showErrorMessage(message);
+			return {
+				cwd: workspaceRoot,
+				message,
+				status: "error",
+			};
+		}
 
 		return {
 			cwd: workspaceRoot,
