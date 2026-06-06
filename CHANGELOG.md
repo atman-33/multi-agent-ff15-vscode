@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-07
+
+### Added
+
+- Added ff15-roster.kdl layout configuration file for defining agent rosters.
+- Added development mode support with a UI badge indicator.
+
 ## [0.2.1] - 2026-06-06
 
 ### Added
