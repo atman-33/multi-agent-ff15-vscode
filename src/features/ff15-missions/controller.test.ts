@@ -672,7 +672,7 @@ describe("createFf15MissionSendController", () => {
 							workspaceRoot,
 							FF15_WORKSPACE_RUNTIME_DIR_NAME,
 							"bridge",
-							"submit-report.ps1"
+							"submit-report.py"
 						)
 					),
 				})

@@ -196,9 +196,8 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 
 		expect(bundledPaths).toEqual(
 			expect.arrayContaining([
-				".github/skills/workspace-operation-customization/SKILL.md",
-				".opencode/skills/workspace-operation-customization/SKILL.md",
-				".opencode/skills/workspace-operation-customization/scripts/validate-operation-yaml.py",
+				".claude/skills/workspace-operation-customization/SKILL.md",
+				".claude/skills/workspace-operation-customization/scripts/validate-operation-yaml.py",
 			])
 		);
 	});

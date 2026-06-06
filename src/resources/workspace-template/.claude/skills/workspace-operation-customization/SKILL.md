@@ -22,7 +22,7 @@ Create or revise workspace-local FF15 operations for the VS Code extension witho
 3. Keep every `file:` reference relative to the operation YAML file.
 4. Prefer file-backed facet content once instructions, policies, or reusable skill context become non-trivial.
 5. Run the bundled validator on every created or modified operation YAML:
-   - `python .opencode/skills/workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
+   - `python .claude/skills/workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
    - If your environment exposes `python3` instead of `python`, use that equivalent command.
    - You may pass multiple files or the whole `.ff15/operations` directory.
 6. Treat validator failures as blocking.

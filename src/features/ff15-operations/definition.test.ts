@@ -349,7 +349,7 @@ describe("ff15 operation definition", () => {
 					workspaceRoot,
 					FF15_WORKSPACE_RUNTIME_DIR_NAME,
 					"bridge",
-					"submit-report.ps1"
+					"submit-report.py"
 				)
 			);
 			expect(prompt).toContain("task-spec-planning");

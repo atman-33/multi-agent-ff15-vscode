@@ -95,10 +95,14 @@ const getPaneLaunchPlanEntry = (
 };
 
 const getFirstResolvedPath = (command: string): string | undefined => {
-	const result = spawnSync("where.exe", [command], {
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-	});
+	const result = spawnSync(
+		process.platform === "win32" ? "where.exe" : "which",
+		[command],
+		{
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "ignore"],
+		}
+	);
 
 	if (result.error || result.status !== 0) {
 		return;
@@ -198,7 +202,7 @@ export const resolveWindowsNpmShimLaunchCommand = (
 
 export const resolveLaunchableOpencodeCommand = (): string => {
 	if (process.platform !== "win32") {
-		return "opencode";
+		return getFirstResolvedPath("opencode") ?? "opencode";
 	}
 
 	const executablePath = getFirstResolvedPath("opencode.exe");
@@ -225,7 +229,7 @@ export const resolveLaunchableCopilotCommand = (): ResolvedLaunchCommand => {
 	if (process.platform !== "win32") {
 		return {
 			args: [],
-			executable: "copilot",
+			executable: getFirstResolvedPath("copilot") ?? "copilot",
 		};
 	}
 

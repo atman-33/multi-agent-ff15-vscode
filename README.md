@@ -15,7 +15,7 @@ Inside VS Code, the extension adds an `FF15` activity bar container with three v
 - `Missions` for creating and reopening mission workbenches.
 - `Settings` for launching the FF15 roster and opening VS Code settings for the extension.
 
-The extension is currently Windows-first and launches Zellij in an external terminal window on Windows.
+The extension currently supports external FF15 roster launch on local Windows and in VS Code Remote - WSL.
 
 ## What You Can Do
 
@@ -57,6 +57,7 @@ This produces a `.vsix` package that you can install in VS Code.
 
 1. Open the target repository as a workspace folder in VS Code.
 2. Make sure `zellij` and your preferred launch client are installed.
+	In Remote - WSL, these checks run against the Linux environment inside the active distro.
 3. Open the `FF15` icon in the activity bar.
 4. Open `Projects` and confirm the active project context.
 5. Open `Settings` and click `Launch FF15` if you want to start the full party roster.
@@ -131,7 +132,8 @@ The `Settings` view gives you two actions:
 - `Launch FF15` starts the fixed four-agent roster in Zellij.
 - `Open FF15 Settings` opens the VS Code settings page filtered to this extension.
 
-On Windows, launching FF15 opens a separate terminal window and starts Zellij there.
+On local Windows, launching FF15 opens a separate terminal window and starts Zellij there.
+In VS Code Remote - WSL, launching FF15 opens a host-side Windows terminal and runs `zellij` inside the active WSL distro using the current Linux workspace path.
 
 ## Working In The Mission Workbench
 
@@ -265,7 +267,8 @@ Check that:
 
 - `zellij` is installed and available on `PATH`,
 - the selected launch client is installed and available on `PATH`,
-- the correct workspace folder is active in a multi-root workspace.
+- the correct workspace folder is active in a multi-root workspace,
+- in Remote - WSL, `WSL_DISTRO_NAME` is present and Windows-side WSL launching works from the current session.
 
 ### You cannot send a prompt to Noctis
 
@@ -290,7 +293,7 @@ The Projects sidebar and Projects Editor surface those warnings without blocking
 
 This extension currently focuses on:
 
-- Windows-first FF15 orchestration,
+- FF15 orchestration for local Windows and VS Code Remote - WSL launch flows,
 - a fixed visible party of four agents,
 - operation-backed mission delivery through Noctis,
 - project context management inside VS Code,
