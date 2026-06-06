@@ -1,5 +1,5 @@
 {
-  "name": "vscode-extension-boilerplate",
+  "name": "multi-agent-ff15-vscode",
   "displayName": "multi-agent-ff15-vscode",
   "description": "FF15-style launch surface for VS Code.",
   "version": "0.1.0",
@@ -8,7 +8,7 @@
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/atman-33/vscode-extension-boilerplate"
+    "url": "https://github.com/atman-33/multi-agent-ff15-vscode"
   },
   "engines": {
     "vscode": "^1.84.0"
