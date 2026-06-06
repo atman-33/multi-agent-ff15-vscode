@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-06
+
+### Added
+
+- Added `create-release-tag.yml` workflow for manual release tag creation.
+
+### Changed
+
+- Updated extension display name for consistency.
+- Renamed release workflow from `release-only.yml` to `create-release-tag.yml`.
+- Updated release process documentation for manual tag creation.
+
 ## [0.2.0] - 2026-06-06
 
 ### Added
