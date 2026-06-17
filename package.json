@@ -46,6 +46,11 @@
           "id": "multi-agent-ff15-vscode",
           "title": "FF15",
           "icon": "./icons/sidebar.svg"
+        },
+        {
+          "id": "multi-agent-ff15-vscode-openCodeSidebar",
+          "title": "OpenCode",
+          "icon": "./icons/sidebar.svg"
         }
       ]
     },
@@ -69,6 +74,13 @@
           "type": "webview",
           "icon": ""
         }
+      ],
+      "multi-agent-ff15-vscode-openCodeSidebar": [
+        {
+          "type": "webview",
+          "id": "multi-agent-ff15-vscode.openCodeSidebar.chatView",
+          "name": "Chat"
+        }
       ]
     },
     "commands": [
@@ -76,8 +88,47 @@
         "command": "multi-agent-ff15-vscode.openSettings",
         "title": "Open FF15 Settings",
         "category": "FF15"
+      },
+      {
+        "command": "multi-agent-ff15-vscode.openCode.addToChat",
+        "title": "OpenCode: Add to Chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "multi-agent-ff15-vscode.openCode.toggleChatView",
+        "title": "OpenCode: Toggle Chat View"
+      },
+      {
+        "command": "multi-agent-ff15-vscode.openCode.restart",
+        "title": "OpenCode: Restart"
+      },
+      {
+        "command": "multi-agent-ff15-vscode.openCode.addSelectionToChat",
+        "title": "OpenCode: Add Selection to Chat",
+        "icon": "$(add)"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "multi-agent-ff15-vscode.openCode.addToChat",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "multi-agent-ff15-vscode.openCode.addToChat",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "multi-agent-ff15-vscode.openCode.addSelectionToChat",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "FF15",
       "properties": {
@@ -93,6 +144,23 @@
           ],
           "default": "opencode",
           "description": "Select which launch client FF15 uses for its fixed roster panes."
+        },
+        "multi-agent-ff15-vscode.openCode.port": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Fixed port for the OpenCode server. Set to 0 (default) to use a random port. Note: changing the port resets preferences stored in the webview since they are tied to the origin."
+        },
+        "multi-agent-ff15-vscode.openCode.path": {
+          "type": "string",
+          "default": "",
+          "description": "Full path to the OpenCode CLI executable. Leave empty to run opencode from PATH."
+        },
+        "multi-agent-ff15-vscode.openCode.exposeToNetwork": {
+          "type": "boolean",
+          "default": false,
+          "description": "Expose the OpenCode server to the local network via mDNS. When enabled, you can access the same instance from another device at http://opencode.local:<port>."
         }
       }
     }
@@ -100,6 +168,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.3.6",
     "@jest/globals": "^29.7.0",
+    "@types/cross-spawn": "^6.0.6",
     "@types/glob": "^8.1.0",
     "@types/node": "^20.x",
     "@types/vscode": "^1.84.0",
@@ -117,6 +186,8 @@
     "vsce": "^1.97.0"
   },
   "dependencies": {
+    "cross-spawn": "^7.0.3",
+    "tree-kill": "^1.2.2",
     "yaml": "^2.9.0"
   }
 }

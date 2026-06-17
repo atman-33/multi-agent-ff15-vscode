@@ -3,6 +3,7 @@ dist/
 out/
 *.vsix
 .vscode-test/
+ff15-debug.log
 *.log
 .DS_Store
 .env

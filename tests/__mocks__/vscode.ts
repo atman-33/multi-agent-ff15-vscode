@@ -25,4 +25,8 @@ export const workspace = {
 	getConfiguration: () => ({ get: () => undefined }),
 };
 
+export const env = {
+	remoteName: undefined,
+};
+
 export type Disposable = ReturnType<typeof createDisposable>;

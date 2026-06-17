@@ -160,8 +160,8 @@ export const launchZellijTerminal = ({
 	executable,
 	name,
 }: LaunchTerminalInput): Promise<void> | void => {
-	if (process.platform === "win32") {
-		return launchExternalWindowsTerminal({
+	if (isRemoteWsl()) {
+		return launchRemoteWslTerminal({
 			args,
 			cwd,
 			executable,
@@ -169,8 +169,8 @@ export const launchZellijTerminal = ({
 		});
 	}
 
-	if (isRemoteWsl()) {
-		return launchRemoteWslTerminal({
+	if (process.platform === "win32") {
+		return launchExternalWindowsTerminal({
 			args,
 			cwd,
 			executable,

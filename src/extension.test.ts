@@ -6,6 +6,9 @@ const {
 	projectsViewProviderConstructor,
 	projectsWorkbenchControllerFactory,
 	resolveActiveWorkspaceRoot,
+	opencodeViewProviderConstructor,
+	serverManagerConstructor,
+	serverManagerStart,
 } = vi.hoisted(() => ({
 	materializeBundledFf15WorkspaceTemplateFiles: vi.fn(),
 	missionsViewProviderConstructor: vi.fn(),
@@ -15,25 +18,47 @@ const {
 		showProjectsEditor: vi.fn(),
 	})),
 	resolveActiveWorkspaceRoot: vi.fn(() => "c:/workspace"),
+	opencodeViewProviderConstructor: vi.fn(),
+	serverManagerConstructor: vi.fn(),
+	serverManagerStart: vi.fn(),
 }));
+
+const createMockConfig = () => ({
+	get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+});
 
 vi.mock("vscode", () => ({
 	commands: {
 		registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
+		executeCommand: vi.fn(() => Promise.resolve()),
 	},
 	ExtensionMode: {
 		Development: 1,
 		Production: 2,
 		Test: 3,
 	},
+	Uri: {
+		parse: vi.fn((value: string) => ({ toString: () => value })),
+	},
+	env: {
+		asExternalUri: vi.fn((uri: unknown) => Promise.resolve(uri)),
+	},
 	workspace: {
-		getConfiguration: vi.fn(() => ({ get: vi.fn() })),
+		getConfiguration: vi.fn(() => createMockConfig()),
 		getWorkspaceFolder: vi.fn(),
 		workspaceFolders: undefined,
+		asRelativePath: vi.fn((uri: { fsPath: string }) => uri.fsPath),
+		onDidChangeConfiguration: vi.fn(() => ({ dispose: vi.fn() })),
 	},
 	window: {
 		activeTextEditor: undefined,
 		registerWebviewViewProvider: vi.fn(() => ({ dispose: vi.fn() })),
+		createOutputChannel: vi.fn(() => ({
+			appendLine: vi.fn(),
+			dispose: vi.fn(),
+		})),
+		showErrorMessage: vi.fn(),
+		showInformationMessage: vi.fn(() => Promise.resolve(undefined)),
 	},
 }));
 
@@ -75,6 +100,50 @@ vi.mock("./features/ff15-settings/provider", () => ({
 	},
 }));
 
+vi.mock("./features/opencode-chat/opencode-view-provider", () => ({
+	OpencodeViewProvider: class {
+		isViewVisible = false;
+		sidebarType: "primary" | "auxiliary" | null = null;
+
+		constructor(...args: unknown[]) {
+			opencodeViewProviderConstructor(...args);
+		}
+
+		setDevMode() {
+			// no-op stub
+		}
+		setServerUrl() {
+			// no-op stub
+		}
+		setLoading() {
+			// no-op stub
+		}
+		setError() {
+			// no-op stub
+		}
+		addToChat() {
+			// no-op stub
+		}
+	},
+}));
+
+vi.mock("./features/opencode-chat/server-manager", () => ({
+	ServerManager: class {
+		constructor(...args: unknown[]) {
+			serverManagerConstructor(...args);
+		}
+
+		start = serverManagerStart;
+		dispose() {
+			// no-op stub
+		}
+	},
+}));
+
+vi.mock("./features/opencode-chat/selection-reference", () => ({
+	formatSelectionReference: vi.fn((relativePath: string) => relativePath),
+}));
+
 import { commands, window } from "vscode";
 import { activate } from "./extension";
 
@@ -94,6 +163,11 @@ describe("activate", () => {
 				get: vi.fn(),
 				update: vi.fn(() => Promise.resolve()),
 			},
+			globalState: {
+				get: vi.fn(),
+				update: vi.fn(() => Promise.resolve()),
+			},
+			extensionMode: 2,
 		};
 
 		activate(context as never);
@@ -145,11 +219,43 @@ describe("activate", () => {
 			"multi-agent-ff15-vscode.settingsView",
 			expect.anything()
 		);
+		expect(window.registerWebviewViewProvider).toHaveBeenNthCalledWith(
+			4,
+			"multi-agent-ff15-vscode.openCodeSidebar.chatView",
+			expect.anything(),
+			expect.objectContaining({
+				webviewOptions: { retainContextWhenHidden: true },
+			})
+		);
 		expect(commands.registerCommand).toHaveBeenCalledWith(
 			"multi-agent-ff15-vscode.openSettings",
 			expect.any(Function)
 		);
-		expect(context.subscriptions).toHaveLength(4);
+		expect(commands.registerCommand).toHaveBeenCalledWith(
+			"multi-agent-ff15-vscode.openCode.addToChat",
+			expect.any(Function)
+		);
+		expect(commands.registerCommand).toHaveBeenCalledWith(
+			"multi-agent-ff15-vscode.openCode.toggleChatView",
+			expect.any(Function)
+		);
+		expect(commands.registerCommand).toHaveBeenCalledWith(
+			"multi-agent-ff15-vscode.openCode.restart",
+			expect.any(Function)
+		);
+		expect(commands.registerCommand).toHaveBeenCalledWith(
+			"multi-agent-ff15-vscode.openCode.addSelectionToChat",
+			expect.any(Function)
+		);
+		expect(serverManagerStart).toHaveBeenCalledWith(
+			expect.anything(),
+			context,
+			expect.any(Number),
+			expect.any(Number),
+			expect.any(Boolean),
+			expect.any(String)
+		);
+		expect(context.subscriptions.length).toBeGreaterThan(4);
 	});
 
 	it("skips workspace agent materialization when no workspace root is available", () => {
@@ -164,6 +270,11 @@ describe("activate", () => {
 				get: vi.fn(),
 				update: vi.fn(() => Promise.resolve()),
 			},
+			globalState: {
+				get: vi.fn(),
+				update: vi.fn(() => Promise.resolve()),
+			},
+			extensionMode: 2,
 		};
 
 		activate(context as never);
