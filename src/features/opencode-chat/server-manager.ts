@@ -73,6 +73,13 @@ export class ServerManager {
 			try {
 				const parsed = new URL(serverUrl);
 				const realPort = Number.parseInt(parsed.port, 10);
+				// opencode reports the address it bound to (e.g. 127.0.0.1). Forward
+				// the proxy to that exact host so Windows does not resolve
+				// "localhost" to ::1, which opencode is not listening on.
+				const realHost =
+					parsed.hostname === "0.0.0.0" || parsed.hostname === "::"
+						? "127.0.0.1"
+						: parsed.hostname;
 
 				if (
 					proxyPort > 0 &&
@@ -88,7 +95,10 @@ export class ServerManager {
 				this._logger.appendLine(
 					`[OpenCode] Starting webview proxy on port ${proxyPort}`
 				);
-				const result = await startWebviewProxy(realPort, proxyPort);
+				const result = await startWebviewProxy(realPort, proxyPort, {
+					targetHost: realHost,
+					logger: this._logger,
+				});
 				this.proxyServer = result.server;
 				this._logger.appendLine(
 					`[OpenCode] Webview proxy listening on port ${result.port}`

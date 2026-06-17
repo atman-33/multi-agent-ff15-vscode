@@ -303,28 +303,54 @@ const WEBVIEW_SCRIPT = /*html*/ `
 </script>
 `;
 
+export interface WebviewProxyOptions {
+	/**
+	 * Host the opencode server actually listens on. Defaults to 127.0.0.1.
+	 * Using the explicit IPv4 loopback avoids Windows resolving "localhost" to
+	 * the IPv6 ::1 address, which opencode does not bind to (it listens on
+	 * 127.0.0.1), which would make every proxied request fail with a 502.
+	 */
+	targetHost?: string;
+	/** Optional sink for proxy-level diagnostics (e.g. connection failures). */
+	logger?: { appendLine: (line: string) => void };
+}
+
 export function startWebviewProxy(
 	targetPort: number,
-	proxyPort = 0
+	proxyPort = 0,
+	options: WebviewProxyOptions = {}
 ): Promise<{ server: import("http").Server; port: number }> {
+	const targetHost = options.targetHost ?? "127.0.0.1";
+	const log = (line: string) => options.logger?.appendLine(line);
 	return new Promise((resolve, reject) => {
 		let requestedProxyPort = proxyPort;
 		const server = createServer((req, res) => {
+			log(`[OpenCode] Proxy → ${req.method} ${req.url}`);
 			const headers: Record<string, string | string[] | undefined> = {
 				...req.headers,
 			};
-			headers["accept-encoding"] = undefined;
-			headers.host = `localhost:${targetPort}`;
+			// Strip accept-encoding so opencode returns an uncompressed body we
+			// can inject the webview script into. Must use `delete` rather than
+			// assigning `undefined`: VSCode patches http.request via
+			// @vscode/proxy-agent, and an `undefined` header value makes
+			// setHeader throw synchronously ("Invalid value undefined for
+			// header"), which silently aborts every proxied request.
+			// biome-ignore lint/performance/noDelete: VSCode proxy-agent throws on undefined header values.
+			delete headers["accept-encoding"];
+			headers.host = `${targetHost}:${targetPort}`;
 
 			const proxyReq = request(
 				{
-					hostname: "localhost",
+					hostname: targetHost,
 					port: targetPort,
 					path: req.url,
 					method: req.method,
 					headers,
 				},
 				(proxyRes) => {
+					log(
+						`[OpenCode] Proxy ← ${proxyRes.statusCode} ${req.method} ${req.url} (content-type=${proxyRes.headers["content-type"] || "?"})`
+					);
 					const ct = proxyRes.headers["content-type"] || "";
 
 					if (ct.includes("text/html")) {
@@ -339,9 +365,13 @@ export function startWebviewProxy(
 
 							const outHeaders = { ...proxyRes.headers };
 							outHeaders["content-length"] = Buffer.byteLength(body).toString();
-							outHeaders["content-encoding"] = undefined;
-							outHeaders["content-security-policy"] = undefined;
-							outHeaders["content-security-policy-report-only"] = undefined;
+							// Use `delete` (not `= undefined`) so res.writeHead does not
+							// receive undefined header values and throw.
+							// biome-ignore-start lint/performance/noDelete: res.writeHead throws on undefined header values.
+							delete outHeaders["content-encoding"];
+							delete outHeaders["content-security-policy"];
+							delete outHeaders["content-security-policy-report-only"];
+							// biome-ignore-end lint/performance/noDelete: end
 
 							res.writeHead(proxyRes.statusCode || 200, outHeaders);
 							res.end(body);
@@ -353,14 +383,21 @@ export function startWebviewProxy(
 				}
 			);
 
-			proxyReq.on("error", () => {
-				res.writeHead(502).end();
+			proxyReq.on("error", (err) => {
+				log(
+					`[OpenCode] Proxy request to ${targetHost}:${targetPort}${req.url} failed: ${err.message}`
+				);
+				if (!res.headersSent) {
+					res.writeHead(502);
+				}
+				res.end();
 			});
 			req.pipe(proxyReq);
 		});
 
 		server.on("upgrade", (req, clientSocket, head) => {
-			const serverSocket = connect(targetPort, "localhost", () => {
+			log(`[OpenCode] Proxy ⇡ upgrade ${req.url}`);
+			const serverSocket = connect(targetPort, targetHost, () => {
 				const reqLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
 				const hdrs = Object.entries(req.headers)
 					.filter(([, v]) => v !== undefined)
@@ -374,7 +411,12 @@ export function startWebviewProxy(
 				clientSocket.pipe(serverSocket);
 				serverSocket.pipe(clientSocket);
 			});
-			serverSocket.on("error", () => clientSocket.destroy());
+			serverSocket.on("error", (err) => {
+				log(
+					`[OpenCode] Proxy upgrade to ${targetHost}:${targetPort} failed: ${err.message}`
+				);
+				clientSocket.destroy();
+			});
 			clientSocket.on("error", () => serverSocket.destroy());
 		});
 

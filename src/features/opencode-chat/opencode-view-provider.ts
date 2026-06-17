@@ -53,6 +53,7 @@ export class OpencodeViewProvider implements WebviewViewProvider {
 		webviewView: WebviewView,
 		_context: WebviewViewResolveContext
 	) {
+		this._logger.appendLine("[OpenCode] resolveWebviewView called");
 		this._view = webviewView;
 		webviewView.webview.options = { enableScripts: true };
 
@@ -78,6 +79,7 @@ export class OpencodeViewProvider implements WebviewViewProvider {
 	}
 
 	setServerUrl(url: string) {
+		this._logger.appendLine(`[OpenCode] Setting server URL: ${url}`);
 		this._serverUrl = url;
 		this._error = undefined;
 		this._renderCurrentState();
@@ -88,12 +90,14 @@ export class OpencodeViewProvider implements WebviewViewProvider {
 	}
 
 	setError(message: string, showInstallHint = true) {
+		this._logger.appendLine(`[OpenCode] Setting error: ${message}`);
 		this._error = { message, showInstallHint };
 		this._serverUrl = undefined;
 		this._renderCurrentState();
 	}
 
 	setLoading() {
+		this._logger.appendLine("[OpenCode] Setting loading state");
 		this._serverUrl = undefined;
 		this._error = undefined;
 		this._renderCurrentState();
@@ -101,23 +105,49 @@ export class OpencodeViewProvider implements WebviewViewProvider {
 
 	private _renderCurrentState() {
 		if (!this._view) {
-			return;
-		}
-
-		if (this._error) {
-			this._view.webview.html = this._getErrorHtml(
-				this._error.message,
-				this._error.showInstallHint
+			this._logger.appendLine(
+				"[OpenCode] _renderCurrentState called before view resolved; deferring."
 			);
 			return;
 		}
 
-		if (this._serverUrl) {
-			this._view.webview.html = this._getIframeHtml(this._serverUrl);
-			return;
-		}
+		try {
+			if (this._error) {
+				this._logger.appendLine("[OpenCode] Rendering error state");
+				this._view.webview.html = this._getErrorHtml(
+					this._error.message,
+					this._error.showInstallHint
+				);
+				return;
+			}
 
-		this._view.webview.html = this._processTemplate(OPENCODE_LOADING_TEMPLATE);
+			if (this._serverUrl) {
+				this._logger.appendLine(
+					`[OpenCode] Rendering iframe state for: ${this._serverUrl}`
+				);
+				this._view.webview.html = this._getIframeHtml(this._serverUrl);
+				return;
+			}
+
+			this._logger.appendLine("[OpenCode] Rendering loading state");
+			this._view.webview.html = this._processTemplate(
+				OPENCODE_LOADING_TEMPLATE
+			);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logger.appendLine(
+				`[OpenCode] Failed to render view state: ${message}`
+			);
+			try {
+				this._view.webview.html = this._getErrorHtml(
+					`Failed to render view: ${message}`,
+					false
+				);
+			} catch {
+				// Last resort: show a plain error so the view is not stuck loading.
+				this._view.webview.html = `<!doctype html><html><body style="color:var(--vscode-foreground);font-family:var(--vscode-font-family);padding:20px;">Failed to render OpenCode view: ${message}</body></html>`;
+			}
+		}
 	}
 
 	private _processTemplate(template: string): string {
@@ -134,6 +164,10 @@ export class OpencodeViewProvider implements WebviewViewProvider {
 		} catch {
 			// Keep the original URL if parsing fails.
 		}
+
+		this._logger.appendLine(
+			`[OpenCode] iframe src=${serverUrl} | CSP frame-src origin=${serverOrigin}`
+		);
 
 		return this._processTemplate(OPENCODE_IFRAME_TEMPLATE)
 			.replaceAll("{{SERVER_URL}}", serverUrl)
