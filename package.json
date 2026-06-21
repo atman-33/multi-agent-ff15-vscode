@@ -50,7 +50,7 @@
         {
           "id": "multi-agent-ff15-vscode-openCodeSidebar",
           "title": "OpenCode",
-          "icon": "./icons/sidebar.svg"
+          "icon": "./icons/opencode.svg"
         }
       ]
     },
