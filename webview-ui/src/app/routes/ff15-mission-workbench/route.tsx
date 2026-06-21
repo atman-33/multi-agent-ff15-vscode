@@ -16,6 +16,7 @@ import {
 	useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
 import { CheckIcon, PencilIcon } from "lucide-react";
@@ -794,6 +795,7 @@ const PromptComposerPanel = ({
 const Route = () => {
 	const [draft, setDraft] = useState("");
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
 	const [operationQuery, setOperationQuery] = useState("");
 	const [pendingDelete, setPendingDelete] = useState(false);
 	const [state, setState] = useState<MissionWorkbenchState>(EMPTY_STATE);
@@ -806,6 +808,7 @@ const Route = () => {
 				return;
 			}
 
+			setIsLoading(false);
 			setState(payload.state ?? EMPTY_STATE);
 		};
 
@@ -1027,6 +1030,13 @@ const Route = () => {
 	};
 
 	if (!mission) {
+		if (isLoading) {
+			return (
+				<div className="mx-auto flex h-full items-center justify-center">
+					<Spinner size={32} />
+				</div>
+			);
+		}
 		return (
 			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
 				<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-6 py-6 text-center text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
