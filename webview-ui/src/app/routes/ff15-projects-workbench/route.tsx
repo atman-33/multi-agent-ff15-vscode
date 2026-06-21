@@ -138,9 +138,6 @@ const Route = () => {
 
 	const availableProfiles =
 		snapshot.status === "ready" ? snapshot.profiles : [];
-	const warningProfiles = availableProfiles.filter(
-		(profile) => profile.warnings.length > 0
-	);
 	const inputsDisabled = snapshot.status !== "ready" || conflictMessage != null;
 	const selectedOpenSpecProjectId =
 		draft.openspec.projectId ?? EMPTY_PROJECT_SELECT_VALUE;
@@ -361,22 +358,6 @@ const Route = () => {
 							Config Version: {snapshot.configVersion ?? "-"}
 						</div>
 					</div>
-
-					{warningProfiles.length > 0 ? (
-						<div className="rounded-xl border border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/10 px-4 py-3 text-sm">
-							<div className="text-[10px] text-[color:var(--vscode-warningForeground,#fbbf24)] uppercase tracking-[0.14em]">
-								Warnings
-							</div>
-							<div className="mt-2 grid gap-2 text-[11px] text-[color:var(--vscode-warningForeground,#fbbf24)]">
-								{warningProfiles.map((profile) => (
-									<div key={profile.id}>
-										<span className="font-semibold">{profile.id}:</span>{" "}
-										{profile.warnings.join(" ")}
-									</div>
-								))}
-							</div>
-						</div>
-					) : null}
 
 					{snapshot.status === "error" ? (
 						<div className="rounded-xl border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 px-4 py-3 text-[color:var(--vscode-errorForeground,#f87171)] text-sm leading-6">

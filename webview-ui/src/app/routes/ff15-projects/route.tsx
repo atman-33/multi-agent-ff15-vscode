@@ -33,9 +33,6 @@ const Route = () => {
 
 	const availableProfiles =
 		snapshot.status === "ready" ? snapshot.profiles : [];
-	const warningProfiles = availableProfiles.filter(
-		(profile) => profile.warnings.length > 0
-	);
 	const sourceSummary = formatSourceKind(snapshot.sourceKind);
 	let activeProjectsSummary = "-";
 	if (snapshot.activeProjects.length > 0) {
@@ -83,24 +80,6 @@ const Route = () => {
 				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
 					{openSpecSummary}
 				</div>
-			</div>
-
-			<div className="grid gap-2">
-				{warningProfiles.length > 0 ? (
-					<div className="rounded-lg border border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/10 px-3 py-2 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-warningForeground,#fbbf24)] uppercase tracking-[0.14em]">
-							Warnings
-						</div>
-						<div className="mt-2 grid gap-2 text-[11px] text-[color:var(--vscode-warningForeground,#fbbf24)]">
-							{warningProfiles.map((profile) => (
-								<div key={profile.id}>
-									<span className="font-semibold">{profile.id}:</span>{" "}
-									{profile.warnings.join(" ")}
-								</div>
-							))}
-						</div>
-					</div>
-				) : null}
 			</div>
 
 			{snapshot.status === "error" ? (
