@@ -60,21 +60,21 @@ const Route = () => {
 			</SidebarActionButton>
 
 			<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 px-1 text-[color:var(--vscode-foreground)] text-sm">
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+				<div className="text-[color:var(--vscode-descriptionForeground)] text-xs">
 					Source
 				</div>
 				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
 					{sourceSummary}
 				</div>
 
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+				<div className="text-[color:var(--vscode-descriptionForeground)] text-xs">
 					Active
 				</div>
 				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
 					{activeProjectsSummary}
 				</div>
 
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
+				<div className="text-[color:var(--vscode-descriptionForeground)] text-xs">
 					OpenSpec
 				</div>
 				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
@@ -83,7 +83,7 @@ const Route = () => {
 			</div>
 
 			{snapshot.status === "error" ? (
-				<div className="rounded-lg border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 px-3 py-2 text-[color:var(--vscode-errorForeground,#f87171)] text-sm leading-6">
+				<div className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-errorForeground)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-errorForeground)_12%,transparent)] px-3 py-2 text-[color:var(--vscode-errorForeground)] text-sm leading-6">
 					{snapshot.error}
 				</div>
 			) : null}

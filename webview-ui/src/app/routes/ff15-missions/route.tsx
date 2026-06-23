@@ -29,13 +29,13 @@ const MISSION_STATUS_LABELS: Record<MissionSummary["status"], string> = {
 const getMissionStatusClassName = (status: MissionSummary["status"]) => {
 	switch (status) {
 		case "active":
-			return "border-emerald-500/30 bg-emerald-500/12 text-emerald-200";
+			return "border-[color:color-mix(in_srgb,var(--vscode-testing-iconPassed,var(--vscode-charts-green))_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-testing-iconPassed,var(--vscode-charts-green))_12%,transparent)] text-[color:var(--vscode-testing-iconPassed,var(--vscode-charts-green))]";
 		case "error":
-			return "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 text-[color:var(--vscode-errorForeground,#f87171)]";
+			return "border-[color:color-mix(in_srgb,var(--vscode-errorForeground)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-errorForeground)_12%,transparent)] text-[color:var(--vscode-errorForeground)]";
 		case "sending":
-			return "border-amber-400/35 bg-amber-400/12 text-amber-100";
+			return "border-[color:color-mix(in_srgb,var(--vscode-warningForeground)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-warningForeground)_12%,transparent)] text-[color:var(--vscode-warningForeground)]";
 		default:
-			return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]";
+			return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] text-[color:var(--vscode-descriptionForeground)]";
 	}
 };
 
@@ -83,7 +83,7 @@ const Route = () => {
 						active={mission.id === snapshot.activeMissionId}
 						badge={
 							<span
-								className={`rounded-md border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(mission.status)}`}
+								className={`rounded-md border px-2 py-0.5 font-medium text-xs ${getMissionStatusClassName(mission.status)}`}
 							>
 								{MISSION_STATUS_LABELS[mission.status]}
 							</span>
@@ -101,7 +101,7 @@ const Route = () => {
 				))}
 
 				{hasMissions ? null : (
-					<div className="rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] px-3 py-3 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm">
+					<div className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] px-3 py-3 text-[color:var(--vscode-descriptionForeground)] text-sm">
 						No missions yet.
 					</div>
 				)}

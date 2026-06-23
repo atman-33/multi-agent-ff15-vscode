@@ -4,42 +4,18 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Fixed FF15 dark theme. The webview does NOT follow the VSCode theme — it
- * always renders the original multi-agent-ff15 slate/blue look. Several webview
- * components read VSCode theme variables directly (e.g. var(--vscode-foreground),
- * var(--vscode-button-background)). Because custom properties resolve from the
- * nearest ancestor, redefining those variables on `body` overrides VSCode's
- * :root-level injection for every descendant, so both token-based and
- * hardcoded-vscode-var components pick up the FF15 palette.
- *
- * Palette ported from multi-agent-ff15/web/app/app.css (:root). Keep in sync.
+ * The webview follows the active VSCode color theme. `body` reads the VSCode
+ * theme variables directly, and the design tokens in `:root` below map onto
+ * those same VSCode variables. This keeps both token-based components
+ * (bg-background, text-foreground, …) and components that read
+ * var(--vscode-*) directly in sync with whatever theme the user has selected.
  */
 body {
-	font-family:
-		"Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN",
-		"Hiragino Sans", "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system,
-		sans-serif, "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji";
-	color: hsl(215 20% 93%);
-	background-color: hsl(222 47% 5%);
-
-	/* Override consumed VSCode theme vars with FF15 values (fixed dark). */
-	--vscode-foreground: hsl(215 20% 93%);
-	--vscode-editor-background: hsl(222 47% 5%);
-	--vscode-sideBar-background: hsl(222 38% 8%);
-	--vscode-descriptionForeground: hsl(217 15% 55%);
-	--vscode-button-background: hsl(218 48% 40%);
-	--vscode-button-foreground: hsl(0 0% 100%);
-	--vscode-button-hover-background: hsl(218 60% 50%);
-	--vscode-button-hoverBackground: hsl(218 60% 50%);
-	--vscode-dropdown-background: hsl(222 38% 8%);
-	--vscode-input-background: hsl(217 32% 16%);
-	--vscode-input-foreground: hsl(215 20% 93%);
-	--vscode-input-placeholderForeground: hsl(217 15% 55%);
-	--vscode-textLink-foreground: hsl(217 91% 60%);
-	--vscode-focusBorder: hsl(217 56% 50%);
-	--vscode-errorForeground: hsl(0 63% 50%);
-	--vscode-warningForeground: hsl(38 92% 50%);
-	--vscode-testing-iconPassed: hsl(142 70% 45%);
+	font-family: var(--vscode-font-family);
+	font-weight: var(--vscode-font-weight);
+	font-size: var(--vscode-font-size);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editor-background);
 }
 
 @theme inline {
@@ -84,44 +60,52 @@ body {
 	--color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Dark slate/blue palette — ported from multi-agent-ff15/web/app/app.css. */
+/* Design tokens mapped onto the active VSCode theme variables. */
 :root {
 	--radius: 0.5rem;
-	--background: hsl(222 47% 5%);
-	--foreground: hsl(215 20% 93%);
-	--card: hsl(222 38% 8%);
-	--card-foreground: hsl(215 20% 93%);
-	--popover: hsl(222 38% 8%);
-	--popover-foreground: hsl(215 20% 93%);
-	--primary: hsl(218 48% 40%);
-	--primary-foreground: hsl(0 0% 100%);
-	--secondary: hsl(217 32% 16%);
-	--secondary-foreground: hsl(215 20% 93%);
-	--muted: hsl(216 27% 12%);
-	--muted-foreground: hsl(217 15% 55%);
-	--accent: hsl(217 32% 16%);
-	--accent-foreground: hsl(215 20% 93%);
-	--destructive: hsl(0 63% 50%);
-	--border: hsl(217 28% 14%);
-	--input: hsl(217 28% 14%);
-	--ring: hsl(217 56% 50%);
-	--success: hsl(142 70% 45%);
-	--success-foreground: hsl(0 0% 100%);
-	--warning: hsl(38 92% 50%);
-	--warning-foreground: hsl(222 47% 5%);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: hsl(222 38% 8%);
-	--sidebar-foreground: hsl(215 20% 93%);
-	--sidebar-primary: hsl(217 91% 60%);
-	--sidebar-primary-foreground: hsl(0 0% 100%);
-	--sidebar-accent: hsl(217 32% 16%);
-	--sidebar-accent-foreground: hsl(215 20% 93%);
-	--sidebar-border: hsl(217 28% 14%);
-	--sidebar-ring: hsl(217 91% 60%);
+	--background: var(--vscode-editor-background);
+	--foreground: var(--vscode-foreground);
+	--card: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--card-foreground: var(--vscode-foreground);
+	--popover: var(--vscode-dropdown-background, var(--vscode-editor-background));
+	--popover-foreground: var(--vscode-foreground);
+	--primary: var(--vscode-button-background);
+	--primary-foreground: var(--vscode-button-foreground);
+	--secondary: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	--secondary-foreground: var(--vscode-foreground);
+	--muted: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	--muted-foreground: var(--vscode-descriptionForeground);
+	--accent: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	--accent-foreground: var(--vscode-foreground);
+	--destructive: var(--vscode-errorForeground);
+	--border: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	--input: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	--ring: var(--vscode-focusBorder);
+	--success: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+	--success-foreground: var(--vscode-button-foreground);
+	--warning: var(--vscode-warningForeground);
+	--warning-foreground: var(--vscode-editor-background);
+	--chart-1: var(--vscode-charts-blue);
+	--chart-2: var(--vscode-charts-green);
+	--chart-3: var(--vscode-charts-yellow);
+	--chart-4: var(--vscode-charts-purple);
+	--chart-5: var(--vscode-charts-red);
+	--sidebar: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--sidebar-foreground: var(--vscode-foreground);
+	--sidebar-primary: var(--vscode-button-background);
+	--sidebar-primary-foreground: var(--vscode-button-foreground);
+	--sidebar-accent: color-mix(
+		in srgb,
+		var(--vscode-foreground) 8%,
+		transparent
+	);
+	--sidebar-accent-foreground: var(--vscode-foreground);
+	--sidebar-border: color-mix(
+		in srgb,
+		var(--vscode-foreground) 12%,
+		transparent
+	);
+	--sidebar-ring: var(--vscode-focusBorder);
 }
 
 @layer base {

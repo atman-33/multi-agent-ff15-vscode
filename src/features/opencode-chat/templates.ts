@@ -1,11 +1,9 @@
-// FF15 fixed dark theme — ported from multi-agent-ff15/web/app/app.css (:root).
-// Keep in sync manually. The OpenCode wrapper chrome uses these so the seam
-// around the iframe matches the original app's dark slate/blue look.
+// The OpenCode wrapper chrome follows the active VSCode color theme so the seam
+// around the iframe and the loading/error screens match the editor.
 export const FF15_THEME = {
-	surface: "hsl(222 47% 5%)",
-	foreground: "hsl(215 20% 93%)",
-	fontFamily:
-		'"Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system, sans-serif',
+	surface: "var(--vscode-editor-background)",
+	foreground: "var(--vscode-foreground)",
+	fontFamily: "var(--vscode-font-family)",
 } as const;
 
 export const OPENCODE_LOADING_TEMPLATE = `<!doctype html>

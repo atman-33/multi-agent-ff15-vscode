@@ -20,10 +20,10 @@ export const SidebarListItemButton = ({
 }: SidebarListItemButtonProps) => (
 	<button
 		className={cn(
-			"w-full cursor-pointer rounded-lg border px-3 py-2.5 text-left transition-colors",
+			"w-full cursor-pointer rounded-md border px-3 py-2.5 text-left transition-colors",
 			active
-				? "border-[color:var(--vscode-button-background,#0e7490)]/40 bg-[color:var(--vscode-button-background,#0e7490)]/12 text-[color:var(--vscode-foreground)]"
-				: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_78%,transparent)] text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)]",
+				? "border-transparent bg-[color:var(--vscode-list-activeSelectionBackground)] text-[color:var(--vscode-list-activeSelectionForeground,var(--vscode-foreground))]"
+				: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] text-[color:var(--vscode-foreground)] hover:bg-[color:var(--vscode-list-hoverBackground)]",
 			className
 		)}
 		type={type ?? "button"}
@@ -33,7 +33,7 @@ export const SidebarListItemButton = ({
 			<div className="min-w-0 flex-1">
 				<div className="truncate font-medium text-sm leading-5">{label}</div>
 				{description ? (
-					<div className="mt-1 truncate text-[11px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.58))] uppercase tracking-[0.12em]">
+					<div className="mt-1 truncate text-[color:var(--vscode-descriptionForeground)] text-xs">
 						{description}
 					</div>
 				) : null}
