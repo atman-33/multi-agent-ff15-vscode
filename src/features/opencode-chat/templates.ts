@@ -1,3 +1,13 @@
+// FF15 fixed dark theme — ported from multi-agent-ff15/web/app/app.css (:root).
+// Keep in sync manually. The OpenCode wrapper chrome uses these so the seam
+// around the iframe matches the original app's dark slate/blue look.
+export const FF15_THEME = {
+	surface: "hsl(222 47% 5%)",
+	foreground: "hsl(215 20% 93%)",
+	fontFamily:
+		'"Noto Sans CJK JP", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo UI", system-ui, -apple-system, sans-serif',
+} as const;
+
 export const OPENCODE_LOADING_TEMPLATE = `<!doctype html>
 <html lang="en">
   <head>
@@ -11,9 +21,9 @@ export const OPENCODE_LOADING_TEMPLATE = `<!doctype html>
         align-items: center;
         justify-content: center;
         height: 100vh;
-        background: transparent;
-        color: var(--vscode-foreground);
-        font-family: var(--vscode-font-family);
+        background: ${FF15_THEME.surface};
+        color: ${FF15_THEME.foreground};
+        font-family: ${FF15_THEME.fontFamily};
         font-size: var(--vscode-font-size);
       }
       .container {
@@ -96,6 +106,7 @@ export const OPENCODE_IFRAME_TEMPLATE = `<!doctype html>
         height: 100vh;
         width: 100vw;
         max-width: 640px;
+        background: ${FF15_THEME.surface};
       }
       iframe {
         width: 100%;
@@ -216,9 +227,9 @@ export const OPENCODE_ERROR_TEMPLATE = `<!doctype html>
         align-items: center;
         justify-content: center;
         height: 100vh;
-        background: transparent;
-        color: var(--vscode-foreground);
-        font-family: var(--vscode-font-family);
+        background: ${FF15_THEME.surface};
+        color: ${FF15_THEME.foreground};
+        font-family: ${FF15_THEME.fontFamily};
         font-size: var(--vscode-font-size);
       }
       .container {

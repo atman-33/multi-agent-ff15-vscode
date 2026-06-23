@@ -44,6 +44,13 @@ describe("OpencodeViewProvider", () => {
 		expect(webviewView.webview.html).toContain("Starting opencode server");
 	});
 
+	it("renders the loading wrapper on the FF15 dark surface", () => {
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		expect(webviewView.webview.html).toContain("hsl(222 47% 5%)");
+		expect(webviewView.webview.html).not.toContain("background: transparent");
+	});
+
 	it("renders an iframe when the server URL is set", () => {
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 		provider.setServerUrl("http://localhost:1234/base64");
@@ -56,6 +63,13 @@ describe("OpencodeViewProvider", () => {
 		);
 	});
 
+	it("renders the iframe wrapper on the FF15 dark surface", () => {
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+		provider.setServerUrl("http://localhost:1234/base64");
+
+		expect(webviewView.webview.html).toContain("hsl(222 47% 5%)");
+	});
+
 	it("renders the error template when an error is set", () => {
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 		provider.setError("Could not find the opencode CLI.");
@@ -66,6 +80,14 @@ describe("OpencodeViewProvider", () => {
 		expect(webviewView.webview.html).toContain(
 			"Make sure <code>opencode</code> is installed"
 		);
+	});
+
+	it("renders the error wrapper on the FF15 dark surface", () => {
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+		provider.setError("boom");
+
+		expect(webviewView.webview.html).toContain("hsl(222 47% 5%)");
+		expect(webviewView.webview.html).not.toContain("background: transparent");
 	});
 
 	it("posts insert-text messages to the webview when addToChat is called", () => {

@@ -12,6 +12,7 @@ import {
 	type WebviewViewResolveContext,
 } from "vscode";
 import {
+	FF15_THEME,
 	OPENCODE_ERROR_TEMPLATE,
 	OPENCODE_IFRAME_TEMPLATE,
 	OPENCODE_LOADING_TEMPLATE,
@@ -145,7 +146,7 @@ export class OpencodeViewProvider implements WebviewViewProvider {
 				);
 			} catch {
 				// Last resort: show a plain error so the view is not stuck loading.
-				this._view.webview.html = `<!doctype html><html><body style="color:var(--vscode-foreground);font-family:var(--vscode-font-family);padding:20px;">Failed to render OpenCode view: ${message}</body></html>`;
+				this._view.webview.html = `<!doctype html><html><body style="background:${FF15_THEME.surface};color:${FF15_THEME.foreground};font-family:${FF15_THEME.fontFamily};padding:20px;">Failed to render OpenCode view: ${message}</body></html>`;
 			}
 		}
 	}
