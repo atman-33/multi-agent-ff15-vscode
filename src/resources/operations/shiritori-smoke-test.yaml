@@ -8,10 +8,28 @@ initial_step: start
 steps:
   - name: start
     agent: noctis
-    job:
-      file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
+        # Shiritori — Start
+
+        ## Role: Shiritori Player
+
+        Add one move to the shiritori chain and produce the word sequence accurately for handoff to the next step.
+
+        Rules:
+        - In the starting step with no handoff, choose only one starting word
+        - Write only the one starting word in the report `message`
+        - Prioritize constraints written in the instruction
+        - Do not write explanations, greetings, or notes
+        - Finish only your own step
+
+        Prohibited:
+        - Adding two or more new words
+        - Mixing explanatory text into the report `message`
+        - Advancing to the next step by yourself
+
+        ## Instructions
+
         Choose one starting word yourself.
         Use one short noun in hiragana.
         Do not use a word that ends with `ん`.
@@ -27,11 +45,12 @@ steps:
 
   - name: start-failed
     agent: noctis
-    job:
-      inline: |
-        Report only that starting shiritori failed.
     instruction:
       inline: |
+        # Shiritori — Start Failed
+
+        Report only that starting shiritori failed.
+
         You could not choose a starting word for shiritori.
         Report only that the start failed, briefly.
         Set next to `ABORT`.
@@ -41,10 +60,29 @@ steps:
 
   - name: ignis-turn
     agent: ignis
-    job:
-      file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
+        # Shiritori — Ignis Turn
+
+        ## Role: Shiritori Player
+
+        Add one move to the shiritori chain and produce the word sequence accurately for handoff to the next step.
+
+        Rules:
+        - In a step with a handoff, add only one new word that follows the final word
+        - Write the entire word sequence in the report `message`, joined by ` -> `
+        - Prioritize constraints written in the instruction
+        - Do not write explanations, greetings, or notes
+        - Finish only your own step
+
+        Prohibited:
+        - Adding two or more new words
+        - Removing, reordering, or rewriting the existing word sequence
+        - Mixing explanatory text into the report `message`
+        - Advancing to the next step by yourself
+
+        ## Instructions
+
         Read the word sequence in the handoff `message`.
         Think of exactly one new word that starts with the ending sound of the last word.
         Use one short noun in hiragana.
@@ -62,10 +100,29 @@ steps:
 
   - name: gladiolus-turn
     agent: gladiolus
-    job:
-      file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
+        # Shiritori — Gladiolus Turn
+
+        ## Role: Shiritori Player
+
+        Add one move to the shiritori chain and produce the word sequence accurately for handoff to the next step.
+
+        Rules:
+        - In a step with a handoff, add only one new word that follows the final word
+        - Write the entire word sequence in the report `message`, joined by ` -> `
+        - Prioritize constraints written in the instruction
+        - Do not write explanations, greetings, or notes
+        - Finish only your own step
+
+        Prohibited:
+        - Adding two or more new words
+        - Removing, reordering, or rewriting the existing word sequence
+        - Mixing explanatory text into the report `message`
+        - Advancing to the next step by yourself
+
+        ## Instructions
+
         Read the word sequence in the handoff `message`.
         Think of exactly one new word that starts with the ending sound of the last word.
         Use one short noun in hiragana.
@@ -83,10 +140,29 @@ steps:
 
   - name: prompto-turn
     agent: prompto
-    job:
-      file: ../facets/jobs/shiritori-player.md
     instruction:
       inline: |
+        # Shiritori — Prompto Turn
+
+        ## Role: Shiritori Player
+
+        Add one move to the shiritori chain and produce the word sequence accurately for handoff to the next step.
+
+        Rules:
+        - In a step with a handoff, add only one new word that follows the final word
+        - Write the entire word sequence in the report `message`, joined by ` -> `
+        - Prioritize constraints written in the instruction
+        - Do not write explanations, greetings, or notes
+        - Finish only your own step
+
+        Prohibited:
+        - Adding two or more new words
+        - Removing, reordering, or rewriting the existing word sequence
+        - Mixing explanatory text into the report `message`
+        - Advancing to the next step by yourself
+
+        ## Instructions
+
         Read the word sequence in the handoff `message`.
         Think of exactly one new word that starts with the ending sound of the last word.
         Use one short noun in hiragana.
