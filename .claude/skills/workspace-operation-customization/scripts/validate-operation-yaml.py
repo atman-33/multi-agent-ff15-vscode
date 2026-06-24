@@ -77,6 +77,9 @@ SETTING_PLACEHOLDER_PATTERN = re.compile(
 ROOT_PLACEHOLDER_PATTERN = re.compile(
 	r'\{\{\s*root\(\s*"([^"]+)"\s*\)\s*\}\}'
 )
+FACET_SKILL_PLACEHOLDER_PATTERN = re.compile(
+	r'\{\{\s*facet_skill\(\s*"([^"]+)"\s*\)\s*\}\}'
+)
 
 
 def print_usage() -> None:
@@ -196,6 +199,37 @@ def validate_placeholder_syntax(content: str | None, label: str, errors: list[st
 			scope = match.group(1)
 			if scope not in {"app_root", "execution_root"}:
 				push_error(errors, f'{label} contains unsupported root placeholder scope "{scope}".')
+
+	if "{{ facet_skill(" in content and not FACET_SKILL_PLACEHOLDER_PATTERN.search(
+		content
+	):
+		push_error(
+			errors,
+			f'{label} contains invalid facet_skill placeholder syntax. Use {{ facet_skill("name") }}.',
+		)
+
+
+def validate_facet_skill_references(
+	content: str | None,
+	label: str,
+	operation_directory: Path,
+	errors: list[str],
+) -> None:
+	if not isinstance(content, str) or "{{" not in content:
+		return
+
+	skills_dir = operation_directory.parent / "facets" / "skills"
+	if not skills_dir.is_dir():
+		return
+
+	for match in FACET_SKILL_PLACEHOLDER_PATTERN.finditer(content):
+		skill_name = match.group(1)
+		skill_path = skills_dir / skill_name / "SKILL.md"
+		if not skill_path.is_file():
+			push_error(
+				errors,
+				f'{label} references unknown facet skill "{skill_name}" via facet_skill("{skill_name}"). Expected file at {skill_path}.',
+			)
 
 
 def validate_output_placeholders_in_content(
@@ -674,6 +708,12 @@ def validate_operation_file(file_path: Path) -> list[str]:
 			inline_instruction,
 			f'Step "{step_name}" instruction.inline',
 			declared_outputs_by_step,
+			errors,
+		)
+		validate_facet_skill_references(
+			inline_instruction,
+			f'Step "{step_name}" instruction.inline',
+			operation_directory,
 			errors,
 		)
 

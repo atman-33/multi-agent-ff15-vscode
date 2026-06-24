@@ -34,6 +34,8 @@ steps:
 
         ## Instructions
 
+        Before planning, read the openspec-propose skill at `{{ facet_skill("openspec-propose") }}` and follow it to produce coherent OpenSpec change artifacts in this step.
+
         1. If the execution workspace is a git repository and an `origin` remote exists, run `git fetch origin --prune` first to retrieve the latest remote history.
         2. When `origin/main` is available, inspect the latest code from there by moving to `origin/main` with `git switch --detach origin/main` before planning. When `origin/main` is not available, inspect the current local branch or `HEAD` instead and continue without blocking on the missing remote.
         3. Read the GitHub issue URL provided by User and organize the issue goal, acceptance criteria, and related links. If parent issue information is explicitly given, inspect that as well and integrate its scope and constraints.
@@ -46,8 +48,6 @@ steps:
         10. Even if frontend automation cannot be made sufficient, do not define a manual verification guide, checklist, or report as an OpenSpec deliverable or task. If needed, record only the coverage gap or verification scope there; the final manual verification document for this operation is created only in the later `manual-verification` step.
         11. Do not pin references or creation targets to the current workspace. Treat `openspec_root` from `<tooling-context>` as the project root and use the `openspec/` directory under it. Use `active_projects` from `<tooling-context>` as the configured target project set when the work spans multiple projects.
         12. After artifact creation, report the final `change_name` and `change_path` in `spec-plan.md`. Only if User explicitly asked to review or approve the artifacts before implementation, ask for confirmation and wait. Otherwise, proceed without waiting.
-    skills:
-      - file: ../facets/skills/agent-relationships/SKILL.md
     output_contracts:
       report:
         - name: spec-plan.md

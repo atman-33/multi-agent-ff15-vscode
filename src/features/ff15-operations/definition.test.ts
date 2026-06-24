@@ -23,6 +23,8 @@ import {
 const MISSING_FILE_ERROR_PATTERN = /missing file/i;
 const MISSING_OUTPUT_CONTRACT_ERROR_PATTERN =
 	/does not declare output contract/i;
+const MISSING_FACET_SKILL_ERROR_PATTERN =
+	/Could not resolve facet_skill placeholder for "does-not-exist"/u;
 
 const seedRichOperationBundle = (workspaceRoot: string) => {
 	const runtimeRoot = join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME);
@@ -529,16 +531,11 @@ describe("ff15 operation definition", () => {
 
 		try {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
-				transformFacetFiles: [
-					{
-						relativePath: ["instructions", "prd-draft.md"],
-						transform: (content) =>
-							content.replace(
-								'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}',
-								'{{ output("clarify-requirements", "latest", "missing-output.md") }}'
-							),
-					},
-				],
+				transformOperation: (content) =>
+					content.replace(
+						'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}',
+						'{{ output("clarify-requirements", "latest", "missing-output.md") }}'
+					),
 			});
 			writeMissionOutputFile({
 				content: "# Missing Output\n",
@@ -582,16 +579,11 @@ describe("ff15 operation definition", () => {
 
 		try {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
-				transformFacetFiles: [
-					{
-						relativePath: ["instructions", "prd-draft.md"],
-						transform: (content) =>
-							content.replace(
-								"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
-								'2. Confirm the execution root at `{{ root("execution_root") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
-							),
-					},
-				],
+				transformOperation: (content) =>
+					content.replace(
+						"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
+						'2. Confirm the execution root at `{{ root("execution_root") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
+					),
 			});
 			writeMissionOutputFile({
 				content: "# Requirements Brief\n",
@@ -623,6 +615,112 @@ describe("ff15 operation definition", () => {
 
 			expect(prompt).toContain(workspaceRoot);
 			expect(prompt).not.toContain('{{ root("execution_root") }}');
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("resolves facet_skill placeholders to the workspace skill path before XML prompt delivery", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-facet-skill-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot, {
+				transformOperation: (content) =>
+					content.replace(
+						"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
+						'2. Read the handoff skill at `{{ facet_skill("handoff") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
+					),
+			});
+			writeMissionOutputFile({
+				content: "# Requirements Brief\n",
+				fileName: "requirements-brief.md",
+				missionId: "mission-1",
+				stepName: "clarify-requirements",
+				taskId: "task-clarify-requirements",
+				workspaceRoot,
+			});
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:idea-to-prd-and-issues",
+				"draft-prd"
+			);
+			expect(activation).not.toBeNull();
+
+			const prompt = buildOperationAwarePrompt({
+				activation: activation!,
+				missionId: "mission-1",
+				prompt: "Continue the workflow",
+				workflow: createCompletedStepWorkflow(
+					"clarify-requirements",
+					"draft-prd",
+					"task-clarify-requirements"
+				),
+				workspaceRoot,
+			});
+
+			expect(prompt).toContain(
+				join(
+					workspaceRoot,
+					FF15_WORKSPACE_RUNTIME_DIR_NAME,
+					"facets",
+					"skills",
+					"handoff",
+					"SKILL.md"
+				)
+			);
+			expect(prompt).not.toContain('{{ facet_skill("handoff") }}');
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("fails facet_skill resolution when the referenced skill is missing", () => {
+		const workspaceRoot = join(
+			tmpdir(),
+			`ff15-bundled-facet-skill-missing-${crypto.randomUUID()}`
+		);
+
+		try {
+			seedBundledPromptResolutionOperation(workspaceRoot, {
+				transformOperation: (content) =>
+					content.replace(
+						"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
+						'2. Read the skill at `{{ facet_skill("does-not-exist") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
+					),
+			});
+			writeMissionOutputFile({
+				content: "# Requirements Brief\n",
+				fileName: "requirements-brief.md",
+				missionId: "mission-1",
+				stepName: "clarify-requirements",
+				taskId: "task-clarify-requirements",
+				workspaceRoot,
+			});
+
+			const activation = loadMissionOperationActivation(
+				workspaceRoot,
+				"builtin:idea-to-prd-and-issues",
+				"draft-prd"
+			);
+			expect(activation).not.toBeNull();
+
+			expect(() =>
+				buildOperationAwarePrompt({
+					activation: activation!,
+					missionId: "mission-1",
+					prompt: "Continue the workflow",
+					workflow: createCompletedStepWorkflow(
+						"clarify-requirements",
+						"draft-prd",
+						"task-clarify-requirements"
+					),
+					workspaceRoot,
+				})
+			).toThrow(MISSING_FACET_SKILL_ERROR_PATTERN);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

@@ -56,6 +56,8 @@ const OUTPUT_PLACEHOLDER_PATTERN =
 const SETTING_PLACEHOLDER_PATTERN =
 	/\{\{\s*setting\("([^"]+)",\s*"([^"]+)"\)\s*\}\}/gu;
 const ROOT_PLACEHOLDER_PATTERN = /\{\{\s*root\("([^"]+)"\)\s*\}\}/gu;
+const FACET_SKILL_PLACEHOLDER_PATTERN =
+	/\{\{\s*facet_skill\("([^"]+)"\)\s*\}\}/gu;
 const XML_ESCAPES: Record<string, string> = {
 	'"': "&quot;",
 	"&": "&amp;",
@@ -634,6 +636,27 @@ const resolveRootPlaceholderValue = (
 	throw new Error(`Unsupported root placeholder scope "${scope}".`);
 };
 
+const resolveFacetSkillPlaceholderValue = (
+	skillName: string,
+	workspaceRoot: string
+): string => {
+	const skillPath = join(
+		workspaceRoot,
+		FF15_WORKSPACE_RUNTIME_DIR_NAME,
+		"facets",
+		"skills",
+		skillName,
+		"SKILL.md"
+	);
+	if (!existsSync(skillPath)) {
+		throw new Error(
+			`Could not resolve facet_skill placeholder for "${skillName}". Missing file at ${skillPath}.`
+		);
+	}
+
+	return skillPath;
+};
+
 const resolveInstructionPlaceholders = (input: {
 	content: string | null;
 	context: Ff15OperationPromptResolutionContext;
@@ -661,10 +684,16 @@ const resolveInstructionPlaceholders = (input: {
 			resolveSettingPlaceholderValue(key, mode, input.context.settings)
 	);
 
-	const resolved = settingResolved.replace(
+	const rootResolved = settingResolved.replace(
 		ROOT_PLACEHOLDER_PATTERN,
 		(_match, scope: string) =>
 			resolveRootPlaceholderValue(scope, input.context.workspaceRoot)
+	);
+
+	const resolved = rootResolved.replace(
+		FACET_SKILL_PLACEHOLDER_PATTERN,
+		(_match, skillName: string) =>
+			resolveFacetSkillPlaceholderValue(skillName, input.context.workspaceRoot)
 	);
 
 	if (resolved.includes("{{ output(")) {
@@ -682,6 +711,12 @@ const resolveInstructionPlaceholders = (input: {
 	if (resolved.includes("{{ root(")) {
 		throw new Error(
 			'Invalid root placeholder syntax. Use {{ root("scope") }}.'
+		);
+	}
+
+	if (resolved.includes("{{ facet_skill(")) {
+		throw new Error(
+			'Invalid facet_skill placeholder syntax. Use {{ facet_skill("name") }}.'
 		);
 	}
 

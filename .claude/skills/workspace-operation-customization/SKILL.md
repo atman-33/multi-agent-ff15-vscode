@@ -33,7 +33,7 @@ Create or revise workspace-local FF15 operations for the VS Code extension witho
 
 - Check `initial_step` ownership and terminal transitions first.
 - Check `job.file`, `instruction.file`, `skills[].file`, `policies[].file`, and `output_contracts.report[].format.file` relative to the YAML file.
-- Check `{{ output(...) }}`, `{{ setting(...) }}`, and `{{ root(...) }}` placeholders for supported syntax and declared outputs.
+- Check `{{ output(...) }}`, `{{ setting(...) }}`, `{{ root(...) }}`, and `{{ facet_skill(...) }}` placeholders for supported syntax and declared outputs. `{{ facet_skill("name") }}` resolves to the absolute path of the project facet skill at `.ff15/facets/skills/<name>/SKILL.md`.
 - Check multiline `inline: |` blocks for accidental nesting of sibling fields.
 - If the operation is expected to appear in a picker, verify whether the active extension build catalogs workspace-authored operations or only bundled ones.
 
