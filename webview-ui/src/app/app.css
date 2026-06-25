@@ -112,6 +112,17 @@ body {
 	* {
 		@apply border-border outline-ring/50;
 	}
+	/*
+	 * Establish a full-height chain so route shells using `h-full` resolve to
+	 * the viewport height instead of their content height. Without this, views
+	 * with little content (e.g. the workbench loading spinner) collapse and the
+	 * full-bleed FF15 background only covers the content area.
+	 */
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
 	body {
 		@apply bg-background text-foreground;
 	}
