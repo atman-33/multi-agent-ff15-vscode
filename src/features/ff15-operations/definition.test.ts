@@ -253,7 +253,7 @@ describe("ff15 operation definition", () => {
 		}
 	});
 
-	it("loads bundled spec-planning operations with a local git fallback when origin is unavailable", () => {
+	it("loads the bundled idea-to-openspec-dev spec step driven by facet skills", () => {
 		const workspaceRoot = join(
 			tmpdir(),
 			`ff15-bundled-local-planning-${crypto.randomUUID()}`
@@ -268,21 +268,25 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 				"builtin:idea-to-openspec-dev"
 			);
-			const specPlanningStep =
-				definition?.steps.find((step) => step.name === "spec-planning") ?? null;
+			const specStep =
+				definition?.steps.find((step) => step.name === "spec") ?? null;
 
-			expect(specPlanningStep?.instruction).toContain(
-				"continue without blocking on the missing remote"
+			expect(definition?.initialStep).toBe("spec");
+			expect(specStep?.agent).toBe("noctis");
+			expect(specStep?.instruction).toContain(
+				"create and switch to a `feature/<change-name>` branch"
 			);
-			expect(specPlanningStep?.instruction).toContain(
-				"Prefer branching from `origin/main` when it is available; otherwise branch from the current local branch or `HEAD`"
+			expect(specStep?.instruction).toContain(
+				'{{ facet_skill("grill-with-docs") }}'
 			);
-			expect(specPlanningStep?.rules).toEqual(
+			expect(specStep?.instruction).toContain(
+				'{{ facet_skill("openspec-propose") }}'
+			);
+			expect(specStep?.skills).toEqual([]);
+			expect(specStep?.rules).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({
-						condition: "Cannot proceed with planning safely",
-						next: "ABORT",
-					}),
+					expect.objectContaining({ next: "implement" }),
+					expect.objectContaining({ next: "cancelled" }),
 				])
 			);
 		} finally {
