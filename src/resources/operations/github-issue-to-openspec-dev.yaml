@@ -1,4 +1,4 @@
-name: github-issue-openspec-dev
+name: github-issue-to-openspec-dev
 description: >
   GitHub issue driven OpenSpec delivery operation.
   Noctis turns a GitHub issue into OpenSpec change artifacts, Gladiolus implements with TDD, Ignis reviews and prepares manual verification, and Prompto archives the change and opens the PR.

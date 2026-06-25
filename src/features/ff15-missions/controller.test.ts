@@ -160,9 +160,9 @@ const seedRichWorkspaceOperation = (workspaceRoot: string) => {
 		"utf8"
 	);
 	writeFileSync(
-		join(operationsDir, "github-issue-openspec-dev.yaml"),
+		join(operationsDir, "github-issue-to-openspec-dev.yaml"),
 		[
-			"name: github-issue-openspec-dev",
+			"name: github-issue-to-openspec-dev",
 			"description: >",
 			"  Drive spec planning for an incoming GitHub issue.",
 			"initial_step: spec-planning",
@@ -570,7 +570,7 @@ describe("createFf15MissionSendController", () => {
 			await missionsStore.createMission();
 			await selectMissionOperation(missionsStore);
 			await missionsStore.updateMission("mission-1", {
-				operationRef: "builtin:github-issue-openspec-dev",
+				operationRef: "builtin:github-issue-to-openspec-dev",
 				workflow: {
 					activeTask: null,
 					currentStep: null,
@@ -622,7 +622,7 @@ describe("createFf15MissionSendController", () => {
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: expect.stringContaining(
-						"operation: github-issue-openspec-dev"
+						"operation: github-issue-to-openspec-dev"
 					),
 				})
 			);
@@ -691,7 +691,7 @@ describe("createFf15MissionSendController", () => {
 			);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:github-issue-openspec-dev",
+					operationRef: "builtin:github-issue-to-openspec-dev",
 					workflow: expect.objectContaining({
 						activeTask: "Spec Planning",
 						currentStep: "spec-planning",
@@ -726,7 +726,7 @@ describe("createFf15MissionSendController", () => {
 				await selectMissionOperation(
 					missionsStore,
 					"mission-1",
-					"builtin:github-issue-openspec-dev"
+					"builtin:github-issue-to-openspec-dev"
 				);
 
 				const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);

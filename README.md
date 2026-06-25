@@ -145,7 +145,7 @@ Before you can send a mission prompt, select a supported operation from the cata
 
 Bundled operations currently include:
 
-- `github-issue-openspec-dev`
+- `github-issue-to-openspec-dev`
 - `idea-to-openspec-dev`
 - `idea-to-prd-and-issues`
 - `shiritori-smoke-test`

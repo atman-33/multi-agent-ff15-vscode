@@ -71,9 +71,9 @@ const seedRichOperationBundle = (workspaceRoot: string) => {
 		"utf8"
 	);
 	writeFileSync(
-		join(operationsDir, "github-issue-openspec-dev.yaml"),
+		join(operationsDir, "github-issue-to-openspec-dev.yaml"),
 		[
-			"name: github-issue-openspec-dev",
+			"name: github-issue-to-openspec-dev",
 			"description: >",
 			"  Drive spec planning for an incoming GitHub issue.",
 			"initial_step: spec-planning",
@@ -208,13 +208,13 @@ describe("ff15 operation definition", () => {
 
 			const definition = loadMissionOperationDefinition(
 				workspaceRoot,
-				"builtin:github-issue-openspec-dev"
+				"builtin:github-issue-to-openspec-dev"
 			);
 
 			expect(definition).toEqual(
 				expect.objectContaining({
 					initialStep: "spec-planning",
-					name: "github-issue-openspec-dev",
+					name: "github-issue-to-openspec-dev",
 				})
 			);
 			expect(definition?.steps[0]).toEqual(
@@ -301,7 +301,7 @@ describe("ff15 operation definition", () => {
 			seedRichOperationBundle(workspaceRoot);
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
-				"builtin:github-issue-openspec-dev"
+				"builtin:github-issue-to-openspec-dev"
 			);
 			expect(activation).not.toBeNull();
 
@@ -325,7 +325,7 @@ describe("ff15 operation definition", () => {
 			expect(prompt).not.toContain("activate_project:");
 			expect(prompt).not.toContain("project_root:");
 			expect(prompt).toContain("<workflow-context>");
-			expect(prompt).toContain("operation: github-issue-openspec-dev");
+			expect(prompt).toContain("operation: github-issue-to-openspec-dev");
 			expect(prompt).toContain("step: spec-planning");
 			expect(prompt).toContain("task: Spec Planning");
 			expect(prompt).toContain("<job>");
@@ -377,7 +377,7 @@ describe("ff15 operation definition", () => {
 			seedRichOperationBundle(workspaceRoot);
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
-				"builtin:github-issue-openspec-dev"
+				"builtin:github-issue-to-openspec-dev"
 			);
 			expect(activation).not.toBeNull();
 
@@ -409,7 +409,7 @@ describe("ff15 operation definition", () => {
 			seedRichOperationBundle(workspaceRoot);
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
-				"builtin:github-issue-openspec-dev"
+				"builtin:github-issue-to-openspec-dev"
 			);
 			expect(activation).not.toBeNull();
 
@@ -738,7 +738,7 @@ describe("ff15 operation definition", () => {
 
 		try {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
-				operationFileName: "github-issue-openspec-dev.yaml",
+				operationFileName: "github-issue-to-openspec-dev.yaml",
 			});
 			const expectedOutputPath = writeMissionOutputFile({
 				content: "---\nchange_name: test-change\n---\n",
@@ -751,7 +751,7 @@ describe("ff15 operation definition", () => {
 
 			const activation = loadMissionOperationActivation(
 				workspaceRoot,
-				"builtin:github-issue-openspec-dev",
+				"builtin:github-issue-to-openspec-dev",
 				"implement"
 			);
 			expect(activation).not.toBeNull();

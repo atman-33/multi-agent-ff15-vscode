@@ -36,10 +36,10 @@ interface ManagedOperationsManifest {
 
 export const FF15_BUNDLED_OPERATION_DEFINITIONS = [
 	{
-		fileName: "github-issue-openspec-dev.yaml",
-		name: "github-issue-openspec-dev",
+		fileName: "github-issue-to-openspec-dev.yaml",
+		name: "github-issue-to-openspec-dev",
 		requiredAgents: ["noctis", "gladiolus", "ignis", "prompto"],
-		ref: "builtin:github-issue-openspec-dev",
+		ref: "builtin:github-issue-to-openspec-dev",
 	},
 	{
 		fileName: "idea-to-openspec-dev.yaml",
