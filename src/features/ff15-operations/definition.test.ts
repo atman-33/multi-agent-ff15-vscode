@@ -30,44 +30,12 @@ const seedRichOperationBundle = (workspaceRoot: string) => {
 	const runtimeRoot = join(workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME);
 	const operationsDir = join(runtimeRoot, "operations");
 	const facetsDir = join(runtimeRoot, "facets");
-	mkdirSync(join(facetsDir, "jobs"), { recursive: true });
-	mkdirSync(join(facetsDir, "policies"), { recursive: true });
 	mkdirSync(join(facetsDir, "output-contracts"), { recursive: true });
-	mkdirSync(join(facetsDir, "skills", "agent-relationships"), {
-		recursive: true,
-	});
 	mkdirSync(operationsDir, { recursive: true });
 
 	writeFileSync(
-		join(facetsDir, "jobs", "planner.md"),
-		"Plan the current issue into a spec-ready brief.\n",
-		"utf8"
-	);
-	writeFileSync(
-		join(facetsDir, "jobs", "implementer.md"),
-		"Implement the approved change.\n",
-		"utf8"
-	);
-	writeFileSync(
-		join(facetsDir, "policies", "coding-standards.md"),
-		"Follow repository coding standards.\n",
-		"utf8"
-	);
-	writeFileSync(
 		join(facetsDir, "output-contracts", "spec-plan.md"),
 		"## Format\n\n- Include the accepted plan.\n",
-		"utf8"
-	);
-	writeFileSync(
-		join(facetsDir, "skills", "agent-relationships", "SKILL.md"),
-		[
-			"---",
-			"name: agent-relationships",
-			"description: Coordinate with the FF15 roster safely.",
-			"---",
-			"",
-			"# Agent Relationships",
-		].join("\n"),
 		"utf8"
 	);
 	writeFileSync(
@@ -81,15 +49,8 @@ const seedRichOperationBundle = (workspaceRoot: string) => {
 			"steps:",
 			"  - name: spec-planning",
 			"    agent: noctis",
-			"    job:",
-			"      file: ../facets/jobs/planner.md",
 			"    instruction:",
-			"      inline: |",
-			"        Draft the spec plan and prepare the handoff.",
-			"    skills:",
-			"      - file: ../facets/skills/agent-relationships/SKILL.md",
-			"    policies:",
-			"      - file: ../facets/policies/coding-standards.md",
+			"      file: ../facets/instructions/spec-planning.md",
 			"    output_contracts:",
 			"      report:",
 			"        - name: spec-plan.md",
@@ -100,12 +61,19 @@ const seedRichOperationBundle = (workspaceRoot: string) => {
 			"        next: implement",
 			"  - name: implement",
 			"    agent: gladiolus",
-			"    job:",
-			"      file: ../facets/jobs/implementer.md",
+			"    instruction:",
+			"      inline: |",
+			"        Implement the approved change.",
 			"    rules:",
 			"      - condition: Implementation is complete",
 			"        next: COMPLETE",
 		].join("\n"),
+		"utf8"
+	);
+	mkdirSync(join(facetsDir, "instructions"), { recursive: true });
+	writeFileSync(
+		join(facetsDir, "instructions", "spec-planning.md"),
+		"Draft the spec plan and prepare the handoff.\n",
 		"utf8"
 	);
 };
@@ -221,9 +189,7 @@ describe("ff15 operation definition", () => {
 				expect.objectContaining({
 					agent: "noctis",
 					instruction: "Draft the spec plan and prepare the handoff.",
-					job: "Plan the current issue into a spec-ready brief.",
 					name: "spec-planning",
-					policies: ["Follow repository coding standards."],
 					rules: [
 						expect.objectContaining({
 							condition: "Spec plan is ready for implementation",
@@ -232,16 +198,6 @@ describe("ff15 operation definition", () => {
 					],
 				})
 			);
-			expect(definition?.steps[0]?.skills).toEqual([
-				join(
-					workspaceRoot,
-					FF15_WORKSPACE_RUNTIME_DIR_NAME,
-					"facets",
-					"skills",
-					"agent-relationships",
-					"SKILL.md"
-				),
-			]);
 			expect(definition?.steps[0]?.outputContracts).toEqual([
 				expect.objectContaining({
 					format: "## Format\n\n- Include the accepted plan.",
@@ -282,7 +238,6 @@ describe("ff15 operation definition", () => {
 			expect(specStep?.instruction).toContain(
 				'{{ facet_skill("openspec-propose") }}'
 			);
-			expect(specStep?.skills).toEqual([]);
 			expect(specStep?.rules).toEqual(
 				expect.arrayContaining([
 					expect.objectContaining({ next: "implement" }),
@@ -328,16 +283,11 @@ describe("ff15 operation definition", () => {
 			expect(prompt).toContain("operation: github-issue-to-openspec-dev");
 			expect(prompt).toContain("step: spec-planning");
 			expect(prompt).toContain("task: Spec Planning");
-			expect(prompt).toContain("<job>");
-			expect(prompt).toContain(
-				"Plan the current issue into a spec-ready brief."
-			);
-			expect(prompt).toContain("<reference-files>");
-			expect(prompt).toContain("agent-relationships");
+			expect(prompt).not.toContain("<job>");
+			expect(prompt).not.toContain("<reference-files>");
+			expect(prompt).not.toContain("<policy>");
 			expect(prompt).toContain("<instruction>");
 			expect(prompt).toContain("Draft the spec plan and prepare the handoff.");
-			expect(prompt).toContain("<policy>");
-			expect(prompt).toContain("Follow repository coding standards.");
 			expect(prompt).toContain("<output-contract>");
 			expect(prompt).toContain(
 				getWorkspaceMissionOutputFilePath({

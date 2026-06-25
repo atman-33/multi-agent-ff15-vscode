@@ -20,7 +20,7 @@ Create or revise workspace-local FF15 operations for the VS Code extension witho
 1. Confirm the workspace root and the target operation path under `.ff15/operations/`.
 2. Inspect the closest existing workspace-local operation and any referenced `.ff15/facets/**` files before drafting.
 3. Keep every `file:` reference relative to the operation YAML file.
-4. Prefer file-backed facet content once instructions, policies, or reusable skill context become non-trivial.
+4. Keep each step to `name`, `agent`, `instruction`, `output_contracts`, and `rules`; prefer a file-backed `instruction` once an inline instruction becomes non-trivial, and reference reusable project skills inline with `{{ facet_skill("name") }}` instead of separate `job`/`skills`/`policies` fields.
 5. Run the bundled validator on every created or modified operation YAML:
    - `python .claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
    - If your environment exposes `python3` instead of `python`, use that equivalent command.
@@ -32,7 +32,7 @@ Create or revise workspace-local FF15 operations for the VS Code extension witho
 ## Diagnostics
 
 - Check `initial_step` ownership and terminal transitions first.
-- Check `job.file`, `instruction.file`, `skills[].file`, `policies[].file`, and `output_contracts.report[].format.file` relative to the YAML file.
+- Check `instruction.file` and `output_contracts.report[].format.file` relative to the YAML file.
 - Check `{{ output(...) }}`, `{{ setting(...) }}`, `{{ root(...) }}`, and `{{ facet_skill(...) }}` placeholders for supported syntax and declared outputs. `{{ facet_skill("name") }}` resolves to the absolute path of the project facet skill at `.ff15/facets/skills/<name>/SKILL.md`.
 - Check multiline `inline: |` blocks for accidental nesting of sibling fields.
 - If the operation is expected to appear in a picker, verify whether the active extension build catalogs workspace-authored operations or only bundled ones.

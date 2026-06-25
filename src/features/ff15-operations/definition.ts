@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { parse } from "yaml";
 import { env } from "vscode";
 import {
@@ -32,12 +32,9 @@ interface ParsedOperationOutputContract {
 interface ParsedOperationStep {
 	agent?: unknown;
 	instruction?: unknown;
-	job?: unknown;
 	name?: unknown;
 	output_contracts?: unknown;
-	policies?: unknown;
 	rules?: unknown;
-	skills?: unknown;
 }
 
 interface ParsedOperationDefinition {
@@ -47,9 +44,6 @@ interface ParsedOperationDefinition {
 }
 
 const STEP_TASK_TOKEN_PATTERN = /[-_]+/u;
-const LINE_SPLIT_PATTERN = /\r?\n/u;
-const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---/u;
-const FILE_EXTENSION_PATTERN = /\.[^.]+$/u;
 const XML_ESCAPE_PATTERN = /["&'<>]/gu;
 const OUTPUT_PLACEHOLDER_PATTERN =
 	/\{\{\s*output\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)\s*\}\}/gu;
@@ -88,12 +82,9 @@ export interface Ff15MissionOperationOutputContract {
 export interface Ff15MissionOperationStep {
 	agent: string | null;
 	instruction: string | null;
-	job: string | null;
 	name: string;
 	outputContracts: Ff15MissionOperationOutputContract[];
-	policies: string[];
 	rules: Ff15MissionOperationRule[];
-	skills: string[];
 }
 
 export interface Ff15MissionOperationDefinition {
@@ -161,32 +152,6 @@ const readOperationAsset = (
 	return readFileSync(assetPath, "utf8").trim();
 };
 
-const resolveOperationAssetReference = (
-	operationPath: string,
-	source: unknown
-): string | null => {
-	const sourceRecord = getRecord(source as ParsedOperationContentSource);
-	const fileRef = getString(sourceRecord?.file);
-	if (!fileRef) {
-		return null;
-	}
-
-	const assetPath = resolveOperationAssetPath(operationPath, fileRef);
-	return existsSync(assetPath) ? assetPath : null;
-};
-
-const readPolicies = (operationPath: string, source: unknown): string[] =>
-	getArray(source)
-		.map((policySource) => readOperationAsset(operationPath, policySource))
-		.filter((policy): policy is string => policy != null && policy.length > 0);
-
-const readSkills = (operationPath: string, source: unknown): string[] =>
-	getArray(source)
-		.map((skillSource) =>
-			resolveOperationAssetReference(operationPath, skillSource)
-		)
-		.filter((skillPath): skillPath is string => skillPath != null);
-
 const readRules = (source: unknown): Ff15MissionOperationRule[] =>
 	getArray(source)
 		.map((ruleValue) => {
@@ -253,15 +218,12 @@ const readOperationStep = (
 	return {
 		agent: getString(stepRecord?.agent),
 		instruction: readOperationAsset(operationPath, stepRecord?.instruction),
-		job: readOperationAsset(operationPath, stepRecord?.job),
 		name,
 		outputContracts: readOutputContracts(
 			operationPath,
 			stepRecord?.output_contracts
 		),
-		policies: readPolicies(operationPath, stepRecord?.policies),
 		rules: readRules(stepRecord?.rules),
-		skills: readSkills(operationPath, stepRecord?.skills),
 	};
 };
 
@@ -345,44 +307,6 @@ const buildToolingContextLines = (input: {
 	];
 };
 
-const readFrontmatterValue = (
-	source: string,
-	fieldName: string
-): string | null => {
-	const match = FRONTMATTER_PATTERN.exec(source);
-	if (!match) {
-		return null;
-	}
-
-	for (const line of match[1].split(LINE_SPLIT_PATTERN)) {
-		const separatorIndex = line.indexOf(":");
-		if (separatorIndex <= 0) {
-			continue;
-		}
-
-		const key = line.slice(0, separatorIndex).trim();
-		if (key !== fieldName) {
-			continue;
-		}
-
-		const value = line.slice(separatorIndex + 1).trim();
-		return value.replace(/^['"]|['"]$/gu, "");
-	}
-
-	return null;
-};
-
-const readSkillMetadata = (skillPath: string) => {
-	const source = readFileSync(skillPath, "utf8");
-	const fileName = basename(skillPath).replace(FILE_EXTENSION_PATTERN, "");
-
-	return {
-		description: readFrontmatterValue(source, "description"),
-		name: readFrontmatterValue(source, "name") ?? fileName,
-		path: skillPath,
-	};
-};
-
 const getOperationStepTaskPrefix = (stepName: string) => `task-${stepName}`;
 
 const getRecordedTaskAttemptNumber = (input: {
@@ -433,27 +357,6 @@ export const getOperationStepTaskId = (input: {
 	}
 
 	return `${taskIdPrefix}-${highestRecordedAttempt + 1}`;
-};
-
-const buildReferenceFilesSection = (skillPaths: string[]): string | null => {
-	const referenceFiles = skillPaths
-		.map((skillPath) => {
-			const metadata = readSkillMetadata(skillPath);
-			return wrapXmlSection(
-				"reference-file",
-				[
-					buildTextSection("name", metadata.name),
-					buildTextSection("path", metadata.path),
-					buildTextSection("description", metadata.description),
-				]
-					.filter((section): section is string => section != null)
-					.join("\n\n")
-			);
-		})
-		.filter((section): section is string => section != null)
-		.join("\n\n");
-
-	return wrapXmlSection("reference-files", referenceFiles);
 };
 
 const buildOutputContractSections = (
@@ -729,15 +632,6 @@ const buildOperationStepSections = (
 ): string[] =>
 	[
 		buildTextSection(
-			"job",
-			resolveInstructionPlaceholders({
-				content: activation.step?.job ?? null,
-				context,
-				definition: activation.definition,
-			})
-		),
-		buildReferenceFilesSection(activation.step?.skills ?? []),
-		buildTextSection(
 			"instruction",
 			resolveInstructionPlaceholders({
 				content: activation.step?.instruction ?? null,
@@ -745,18 +639,6 @@ const buildOperationStepSections = (
 				definition: activation.definition,
 			})
 		),
-		...(activation.step?.policies ?? [])
-			.map((policy) =>
-				buildTextSection(
-					"policy",
-					resolveInstructionPlaceholders({
-						content: policy,
-						context,
-						definition: activation.definition,
-					})
-				)
-			)
-			.filter((section): section is string => section != null),
 		...buildOutputContractSections(
 			activation,
 			activation.step?.outputContracts ?? [],

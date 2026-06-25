@@ -28,22 +28,11 @@ LEGACY_OPERATION_FIELDS = [
 CONTENT_SOURCE_KEYS = {"file", "inline"}
 OUTPUT_CONTRACT_KEYS = {"report"}
 OUTPUT_CONTRACT_REPORT_KEYS = {"name", "format"}
-DELEGATION_KEYS = {
-	"allowed_workers",
-	"worker_job",
-	"worker_instruction",
-	"worker_skills",
-	"worker_policies",
-}
 STEP_KEYS = {
 	"name",
 	"agent",
-	"job",
 	"instruction",
-	"skills",
-	"policies",
 	"output_contracts",
-	"delegation",
 	"rules",
 }
 OPERATION_KEYS = {
@@ -61,11 +50,14 @@ LEGACY_STEP_FIELD_MESSAGES = {
 	"edit": 'contains removed field "edit".',
 	"handoff_mode": 'contains removed field "handoff_mode".',
 	"pass_previous_response": 'contains removed field "pass_previous_response".',
-	"job_file": 'contains removed field "job_file". Use "job: { file: ... }" or "job: { inline: ... }" instead.',
+	"job": 'contains removed field "job". Inline the guidance directly in "instruction" instead.',
+	"job_file": 'contains removed field "job_file". Inline the guidance directly in "instruction" instead.',
 	"instruction_file": 'contains removed field "instruction_file". Use "instruction: { file: ... }" or "instruction: { inline: ... }" instead.',
-	"knowledge": 'contains removed field "knowledge". Use "skills:" with a list of file source objects instead.',
-	"knowledge_files": 'contains removed field "knowledge_files". Use "skills:" with a list of file source objects instead.',
-	"policy_files": 'contains removed field "policy_files". Use "policies:" with a list of source objects instead.',
+	"skills": 'contains removed field "skills". Reference a project skill inline with {{ facet_skill("name") }} or describe it in "instruction" instead.',
+	"knowledge": 'contains removed field "knowledge". Reference a project skill inline with {{ facet_skill("name") }} or describe it in "instruction" instead.',
+	"knowledge_files": 'contains removed field "knowledge_files". Reference a project skill inline with {{ facet_skill("name") }} or describe it in "instruction" instead.',
+	"policies": 'contains removed field "policies". Inline the guidance directly in "instruction" instead.',
+	"policy_files": 'contains removed field "policy_files". Inline the guidance directly in "instruction" instead.',
 }
 
 OUTPUT_PLACEHOLDER_PATTERN = re.compile(
@@ -290,137 +282,6 @@ def validate_content_source(
 		push_error(errors, f"{label} file source does not exist: {file_ref}")
 
 
-def validate_content_source_list(
-	raw: Any,
-	label: str,
-	operation_directory: Path,
-	errors: list[str],
-) -> None:
-	if raw is None:
-		return
-
-	if not isinstance(raw, list):
-		push_error(errors, f"{label} must be an array of source objects.")
-		return
-
-	for index, entry in enumerate(raw):
-		validate_content_source(entry, f"{label}[{index}]", operation_directory, errors)
-
-
-def validate_file_content_source(
-	raw: Any,
-	label: str,
-	operation_directory: Path,
-	errors: list[str],
-) -> None:
-	if raw is None:
-		return
-
-	if not is_plain_object(raw):
-		push_error(errors, f'{label} must be an object with "file".')
-		return
-
-	validate_no_unexpected_keys(
-		raw,
-		label,
-		{"file"},
-		'File-only sources support only the "file" field.',
-		errors,
-	)
-
-	file_ref = get_string(raw.get("file"))
-	inline_value = get_string(raw.get("inline"))
-	if file_ref is None or inline_value is not None:
-		push_error(errors, f'{label} must define exactly one "file" source. Workflow skills are file-only.')
-		return
-
-	if not (operation_directory / file_ref).resolve().exists():
-		push_error(errors, f"{label} file source does not exist: {file_ref}")
-
-
-def validate_file_content_source_list(
-	raw: Any,
-	label: str,
-	operation_directory: Path,
-	errors: list[str],
-) -> None:
-	if raw is None:
-		return
-
-	if not isinstance(raw, list):
-		push_error(errors, f"{label} must be an array of file source objects.")
-		return
-
-	for index, entry in enumerate(raw):
-		validate_file_content_source(entry, f"{label}[{index}]", operation_directory, errors)
-
-
-def validate_delegation(
-	raw: Any,
-	step_name: str,
-	agent: str,
-	operation_directory: Path,
-	errors: list[str],
-) -> bool:
-	if raw is None:
-		return False
-
-	if not is_plain_object(raw):
-		push_error(errors, f'Step "{step_name}" delegation must be an object.')
-		return False
-
-	validate_no_unexpected_keys(
-		raw,
-		f'Step "{step_name}" delegation',
-		DELEGATION_KEYS,
-		"Delegation supports only allowed_workers, worker_job, worker_instruction, worker_skills, and worker_policies.",
-		errors,
-	)
-
-	if agent != "noctis":
-		push_error(errors, f'Step "{step_name}" delegation is only allowed on noctis steps.')
-
-	if "worker_knowledge" in raw:
-		push_error(
-			errors,
-			f'Step "{step_name}" delegation contains removed field "worker_knowledge". Use "worker_skills:" with a list of file source objects instead.',
-		)
-
-	allowed_workers = raw.get("allowed_workers")
-	if allowed_workers is not None:
-		if not isinstance(allowed_workers, list):
-			push_error(errors, f'Step "{step_name}" delegation.allowed_workers must be an array.')
-		else:
-			for index, worker in enumerate(allowed_workers):
-				if not isinstance(worker, str) or worker not in VALID_AGENTS or worker == "noctis":
-					push_error(
-						errors,
-						f'Step "{step_name}" delegation.allowed_workers[{index}] must be one of ignis, gladiolus, or prompto.',
-					)
-
-	validate_content_source(raw.get("worker_job"), f'Step "{step_name}" delegation.worker_job', operation_directory, errors)
-	validate_content_source(
-		raw.get("worker_instruction"),
-		f'Step "{step_name}" delegation.worker_instruction',
-		operation_directory,
-		errors,
-	)
-	validate_file_content_source_list(
-		raw.get("worker_skills"),
-		f'Step "{step_name}" delegation.worker_skills',
-		operation_directory,
-		errors,
-	)
-	validate_content_source_list(
-		raw.get("worker_policies"),
-		f'Step "{step_name}" delegation.worker_policies',
-		operation_directory,
-		errors,
-	)
-
-	return True
-
-
 def validate_output_contracts(
 	raw: Any,
 	step_name: str,
@@ -484,16 +345,10 @@ def validate_output_contracts(
 def validate_rules(
 	raw: Any,
 	step_name: str,
-	has_delegation: bool,
-	agent: str,
 	errors: list[str],
 ) -> list[str]:
 	if raw is None:
-		if not (agent == "noctis" and has_delegation):
-			push_error(
-				errors,
-				f'Step "{step_name}" may omit rules only for an explicit noctis-owned autonomous delegation step.',
-			)
+		push_error(errors, f'Step "{step_name}" must define a non-empty "rules" array.')
 		return []
 
 	if not isinstance(raw, list):
@@ -619,26 +474,13 @@ def validate_operation_file(file_path: Path) -> list[str]:
 			step,
 			f'Step "{step_name}"',
 			STEP_KEYS,
-			'Steps support only name, agent, job, instruction, skills, policies, output_contracts, delegation, and rules.',
+			'Steps support only name, agent, instruction, output_contracts, and rules.',
 			errors,
 		)
 
-		validate_content_source(step.get("job"), f'Step "{step_name}" job', operation_directory, errors)
 		validate_content_source(
 			step.get("instruction"),
 			f'Step "{step_name}" instruction',
-			operation_directory,
-			errors,
-		)
-		validate_file_content_source_list(
-			step.get("skills"),
-			f'Step "{step_name}" skills',
-			operation_directory,
-			errors,
-		)
-		validate_content_source_list(
-			step.get("policies"),
-			f'Step "{step_name}" policies',
 			operation_directory,
 			errors,
 		)
@@ -650,18 +492,9 @@ def validate_operation_file(file_path: Path) -> list[str]:
 		)
 
 		declared_outputs_by_step[step_name] = get_declared_output_names(step.get("output_contracts"))
-		has_delegation = validate_delegation(
-			step.get("delegation"),
-			step_name,
-			agent,
-			operation_directory,
-			errors,
-		)
 		step_rule_targets[step_name] = validate_rules(
 			step.get("rules"),
 			step_name,
-			has_delegation,
-			agent,
 			errors,
 		)
 
