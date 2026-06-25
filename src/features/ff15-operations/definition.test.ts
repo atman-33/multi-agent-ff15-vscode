@@ -634,8 +634,8 @@ describe("ff15 operation definition", () => {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
 				transformOperation: (content) =>
 					content.replace(
-						"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
-						'2. Read the handoff skill at `{{ facet_skill("handoff") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
+						"In this step draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
+						'Read the handoff skill at `{{ facet_skill("handoff") }}`. In this step draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
 					),
 			});
 			writeMissionOutputFile({
@@ -692,8 +692,8 @@ describe("ff15 operation definition", () => {
 			seedBundledPromptResolutionOperation(workspaceRoot, {
 				transformOperation: (content) =>
 					content.replace(
-						"2. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
-						'2. Read the skill at `{{ facet_skill("does-not-exist") }}`. In this step, draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
+						"In this step draft `prd-draft.md` only; do not publish or update the GitHub issue yet.",
+						'Read the skill at `{{ facet_skill("does-not-exist") }}`. In this step draft `prd-draft.md` only; do not publish or update the GitHub issue yet.'
 					),
 			});
 			writeMissionOutputFile({
