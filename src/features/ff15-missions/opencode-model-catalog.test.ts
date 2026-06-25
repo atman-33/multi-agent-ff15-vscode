@@ -1,15 +1,53 @@
+import { EventEmitter } from "node:events";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { execFileMock } = vi.hoisted(() => ({
-	execFileMock: vi.fn(),
+const { spawnMock } = vi.hoisted(() => ({
+	spawnMock: vi.fn(),
 }));
 
-vi.mock("node:child_process", () => ({
-	execFile: execFileMock,
+vi.mock("cross-spawn", () => ({
+	default: spawnMock,
 }));
+
+interface FakeSpawnResult {
+	code?: number;
+	error?: Error;
+	stderr?: string;
+	stdout?: string;
+}
+
+// Build a minimal ChildProcess stand-in whose stdout/stderr are EventEmitters,
+// emitting their data (as UTF-8 buffers) and a terminal event on the next
+// microtask so the production listeners are attached first.
+const createFakeChild = (result: FakeSpawnResult) => {
+	const child = new EventEmitter() as EventEmitter & {
+		kill: () => void;
+		stderr: EventEmitter;
+		stdout: EventEmitter;
+	};
+	child.stdout = new EventEmitter();
+	child.stderr = new EventEmitter();
+	child.kill = vi.fn();
+
+	queueMicrotask(() => {
+		if (result.error) {
+			child.emit("error", result.error);
+			return;
+		}
+		if (result.stdout) {
+			child.stdout.emit("data", Buffer.from(result.stdout, "utf-8"));
+		}
+		if (result.stderr) {
+			child.stderr.emit("data", Buffer.from(result.stderr, "utf-8"));
+		}
+		child.emit("close", result.code ?? 0);
+	});
+
+	return child;
+};
 
 const tempRoots: string[] = [];
 
@@ -39,36 +77,24 @@ const verboseOutput = () =>
 	].join("\n");
 
 const installExecSuccess = (output = verboseOutput()) => {
-	execFileMock.mockImplementation(
-		(
-			file: string,
-			args: string[],
-			options: unknown,
-			callback?: (error: Error | null, stdout: string, stderr: string) => void
-		) => {
-			const done = typeof options === "function" ? options : callback;
-			if (!done) {
-				throw new Error("Missing callback");
-			}
-
-			if (file !== "opencode") {
-				done(new Error(`Unexpected file: ${file}`), "", "");
-				return;
-			}
-
-			if (args[0] === "models" && args[1] === "--verbose") {
-				done(null, output, "");
-				return;
-			}
-
-			if (args[0] === "--version") {
-				done(null, "1.2.3\n", "");
-				return;
-			}
-
-			done(new Error(`Unexpected args: ${args.join(" ")}`), "", "");
+	spawnMock.mockImplementation((file: string, args: string[]) => {
+		if (file !== "opencode") {
+			return createFakeChild({ code: 1, stderr: `Unexpected file: ${file}` });
 		}
-	);
+
+		if (args[0] === "models" && args[1] === "--verbose") {
+			return createFakeChild({ stdout: output });
+		}
+
+		if (args[0] === "--version") {
+			return createFakeChild({ stdout: "1.2.3\n" });
+		}
+
+		return createFakeChild({
+			code: 1,
+			stderr: `Unexpected args: ${args.join(" ")}`,
+		});
+	});
 };
 
 const loadModule = () => {
@@ -96,7 +122,7 @@ const withProcessPlatform = async <T>(
 };
 
 afterEach(() => {
-	execFileMock.mockReset();
+	spawnMock.mockReset();
 
 	while (tempRoots.length > 0) {
 		const root = tempRoots.pop();
@@ -156,26 +182,13 @@ describe("opencode-model-catalog", () => {
 
 		await module.refreshFf15OpenCodeModelCatalog(root);
 
-		execFileMock.mockImplementation(
-			(
-				_file: string,
-				args: string[],
-				options: unknown,
-				callback?: (error: Error | null, stdout: string, stderr: string) => void
-			) => {
-				const done = typeof options === "function" ? options : callback;
-				if (!done) {
-					throw new Error("Missing callback");
-				}
-
-				if (args[0] === "--version") {
-					done(null, "1.2.3\n", "");
-					return;
-				}
-
-				done(new Error("refresh failed"), "", "");
+		spawnMock.mockImplementation((_file: string, args: string[]) => {
+			if (args[0] === "--version") {
+				return createFakeChild({ stdout: "1.2.3\n" });
 			}
-		);
+
+			return createFakeChild({ code: 1, stderr: "refresh failed" });
+		});
 
 		await expect(module.refreshFf15OpenCodeModelCatalog(root)).rejects.toThrow(
 			"refresh failed"
@@ -192,38 +205,32 @@ describe("opencode-model-catalog", () => {
 		]);
 		expect(result.refreshState).toBe("error");
 		expect(result.stale).toBe(true);
-		expect(result.lastError).toBe("refresh failed");
+		expect(result.lastError).toContain("refresh failed");
 	});
 
-	it("uses shell execution for OpenCode refresh on Windows", async () => {
+	it("spawns OpenCode without a shell on Windows", async () => {
 		const root = createTempRoot();
 
-		execFileMock.mockImplementation(
-			(
-				file: string,
-				args: string[],
-				options: unknown,
-				callback?: (error: Error | null, stdout: string, stderr: string) => void
-			) => {
-				const done = typeof options === "function" ? options : callback;
-				if (!done) {
-					throw new Error("Missing callback");
-				}
-
+		spawnMock.mockImplementation(
+			(file: string, args: string[], options: { shell?: boolean }) => {
 				expect(file).toBe("opencode");
-				expect(options).toMatchObject({ cwd: root, shell: true });
+				expect(options).toMatchObject({ cwd: root, windowsHide: true });
+				// Running without a shell keeps cmd.exe (and its locale-encoded
+				// errors) out of the pipeline, preventing mojibake on Windows.
+				expect(options.shell).toBeUndefined();
 
 				if (args[0] === "models" && args[1] === "--verbose") {
-					done(null, verboseOutput(), "");
-					return;
+					return createFakeChild({ stdout: verboseOutput() });
 				}
 
 				if (args[0] === "--version") {
-					done(null, "1.2.3\n", "");
-					return;
+					return createFakeChild({ stdout: "1.2.3\n" });
 				}
 
-				done(new Error(`Unexpected args: ${args.join(" ")}`), "", "");
+				return createFakeChild({
+					code: 1,
+					stderr: `Unexpected args: ${args.join(" ")}`,
+				});
 			}
 		);
 

@@ -59,7 +59,7 @@ const Route = () => {
 				Open Projects Editor
 			</SidebarActionButton>
 
-			<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 px-1 text-[color:var(--vscode-foreground)] text-sm">
+			<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-1 text-[color:var(--vscode-foreground)] text-sm">
 				<div className="text-[color:var(--vscode-descriptionForeground)] text-xs">
 					Source
 				</div>

@@ -1,6 +1,6 @@
-import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import spawn from "cross-spawn";
 import {
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 	type Ff15MissionRecord,
@@ -39,24 +39,69 @@ export interface Ff15OpenCodeModelCatalogLoader {
 
 interface Ff15OpenCodeExecOptions {
 	cwd: string;
-	encoding: "utf-8";
 	maxBuffer: number;
-	shell?: boolean;
 }
 
+// Use cross-spawn (no shell) so the command never runs through cmd.exe. This
+// avoids mojibake on localized Windows, where cmd.exe emits "command not found"
+// errors in the OEM code page (e.g. CP932) that Node would otherwise decode as
+// UTF-8. cross-spawn still resolves .cmd / PATHEXT entries on Windows.
 const execFileWithOutput = (
 	file: string,
 	args: string[],
 	options: Ff15OpenCodeExecOptions
 ): Promise<{ stderr: string; stdout: string }> =>
 	new Promise((resolve, reject) => {
-		execFile(file, args, options, (error, stdout, stderr) => {
-			if (error) {
-				reject(error);
+		const child = spawn(file, args, {
+			cwd: options.cwd,
+			windowsHide: true,
+		});
+
+		const stdoutChunks: Buffer[] = [];
+		const stderrChunks: Buffer[] = [];
+		let totalBytes = 0;
+		let settled = false;
+
+		const fail = (error: Error) => {
+			if (settled) {
 				return;
 			}
+			settled = true;
+			child.kill();
+			reject(error);
+		};
 
-			resolve({ stderr, stdout });
+		const collect = (chunks: Buffer[]) => (chunk: Buffer) => {
+			totalBytes += chunk.length;
+			if (totalBytes > options.maxBuffer) {
+				fail(new Error(`Command output exceeded ${options.maxBuffer} bytes`));
+				return;
+			}
+			chunks.push(chunk);
+		};
+
+		child.stdout?.on("data", collect(stdoutChunks));
+		child.stderr?.on("data", collect(stderrChunks));
+		child.on("error", fail);
+		child.on("close", (code) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
+			const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+			if (code === 0) {
+				resolve({ stderr, stdout });
+				return;
+			}
+			const detail = stderr.trim();
+			reject(
+				new Error(
+					`Command failed: ${[file, ...args].join(" ")}${
+						detail ? `\n${detail}` : ""
+					}`
+				)
+			);
 		});
 	});
 
@@ -65,9 +110,7 @@ const createOpencodeExecOptions = (input: {
 	workspaceRoot: string;
 }): Ff15OpenCodeExecOptions => ({
 	cwd: input.workspaceRoot,
-	encoding: "utf-8",
 	maxBuffer: input.maxBuffer,
-	...(process.platform === "win32" ? { shell: true } : {}),
 });
 
 const advanceStringState = (
