@@ -1,5 +1,5 @@
 ---
-name: workspace-operation-customization
+name: ff15-workspace-operation-customization
 description: Create or diagnose workspace-local FF15 operation files and related facets under .ff15/operations and .ff15/facets. Use when adding or editing custom workspace operations, debugging why a workspace operation is not discoverable or routable, or validating workspace-local YAML and facet references for the VS Code extension.
 argument-hint: Describe the workspace-local operation or facet files to create or change, whether the task includes diagnostics, and whether to run the bundled validator.
 ---
@@ -22,7 +22,7 @@ Create or revise workspace-local FF15 operations for the VS Code extension witho
 3. Keep every `file:` reference relative to the operation YAML file.
 4. Prefer file-backed facet content once instructions, policies, or reusable skill context become non-trivial.
 5. Run the bundled validator on every created or modified operation YAML:
-   - `python .claude/skills/workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
+   - `python .claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
    - If your environment exposes `python3` instead of `python`, use that equivalent command.
    - You may pass multiple files or the whole `.ff15/operations` directory.
 6. Treat validator failures as blocking.

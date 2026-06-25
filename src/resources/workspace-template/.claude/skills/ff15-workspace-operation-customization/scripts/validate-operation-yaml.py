@@ -82,7 +82,7 @@ FACET_SKILL_PLACEHOLDER_PATTERN = re.compile(
 
 def print_usage() -> None:
     print(
-        "Usage: python .claude/skills/workspace-operation-customization/scripts/validate-operation-yaml.py <file-or-directory> [...more-paths]"
+        "Usage: python .claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py <file-or-directory> [...more-paths]"
     )
 
 

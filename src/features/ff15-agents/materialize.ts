@@ -46,7 +46,7 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 		relativePath: [
 			".claude",
 			"skills",
-			"workspace-operation-customization",
+			"ff15-workspace-operation-customization",
 			"SKILL.md",
 		],
 	},
@@ -54,7 +54,7 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 		relativePath: [
 			".claude",
 			"skills",
-			"workspace-operation-customization",
+			"ff15-workspace-operation-customization",
 			"scripts",
 			"validate-operation-yaml.py",
 		],

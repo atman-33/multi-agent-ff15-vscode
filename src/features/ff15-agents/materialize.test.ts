@@ -196,8 +196,8 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 
 		expect(bundledPaths).toEqual(
 			expect.arrayContaining([
-				".claude/skills/workspace-operation-customization/SKILL.md",
-				".claude/skills/workspace-operation-customization/scripts/validate-operation-yaml.py",
+				".claude/skills/ff15-workspace-operation-customization/SKILL.md",
+				".claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py",
 			])
 		);
 	});
