@@ -744,8 +744,8 @@ describe("ff15 operation definition", () => {
 				content: "---\nchange_name: test-change\n---\n",
 				fileName: "spec-plan.md",
 				missionId: "mission-1",
-				stepName: "spec-planning",
-				taskId: "task-spec-planning",
+				stepName: "spec",
+				taskId: "task-spec",
 				workspaceRoot,
 			});
 
@@ -762,11 +762,7 @@ describe("ff15 operation definition", () => {
 				handoff: null,
 				missionId: "mission-1",
 				openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
-				workflow: createCompletedStepWorkflow(
-					"spec-planning",
-					"implement",
-					"task-spec-planning"
-				),
+				workflow: createCompletedStepWorkflow("spec", "implement", "task-spec"),
 				workspaceRoot,
 			});
 
@@ -777,7 +773,7 @@ describe("ff15 operation definition", () => {
 				`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
 			);
 			expect(prompt).not.toContain(
-				'{{ output("spec-planning", "latest", "spec-plan.md") }}'
+				'{{ output("spec", "latest", "spec-plan.md") }}'
 			);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
