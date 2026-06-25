@@ -1,3 +1,8 @@
+import { Ff15Badge, type Ff15BadgeTone } from "@/components/ff15/ff15-badge";
+import { Ff15Panel } from "@/components/ff15/ff15-panel";
+import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
+import { Ff15Screen } from "@/components/ff15/ff15-screen";
+import { Ff15SectionHeading } from "@/components/ff15/ff15-section-heading";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
 import { TextareaPanel } from "@/components/textarea-panel";
 import {
@@ -142,36 +147,36 @@ const PROVIDER_LABELS: Record<MissionWorkbenchMission["providerId"], string> = {
 	opencode: "OpenCode",
 };
 
-const getRuntimeStatusClassName = (
+const getRuntimeStatusTone = (
 	status: MissionWorkbenchMission["workflow"]["runtimeStatus"]
-) => {
+): Ff15BadgeTone => {
 	if (status === "ready") {
-		return "border-emerald-500/30 bg-emerald-500/12 text-emerald-200";
+		return "active";
 	}
 
 	if (status === "starting") {
-		return "border-amber-400/35 bg-amber-400/12 text-amber-100";
+		return "sending";
 	}
 
 	if (status === "unavailable") {
-		return "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 text-[color:var(--vscode-errorForeground,#f87171)]";
+		return "error";
 	}
 
-	return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]";
+	return "neutral";
 };
 
-const getMissionStatusClassName = (
+const getMissionStatusTone = (
 	status: MissionWorkbenchMission["status"]
-) => {
+): Ff15BadgeTone => {
 	switch (status) {
 		case "active":
-			return "border-emerald-500/30 bg-emerald-500/12 text-emerald-200";
+			return "active";
 		case "error":
-			return "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 text-[color:var(--vscode-errorForeground,#f87171)]";
+			return "error";
 		case "sending":
-			return "border-amber-400/35 bg-amber-400/12 text-amber-100";
+			return "sending";
 		default:
-			return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]";
+			return "neutral";
 	}
 };
 
@@ -341,12 +346,10 @@ const MissionWorkbenchHeader = ({
 	terminalActionLabel,
 	titleDraft,
 }: MissionWorkbenchHeaderProps) => (
-	<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(135deg,color-mix(in_srgb,var(--vscode-editor-background)_94%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-4 py-3">
+	<Ff15Panel className="px-4 py-3.5">
 		<div className="flex min-w-0 flex-col gap-3">
-			<div className="flex min-w-0 flex-col gap-1">
-				<div className="text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] uppercase tracking-[0.16em]">
-					Mission Name
-				</div>
+			<div className="flex min-w-0 flex-col gap-1.5">
+				<span className="ff15-label">Mission Name</span>
 				{isEditingTitle ? (
 					<div className="flex min-w-0 items-center gap-2">
 						<Input
@@ -371,7 +374,7 @@ const MissionWorkbenchHeader = ({
 					</div>
 				) : (
 					<div className="flex min-w-0 items-center gap-2">
-						<h1 className="min-w-0 flex-1 truncate font-semibold text-[color:var(--vscode-foreground)] text-lg tracking-[0.02em]">
+						<h1 className="min-w-0 flex-1 truncate border-[color:var(--ff15-gold-soft)] border-b pb-1 font-semibold text-[color:var(--ff15-text)] text-lg tracking-[0.04em]">
 							{mission.title}
 						</h1>
 						<SidebarActionButton
@@ -386,48 +389,44 @@ const MissionWorkbenchHeader = ({
 			</div>
 
 			<div className="flex flex-wrap items-center gap-2">
-				<SidebarActionButton
-					className="h-7 w-auto px-3 text-[11px]"
+				<Ff15RuneButton
+					className="h-7 px-3 text-[11px]"
 					onClick={onOpenTerminal}
 				>
 					{terminalActionLabel}
-				</SidebarActionButton>
+				</Ff15RuneButton>
 				<SidebarActionButton
-					className="h-7 w-auto border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-transparent px-3 text-[11px] text-[color:var(--vscode-errorForeground,#f87171)] hover:bg-[color:var(--vscode-errorForeground,#f87171)]/12"
+					className="h-7 w-auto border border-[color:rgba(248,113,113,0.4)] bg-transparent px-3 text-[11px] text-[color:#fca5a5] hover:bg-[color:rgba(248,113,113,0.12)]"
 					onClick={onConfirmDelete}
 				>
 					{pendingDelete ? "Confirm Delete" : "Delete Mission"}
 				</SidebarActionButton>
 			</div>
 
+			<div className="ff15-divider" />
+
 			<div className="flex flex-wrap items-center gap-2">
-				<span
-					className={`w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getMissionStatusClassName(mission.status)}`}
-				>
+				<Ff15Badge tone={getMissionStatusTone(mission.status)}>
 					{MISSION_STATUS_LABELS[mission.status]}
-				</span>
-				<span
-					className={`w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em] ${getRuntimeStatusClassName(mission.workflow.runtimeStatus)}`}
-				>
+				</Ff15Badge>
+				<Ff15Badge tone={getRuntimeStatusTone(mission.workflow.runtimeStatus)}>
 					Runtime {runtimeStatusLabel}
-				</span>
-				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+				</Ff15Badge>
+				<Ff15Badge tone="neutral">
 					Provider {PROVIDER_LABELS[mission.providerId]}
-				</span>
-				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
+				</Ff15Badge>
+				<Ff15Badge tone={mission.terminalReady ? "active" : "neutral"}>
 					{mission.terminalReady ? "Terminal Attached" : "Terminal Detached"}
-				</span>
-				<span className="w-fit rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-2 py-0.5 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-					Probe {probeVerdictLabel}
-				</span>
+				</Ff15Badge>
+				<Ff15Badge tone="neutral">Probe {probeVerdictLabel}</Ff15Badge>
 			</div>
 
 			<Accordion
-				className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_64%,transparent)] px-3"
+				className="rounded-xl border border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.5)] px-3"
 				type="multiple"
 			>
 				<AccordionItem className="border-none" value="mission-details">
-					<AccordionTrigger className="py-2.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
+					<AccordionTrigger className="ff15-label py-2.5 tracking-[0.16em] hover:no-underline">
 						Mission Details
 					</AccordionTrigger>
 					<AccordionContent className="grid gap-2.5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-xs leading-5">
@@ -464,7 +463,7 @@ const MissionWorkbenchHeader = ({
 					</AccordionContent>
 				</AccordionItem>
 				<AccordionItem className="border-none" value="runtime-notes">
-					<AccordionTrigger className="py-2.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
+					<AccordionTrigger className="ff15-label py-2.5 tracking-[0.16em] hover:no-underline">
 						Runtime Notes
 					</AccordionTrigger>
 					<AccordionContent className="grid gap-2.5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-xs leading-5">
@@ -490,7 +489,7 @@ const MissionWorkbenchHeader = ({
 				</AccordionItem>
 			</Accordion>
 		</div>
-	</div>
+	</Ff15Panel>
 );
 
 interface SupportedOperationButtonProps {
@@ -506,10 +505,10 @@ const SupportedOperationButton = ({
 }: SupportedOperationButtonProps) => (
 	<button
 		className={cn(
-			"rounded-2xl border px-4 py-3 text-left transition-colors",
+			"rounded-2xl border px-4 py-3 text-left transition-all",
 			selected
-				? "border-[color:var(--vscode-button-background,#0e7490)] bg-[color:var(--vscode-button-background,#0e7490)]/12"
-				: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)] hover:bg-[color:var(--vscode-button-background,#0e7490)]/8"
+				? "border-[color:var(--ff15-gold-soft)] bg-[color:var(--ff15-gold-faint)] shadow-[0_0_18px_-4px_var(--ff15-gold-soft)]"
+				: "border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.45)] hover:border-[color:var(--ff15-border)]"
 		)}
 		onClick={() => {
 			onSelect(operation.ref);
@@ -518,18 +517,14 @@ const SupportedOperationButton = ({
 	>
 		<div className="flex items-start justify-between gap-3">
 			<div className="min-w-0">
-				<div className="truncate font-medium text-[color:var(--vscode-foreground)] text-sm">
+				<div className="truncate font-medium text-[color:var(--ff15-text)] text-sm">
 					{operation.name}
 				</div>
-				<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] text-xs leading-5">
+				<div className="mt-1 break-all text-[color:var(--ff15-text-muted)] text-xs leading-5">
 					Ref: {operation.ref}
 				</div>
 			</div>
-			{selected ? (
-				<span className="rounded-full border border-emerald-500/30 bg-emerald-500/12 px-2 py-0.5 font-medium text-[10px] text-emerald-200 uppercase tracking-[0.12em]">
-					Selected
-				</span>
-			) : null}
+			{selected ? <Ff15Badge tone="gold">Selected</Ff15Badge> : null}
 		</div>
 	</button>
 );
@@ -581,16 +576,16 @@ const OperationCatalogPanel = ({
 	const comboboxAnchor = useComboboxAnchor();
 
 	return (
-		<div className="flex flex-col gap-3 rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-4 py-3">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
-					Operation
-				</div>
-				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] px-2.5 py-1 font-medium text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-					{hasDeliverableOperation ? "Ready" : "Required"} ·{" "}
-					{supportedOperationCount}
-				</span>
-			</div>
+		<Ff15Panel className="flex flex-col gap-3 px-4 py-3.5">
+			<Ff15SectionHeading
+				aside={
+					<Ff15Badge tone={hasDeliverableOperation ? "active" : "gold"}>
+						{hasDeliverableOperation ? "Ready" : "Required"} ·{" "}
+						{supportedOperationCount}
+					</Ff15Badge>
+				}
+				title="Operation"
+			/>
 
 			<Combobox
 				inputValue={operationQuery}
@@ -654,7 +649,7 @@ const OperationCatalogPanel = ({
 				<div className="grid gap-3">
 					{hasUnsupportedOperations ? (
 						<Accordion
-							className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)] px-3"
+							className="rounded-xl border border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.5)] px-3"
 							collapsible
 							type="single"
 						>
@@ -662,7 +657,7 @@ const OperationCatalogPanel = ({
 								className="border-none"
 								value="unsupported-operations"
 							>
-								<AccordionTrigger className="py-2.5 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.16em] hover:no-underline">
+								<AccordionTrigger className="ff15-label py-2.5 tracking-[0.16em] hover:no-underline">
 									Unsupported Operations ({filteredUnsupportedOperations.length}
 									)
 								</AccordionTrigger>
@@ -689,7 +684,7 @@ const OperationCatalogPanel = ({
 					Bundled operations have not been materialized for this workspace yet.
 				</div>
 			)}
-		</div>
+		</Ff15Panel>
 	);
 };
 
@@ -734,29 +729,28 @@ const PromptComposerPanel = ({
 	}
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-3 rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-4 py-3">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
-					Prompt Composer
-				</div>
-				<span
-					className={cn(
-						"w-fit rounded-full border px-2 py-0.5 font-medium text-[10px] uppercase tracking-[0.12em]",
-						hasDeliverableOperation && mission.terminalReady
-							? "border-emerald-500/30 bg-emerald-500/12 text-emerald-200"
-							: "border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/12 text-[color:var(--vscode-warningForeground,#fbbf24)]"
-					)}
-				>
-					{statusBadgeLabel}
-				</span>
-			</div>
+		<Ff15Panel className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3.5">
+			<Ff15SectionHeading
+				aside={
+					<Ff15Badge
+						tone={
+							hasDeliverableOperation && mission.terminalReady
+								? "active"
+								: "sending"
+						}
+					>
+						{statusBadgeLabel}
+					</Ff15Badge>
+				}
+				title="Prompt Composer"
+			/>
 
 			<div
 				className={cn(
 					"rounded-xl border px-3 py-2 text-[11px] leading-5",
 					mission.lastError
-						? "border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/10 text-[color:var(--vscode-errorForeground,#f87171)]"
-						: "border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_68%,transparent)] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))]"
+						? "border-[color:rgba(248,113,113,0.4)] bg-[color:rgba(248,113,113,0.1)] text-[color:#fca5a5]"
+						: "border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.5)] text-[color:var(--ff15-text-muted)]"
 				)}
 			>
 				{composerStatusMessage}
@@ -774,21 +768,21 @@ const PromptComposerPanel = ({
 					textareaClassName="min-h-[15rem] px-4 text-sm leading-6"
 					value={draft}
 				>
-					<div className="flex items-center justify-between gap-3 border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] border-t px-4 pt-2.5 pb-2.5">
-						<div className="min-w-0 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.6))] leading-4">
+					<div className="flex items-center justify-between gap-3 border-[color:var(--ff15-border-soft)] border-t px-4 pt-2.5 pb-2.5">
+						<div className="min-w-0 text-[10px] text-[color:var(--ff15-text-muted)] leading-4">
 							{footerMessage}
 						</div>
-						<SidebarActionButton
-							className="h-7 w-auto self-end px-3 text-[11px]"
+						<Ff15RuneButton
+							className="h-7 self-end px-3 text-[11px]"
 							disabled={composerActionDisabled}
 							onClick={onSend}
 						>
 							{composerActionLabel}
-						</SidebarActionButton>
+						</Ff15RuneButton>
 					</div>
 				</TextareaPanel>
 			</div>
-		</div>
+		</Ff15Panel>
 	);
 };
 
@@ -1032,23 +1026,23 @@ const Route = () => {
 	if (!mission) {
 		if (isLoading) {
 			return (
-				<div className="mx-auto flex h-full items-center justify-center">
+				<Ff15Screen contentClassName="flex items-center justify-center">
 					<Spinner size={32} />
-				</div>
+				</Ff15Screen>
 			);
 		}
 		return (
-			<div className="mx-auto flex h-full max-w-4xl items-center justify-center px-6 py-6">
-				<div className="rounded-3xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_74%,transparent)] px-6 py-6 text-center text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] text-sm leading-6">
+			<Ff15Screen contentClassName="flex items-center justify-center px-6 py-6">
+				<Ff15Panel className="max-w-md px-6 py-6 text-center text-[color:var(--ff15-text-muted)] text-sm leading-6">
 					Mission Workbench could not load this mission. Return to the Missions
 					sidebar and select it again.
-				</div>
-			</div>
+				</Ff15Panel>
+			</Ff15Screen>
 		);
 	}
 
 	return (
-		<div className="mx-auto flex h-full max-w-5xl flex-col gap-4 px-5 py-4">
+		<Ff15Screen contentClassName="mx-auto flex h-full max-w-5xl flex-col gap-4 px-5 py-4">
 			<MissionWorkbenchHeader
 				isEditingTitle={isEditingTitle}
 				mission={mission}
@@ -1120,7 +1114,7 @@ const Route = () => {
 					onSend={handleSend}
 				/>
 			</div>
-		</div>
+		</Ff15Screen>
 	);
 };
 

@@ -1,6 +1,12 @@
-import { SidebarListItemButton } from "@/components/sidebar-list-item-button";
-import { SidebarActionButton } from "@/components/sidebar-action-button";
+import { Ff15Badge, type Ff15BadgeTone } from "@/components/ff15/ff15-badge";
+import { Ff15Panel } from "@/components/ff15/ff15-panel";
+import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
+import { Ff15Screen } from "@/components/ff15/ff15-screen";
+import { Ff15SectionHeading } from "@/components/ff15/ff15-section-heading";
+import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
+import { PlusIcon } from "lucide-react";
+import type React from "react";
 import { useEffect, useState } from "react";
 
 interface MissionSummary {
@@ -26,17 +32,11 @@ const MISSION_STATUS_LABELS: Record<MissionSummary["status"], string> = {
 	sending: "Sending",
 };
 
-const getMissionStatusClassName = (status: MissionSummary["status"]) => {
-	switch (status) {
-		case "active":
-			return "border-[color:color-mix(in_srgb,var(--vscode-testing-iconPassed,var(--vscode-charts-green))_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-testing-iconPassed,var(--vscode-charts-green))_12%,transparent)] text-[color:var(--vscode-testing-iconPassed,var(--vscode-charts-green))]";
-		case "error":
-			return "border-[color:color-mix(in_srgb,var(--vscode-errorForeground)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-errorForeground)_12%,transparent)] text-[color:var(--vscode-errorForeground)]";
-		case "sending":
-			return "border-[color:color-mix(in_srgb,var(--vscode-warningForeground)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-warningForeground)_12%,transparent)] text-[color:var(--vscode-warningForeground)]";
-		default:
-			return "border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] text-[color:var(--vscode-descriptionForeground)]";
-	}
+const MISSION_STATUS_TONES: Record<MissionSummary["status"], Ff15BadgeTone> = {
+	active: "active",
+	draft: "neutral",
+	error: "error",
+	sending: "sending",
 };
 
 const EMPTY_SNAPSHOT: MissionSnapshot = {
@@ -68,45 +68,95 @@ const Route = () => {
 	const hasMissions = snapshot.missions.length > 0;
 
 	return (
-		<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-1.5">
-			<SidebarActionButton
-				onClick={() => {
-					vscode.postMessage({ command: "ff15-missions.create" });
-				}}
-			>
-				New Mission
-			</SidebarActionButton>
+		<Ff15Screen background={false}>
+			<div className="mx-auto flex h-full max-w-3xl flex-col gap-4 px-4 py-4">
+				<Ff15SectionHeading
+					aside={
+						<Ff15Badge tone="gold">{snapshot.missions.length} Active</Ff15Badge>
+					}
+					title="Mission Board"
+				/>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-				{snapshot.missions.map((mission) => (
-					<SidebarListItemButton
-						active={mission.id === snapshot.activeMissionId}
-						badge={
-							<span
-								className={`rounded-md border px-2 py-0.5 font-medium text-xs ${getMissionStatusClassName(mission.status)}`}
+				<Ff15RuneButton
+					className="h-10 w-full"
+					onClick={() => {
+						vscode.postMessage({ command: "ff15-missions.create" });
+					}}
+				>
+					<PlusIcon className="h-4 w-4" />
+					New Mission
+				</Ff15RuneButton>
+
+				<div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-0.5">
+					{snapshot.missions.map((mission) => {
+						const active = mission.id === snapshot.activeMissionId;
+
+						return (
+							<Ff15Panel
+								className={cn(
+									"group relative cursor-pointer overflow-hidden px-3.5 py-3 text-left transition-shadow",
+									active
+										? "border-[color:var(--ff15-gold-soft)] shadow-[0_0_22px_-6px_var(--ff15-gold-soft)]"
+										: "hover:border-[color:var(--ff15-border)]"
+								)}
+								key={mission.id}
+								onClick={() => {
+									vscode.postMessage({
+										command: "ff15-missions.select",
+										missionId: mission.id,
+									});
+								}}
+								onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										vscode.postMessage({
+											command: "ff15-missions.select",
+											missionId: mission.id,
+										});
+									}
+								}}
+								role="button"
+								tabIndex={0}
 							>
-								{MISSION_STATUS_LABELS[mission.status]}
-							</span>
-						}
-						description={mission.sessionName ?? "Not attached yet"}
-						key={mission.id}
-						label={mission.title}
-						onClick={() => {
-							vscode.postMessage({
-								command: "ff15-missions.select",
-								missionId: mission.id,
-							});
-						}}
-					/>
-				))}
+								<span
+									aria-hidden
+									className={cn(
+										"absolute inset-y-2 left-0 w-[3px] rounded-full transition-opacity",
+										active
+											? "bg-[color:var(--ff15-gold)] opacity-100"
+											: "bg-[color:var(--ff15-blue)] opacity-0 group-hover:opacity-60"
+									)}
+								/>
+								<div className="flex items-start justify-between gap-3 pl-2">
+									<div className="min-w-0 flex-1">
+										<div className="truncate font-medium text-[color:var(--ff15-text)] text-sm leading-5">
+											{mission.title}
+										</div>
+										<div className="mt-1 truncate text-[color:var(--ff15-text-muted)] text-xs">
+											{mission.sessionName ?? "Not attached yet"}
+										</div>
+									</div>
+									<Ff15Badge
+										pill={false}
+										tone={MISSION_STATUS_TONES[mission.status]}
+									>
+										{MISSION_STATUS_LABELS[mission.status]}
+									</Ff15Badge>
+								</div>
+							</Ff15Panel>
+						);
+					})}
 
-				{hasMissions ? null : (
-					<div className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] px-3 py-3 text-[color:var(--vscode-descriptionForeground)] text-sm">
-						No missions yet.
-					</div>
-				)}
+					{hasMissions ? null : (
+						<div className="rounded-xl border border-[color:var(--ff15-border-soft)] border-dashed px-4 py-6 text-center text-[color:var(--ff15-text-muted)] text-sm leading-6">
+							No missions yet. Begin a new journey with{" "}
+							<span className="text-[color:var(--ff15-gold)]">New Mission</span>
+							.
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
+		</Ff15Screen>
 	);
 };
 

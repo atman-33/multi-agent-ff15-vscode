@@ -15,24 +15,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { getWebviewAssetUri } from "@/lib/webview-asset";
 import { useEffect, useId, useState } from "react";
 
 type PartyRosterAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
-
-declare global {
-	interface Window {
-		__FF15_WEBVIEW_ASSET_BASE__?: string;
-	}
-}
-
-const getWebviewAssetUri = (path: string) => {
-	const assetBase =
-		typeof window === "undefined"
-			? undefined
-			: window.__FF15_WEBVIEW_ASSET_BASE__;
-
-	return assetBase ? new URL(path, assetBase).toString() : `/${path}`;
-};
 
 const AGENT_PORTRAITS: Record<PartyRosterAgentId, string> = {
 	gladiolus: getWebviewAssetUri("images/gladiolus.png"),
@@ -587,7 +573,7 @@ export const PartyRosterPanel = ({
 		continueAction.unavailableReason !== modelAction.unavailableReason;
 
 	return (
-		<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.16)]">
+		<div className="ff15-panel px-3 py-2.5">
 			<BulkModelPresetPanel
 				bulkLiveApplyEnabled={bulkLiveApplyEnabled}
 				bulkLiveApplyReason={bulkLiveApplyReason}
@@ -599,7 +585,7 @@ export const PartyRosterPanel = ({
 			/>
 			<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
 				<div>
-					<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
+					<div className="ff15-label text-xs tracking-[0.18em]">
 						Party Roster
 					</div>
 					<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
