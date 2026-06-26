@@ -38,6 +38,8 @@ export interface Ff15MissionWorkbenchController {
 
 export interface Ff15MissionWorkbenchCatalogEntry {
 	fileName: string;
+	/** Agent that owns the operation's initial step; drives the composer's Send label. */
+	initialStepAgent: string;
 	name: string;
 	ref: string;
 	supported: boolean;

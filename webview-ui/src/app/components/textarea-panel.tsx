@@ -1,4 +1,5 @@
 import type React from "react";
+import { cn } from "@/lib/utils";
 
 interface TextareaPanelProps {
 	value: string;
@@ -28,22 +29,22 @@ export const TextareaPanel = ({
 	children,
 }: TextareaPanelProps) => (
 	<div
-		className={
-			"box-border flex h-full w-full min-w-0 flex-col gap-2 rounded-2xl border bg-[var(--vscode-dropdown-background)] pt-4 pb-2" +
-			(containerClassName ?? "")
-		}
+		className={cn(
+			"box-border flex h-full w-full min-w-0 flex-col gap-2 rounded-2xl border bg-[var(--vscode-dropdown-background)] pt-4 pb-2",
+			containerClassName
+		)}
 		style={{
 			borderColor:
 				"color-mix(in srgb, var(--vscode-foreground) 10%, transparent)",
 			...(containerStyle ?? {}),
 		}}
 	>
-		<div className="h-full min-w-0 flex-1">
+		<div className="h-full min-h-0 min-w-0 flex-1">
 			<textarea
-				className={
-					"w-full resize-none overflow-x-hidden bg-transparent px-3 text-[color:var(--vscode-foreground)] outline-none ring-0 placeholder:text-[color:var(--vscode-input-placeholderForeground,#888)]" +
-					(textareaClassName ?? "")
-				}
+				className={cn(
+					"w-full resize-none overflow-x-hidden bg-transparent px-3 text-[color:var(--vscode-foreground)] outline-none ring-0 placeholder:text-[color:var(--vscode-input-placeholderForeground,#888)]",
+					textareaClassName
+				)}
 				disabled={!!disabled}
 				onChange={onChange}
 				onKeyDown={onKeyDown}

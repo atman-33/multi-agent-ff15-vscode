@@ -59,12 +59,14 @@ describe("loadBundledOperationsCatalog", () => {
 				bundledOperations: [
 					{
 						fileName: "supported.yaml",
+						initialStepAgent: "noctis",
 						name: "supported",
 						requiredAgents: ["noctis"],
 						ref: "builtin:supported",
 					},
 					{
 						fileName: "unsupported.yaml",
+						initialStepAgent: "noctis",
 						name: "unsupported",
 						requiredAgents: ["lunafreya"],
 						ref: "builtin:unsupported",
@@ -106,6 +108,7 @@ describe("loadBundledOperationsCatalog", () => {
 			).toBe(true);
 			expect(catalog.supported).toEqual([
 				expect.objectContaining({
+					initialStepAgent: "noctis",
 					name: "supported",
 					ref: "builtin:supported",
 					supported: true,
@@ -191,6 +194,7 @@ describe("loadBundledOperationsCatalog", () => {
 				bundledOperations: [
 					{
 						fileName: "new.yaml",
+						initialStepAgent: "noctis",
 						name: "new",
 						requiredAgents: ["noctis"],
 						ref: "builtin:new",

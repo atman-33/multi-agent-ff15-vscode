@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { getWebviewAssetUri } from "@/lib/webview-asset";
+import { CheckIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 type PartyRosterAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
@@ -172,7 +173,6 @@ interface BulkModelPresetPanelProps {
 	bulkModelSelectionSupported: boolean;
 	modelCatalog: OpenCodeModelDefinition[];
 	onApplyBulkModel: (input: BulkModelSelection) => void;
-	provider: ProviderState | null;
 }
 
 const normalizeBulkModelSelection = (
@@ -364,7 +364,6 @@ const BulkModelPresetPanel = ({
 	bulkModelSelectionSupported,
 	modelCatalog,
 	onApplyBulkModel,
-	provider,
 }: BulkModelPresetPanelProps) => {
 	const [bulkDraft, setBulkDraft] = useState<BulkModelSelection | null>(() =>
 		normalizeBulkModelSelection(bulkModelSelection, modelCatalog)
@@ -392,9 +391,6 @@ const BulkModelPresetPanel = ({
 		bulkEffortDisabled = false;
 	}
 	const applyDisabled = !bulkSelectionEnabled;
-	const bulkSelectionStatusMessage = bulkLiveApplyEnabled
-		? "Apply again any time to re-sync the current preset across the party."
-		: "Apply to Party saves this preset now and live-switches everyone after Launch Terminal.";
 
 	const handleBulkModelChange = (modelId: string) => {
 		const model = modelCatalog.find((entry) => entry.id === modelId);
@@ -422,35 +418,12 @@ const BulkModelPresetPanel = ({
 	};
 
 	return (
-		<div className="mb-3 rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-black/20 px-3 py-3">
-			<div className="flex flex-wrap items-start justify-between gap-2">
-				<div>
-					<div className="font-semibold text-[10px] text-[color:var(--vscode-foreground)] uppercase tracking-[0.18em]">
-						Bulk Model Setup
-					</div>
-					<div className="mt-1 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
-						Save one provider-specific preset, apply it across the full party,
-						and reuse it on the next mission.
-					</div>
-					{bulkSelectionStatusMessage ? (
-						<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] leading-4">
-							{bulkSelectionStatusMessage}
-						</div>
-					) : null}
-					{bulkLiveApplyReason && !bulkLiveApplyEnabled ? (
-						<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
-							{bulkLiveApplyReason}
-						</div>
-					) : null}
-				</div>
-				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-					{provider?.id === "opencode"
-						? "OpenCode Preset"
-						: "GitHub Copilot Preset"}
-				</span>
+		<div>
+			<div className="ff15-label mb-1.5 text-[10px] tracking-[0.18em]">
+				Model Presets
 			</div>
-			<div className="mt-3 flex flex-wrap items-end gap-2">
-				<div className="min-w-[12rem] flex-1">
+			<div className="flex items-end gap-1.5">
+				<div className="min-w-0 flex-1">
 					<Select
 						disabled={!bulkSelectionEnabled}
 						onValueChange={handleBulkModelChange}
@@ -486,7 +459,7 @@ const BulkModelPresetPanel = ({
 						</SelectContent>
 					</Select>
 				</div>
-				<div className="min-w-[9rem] flex-1">
+				<div className="min-w-0 flex-1">
 					<Select
 						disabled={bulkEffortDisabled}
 						onValueChange={handleBulkEffortChange}
@@ -523,7 +496,8 @@ const BulkModelPresetPanel = ({
 					</Select>
 				</div>
 				<SidebarActionButton
-					className="h-8 px-3 text-[11px]"
+					aria-label="Apply preset to party"
+					className="h-8 w-8 shrink-0 px-0"
 					disabled={applyDisabled}
 					onClick={() => {
 						if (!bulkDraft) {
@@ -532,10 +506,16 @@ const BulkModelPresetPanel = ({
 
 						onApplyBulkModel(bulkDraft);
 					}}
+					title="Apply preset to party"
 				>
-					Apply to Party
+					<CheckIcon className="h-4 w-4" />
 				</SidebarActionButton>
 			</div>
+			{bulkLiveApplyReason && !bulkLiveApplyEnabled ? (
+				<div className="mt-2 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+					{bulkLiveApplyReason}
+				</div>
+			) : null}
 		</div>
 	);
 };
@@ -574,23 +554,20 @@ export const PartyRosterPanel = ({
 
 	return (
 		<div className="ff15-panel px-3 py-2.5">
-			<BulkModelPresetPanel
-				bulkLiveApplyEnabled={bulkLiveApplyEnabled}
-				bulkLiveApplyReason={bulkLiveApplyReason}
-				bulkModelSelection={bulkModelSelection}
-				bulkModelSelectionSupported={bulkModelSelectionSupported}
-				modelCatalog={modelCatalog}
-				onApplyBulkModel={onApplyBulkModel}
-				provider={provider}
-			/>
+			<div className="mb-3 border-[color:var(--ff15-border-soft)] border-b pb-3">
+				<BulkModelPresetPanel
+					bulkLiveApplyEnabled={bulkLiveApplyEnabled}
+					bulkLiveApplyReason={bulkLiveApplyReason}
+					bulkModelSelection={bulkModelSelection}
+					bulkModelSelectionSupported={bulkModelSelectionSupported}
+					modelCatalog={modelCatalog}
+					onApplyBulkModel={onApplyBulkModel}
+				/>
+			</div>
 			<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
 				<div>
 					<div className="ff15-label text-xs tracking-[0.18em]">
 						Party Roster
-					</div>
-					<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
-						Right-click a card to continue. Bulk presets sit above, and
-						per-agent overrides stay on each card.
 					</div>
 					{modelCatalogStatusMessage ? (
 						<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
@@ -631,7 +608,7 @@ export const PartyRosterPanel = ({
 										"min-w-0",
 										"rounded-xl",
 										"border border-transparent",
-										"px-3 py-3",
+										"px-3 py-2.5",
 										"transition-transform",
 										"hover:-translate-y-0.5",
 										"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
@@ -695,7 +672,7 @@ export const PartyRosterPanel = ({
 													{AGENT_ROLE_LABELS[agent.agentId]}
 												</div>
 											</div>
-											<div className="mt-1 w-full max-w-[17rem]">
+											<div className="mt-1 w-full">
 												<AgentModelPicker
 													agent={agent}
 													disabled={false}

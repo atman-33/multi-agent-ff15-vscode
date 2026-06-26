@@ -1,6 +1,5 @@
 import { Ff15Badge, type Ff15BadgeTone } from "@/components/ff15/ff15-badge";
 import { Ff15Panel } from "@/components/ff15/ff15-panel";
-import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { Ff15SectionHeading } from "@/components/ff15/ff15-section-heading";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
@@ -24,12 +23,15 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
-import { CheckIcon, PencilIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, SendHorizontalIcon } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { PartyRosterPanel } from "./components/party-roster-panel";
 
+type MissionWorkbenchAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
+
 interface MissionWorkbenchCatalogEntry {
 	fileName: string;
+	initialStepAgent: MissionWorkbenchAgentId;
 	name: string;
 	ref: string;
 	supported: boolean;
@@ -130,62 +132,60 @@ const RUNTIME_STATUS_LABELS = {
 } as const;
 
 const OPERATION_REQUIRED_MESSAGE =
-	"Choose a supported operation to unlock prompt delivery to Noctis.";
-const TERMINAL_REQUIRED_MESSAGE =
-	"Launch Terminal before sending a prompt to Noctis.";
-
-const MISSION_STATUS_LABELS: Record<MissionWorkbenchMission["status"], string> =
-	{
-		active: "Active",
-		draft: "Draft",
-		error: "Delivery Error",
-		sending: "Sending",
-	};
+	"Choose a supported operation to unlock prompt delivery.";
 
 const PROVIDER_LABELS: Record<MissionWorkbenchMission["providerId"], string> = {
 	"github-copilot-cli": "GitHub Copilot",
 	opencode: "OpenCode",
 };
 
-const getRuntimeStatusTone = (
-	status: MissionWorkbenchMission["workflow"]["runtimeStatus"]
-): Ff15BadgeTone => {
-	if (status === "ready") {
-		return "active";
-	}
-
-	if (status === "starting") {
-		return "sending";
-	}
-
-	if (status === "unavailable") {
-		return "error";
-	}
-
-	return "neutral";
+const AGENT_DISPLAY_NAMES: Record<MissionWorkbenchAgentId, string> = {
+	gladiolus: "Gladiolus",
+	ignis: "Ignis",
+	noctis: "Noctis",
+	prompto: "Prompto",
 };
 
-const getMissionStatusTone = (
-	status: MissionWorkbenchMission["status"]
-): Ff15BadgeTone => {
-	switch (status) {
-		case "active":
-			return "active";
-		case "error":
-			return "error";
-		case "sending":
-			return "sending";
-		default:
-			return "neutral";
+/**
+ * Single operational status for the mission, consolidating the previous row of
+ * separate badges. Shared by the header pill and the composer so the two never
+ * drift or duplicate.
+ */
+const getPrimaryMissionStatus = (
+	mission: MissionWorkbenchMission,
+	hasDeliverableOperation: boolean
+): { label: string; tone: Ff15BadgeTone } => {
+	if (mission.lastError) {
+		return { label: "Delivery Error", tone: "error" };
 	}
+
+	if (mission.status === "sending") {
+		return { label: "Sending", tone: "sending" };
+	}
+
+	if (!hasDeliverableOperation) {
+		return { label: "Operation Required", tone: "gold" };
+	}
+
+	if (!mission.terminalReady) {
+		return { label: "Launch Required", tone: "sending" };
+	}
+
+	if (mission.status === "active") {
+		return { label: "Active", tone: "active" };
+	}
+
+	return { label: "Draft", tone: "neutral" };
 };
 
 const getComposerStatusMessage = ({
+	deliveryAgentLabel,
 	draft,
 	hasDeliverableOperation,
 	mission,
 	terminalActionLabel,
 }: {
+	deliveryAgentLabel: string;
 	draft: string;
 	hasDeliverableOperation: boolean;
 	mission: MissionWorkbenchMission | null;
@@ -227,12 +227,12 @@ const getComposerStatusMessage = ({
 
 	if (!hasDeliverableOperation) {
 		return draft.trim().length > 0
-			? "Choose a supported operation before sending this message to Noctis."
+			? "Choose a supported operation before sending this message."
 			: OPERATION_REQUIRED_MESSAGE;
 	}
 
 	if (!mission.terminalReady) {
-		return `${terminalActionLabel} before sending a message to Noctis.`;
+		return `${terminalActionLabel} before sending a message to ${deliveryAgentLabel}.`;
 	}
 
 	if (mission.lastError) {
@@ -255,6 +255,21 @@ const getComposerStatusMessage = ({
 	}
 
 	return `Choose an operation, then use ${terminalActionLabel} whenever you want the visible mission terminal.`;
+};
+
+const getComposerActionLabel = (input: {
+	deliveryAgentName: string | null;
+	retryingErroredMission: boolean;
+}): string => {
+	if (input.retryingErroredMission) {
+		return "Retry Delivery";
+	}
+
+	if (input.deliveryAgentName) {
+		return `Send to ${input.deliveryAgentName}`;
+	}
+
+	return "Send Prompt";
 };
 
 const normalizeOperationQuery = (value: string): string =>
@@ -321,10 +336,10 @@ interface MissionWorkbenchHeaderProps {
 	onTitleEditKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
 	isEditingTitle: boolean;
 	pendingDelete: boolean;
+	primaryStatus: { label: string; tone: Ff15BadgeTone };
 	probeVerdictLabel: string;
 	renameActionDisabled: boolean;
 	runtimeStatusLabel: string;
-	selectedOperation: MissionWorkbenchCatalogEntry | null;
 	terminalActionLabel: string;
 	titleDraft: string;
 }
@@ -339,23 +354,22 @@ const MissionWorkbenchHeader = ({
 	onTitleEditKeyDown,
 	isEditingTitle,
 	pendingDelete,
+	primaryStatus,
 	probeVerdictLabel,
 	renameActionDisabled,
 	runtimeStatusLabel,
-	selectedOperation,
 	terminalActionLabel,
 	titleDraft,
 }: MissionWorkbenchHeaderProps) => (
-	<Ff15Panel className="px-4 py-3.5">
-		<div className="flex min-w-0 flex-col gap-3">
-			<div className="flex min-w-0 flex-col gap-1.5">
-				<span className="ff15-label">Mission Name</span>
+	<Ff15Panel className="px-4 py-3">
+		<div className="flex min-w-0 flex-col gap-2.5">
+			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				{isEditingTitle ? (
-					<div className="flex min-w-0 items-center gap-2">
+					<div className="flex min-w-0 flex-1 items-center gap-2">
 						<Input
 							aria-label="Mission title"
 							autoFocus
-							className="h-10 min-w-0 flex-1 rounded-xl border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_78%,transparent)] px-3 text-[color:var(--vscode-foreground)] text-sm"
+							className="h-8 min-w-0 flex-1 rounded-lg border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.6)] px-3 text-[color:var(--ff15-text)] text-sm"
 							onChange={(event) => {
 								onTitleDraftChange(event.target.value);
 							}}
@@ -365,7 +379,7 @@ const MissionWorkbenchHeader = ({
 						/>
 						<SidebarActionButton
 							aria-label="Save mission title"
-							className="h-10 w-10 rounded-xl px-0"
+							className="h-8 w-8 rounded-lg px-0"
 							disabled={renameActionDisabled}
 							onClick={onRenameTitle}
 						>
@@ -373,83 +387,85 @@ const MissionWorkbenchHeader = ({
 						</SidebarActionButton>
 					</div>
 				) : (
-					<div className="flex min-w-0 items-center gap-2">
-						<h1 className="min-w-0 flex-1 truncate border-[color:var(--ff15-gold-soft)] border-b pb-1 font-semibold text-[color:var(--ff15-text)] text-lg tracking-[0.04em]">
+					<div className="flex min-w-0 flex-1 items-center gap-1.5">
+						<h1 className="min-w-0 truncate font-semibold text-[color:var(--ff15-text)] text-lg tracking-[0.04em]">
 							{mission.title}
 						</h1>
-						<SidebarActionButton
+						<button
 							aria-label="Edit mission title"
-							className="h-9 w-9 rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-0 text-[color:var(--vscode-foreground)] hover:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_84%,transparent)]"
+							className="shrink-0 rounded-md p-1 text-[color:var(--ff15-text-muted)] transition-colors hover:text-[color:var(--ff15-gold)]"
 							onClick={onStartTitleEdit}
+							type="button"
 						>
-							<PencilIcon className="h-4 w-4" />
-						</SidebarActionButton>
+							<PencilIcon className="h-3.5 w-3.5" />
+						</button>
 					</div>
 				)}
+				<div className="flex shrink-0 items-center gap-2">
+					<SidebarActionButton
+						className="h-7 w-auto px-3 text-[11px]"
+						onClick={onOpenTerminal}
+					>
+						{terminalActionLabel}
+					</SidebarActionButton>
+					<SidebarActionButton
+						className="h-7 w-auto border border-[color:rgba(248,113,113,0.4)] bg-transparent px-3 text-[11px] text-[color:#fca5a5] hover:bg-[color:rgba(248,113,113,0.12)]"
+						onClick={onConfirmDelete}
+					>
+						{pendingDelete ? "Confirm Delete" : "Delete"}
+					</SidebarActionButton>
+				</div>
 			</div>
 
 			<div className="flex flex-wrap items-center gap-2">
-				<Ff15RuneButton
-					className="h-7 px-3 text-[11px]"
-					onClick={onOpenTerminal}
-				>
-					{terminalActionLabel}
-				</Ff15RuneButton>
-				<SidebarActionButton
-					className="h-7 w-auto border border-[color:rgba(248,113,113,0.4)] bg-transparent px-3 text-[11px] text-[color:#fca5a5] hover:bg-[color:rgba(248,113,113,0.12)]"
-					onClick={onConfirmDelete}
-				>
-					{pendingDelete ? "Confirm Delete" : "Delete Mission"}
-				</SidebarActionButton>
-			</div>
-
-			<div className="ff15-divider" />
-
-			<div className="flex flex-wrap items-center gap-2">
-				<Ff15Badge tone={getMissionStatusTone(mission.status)}>
-					{MISSION_STATUS_LABELS[mission.status]}
-				</Ff15Badge>
-				<Ff15Badge tone={getRuntimeStatusTone(mission.workflow.runtimeStatus)}>
-					Runtime {runtimeStatusLabel}
-				</Ff15Badge>
+				<Ff15Badge tone={primaryStatus.tone}>{primaryStatus.label}</Ff15Badge>
 				<Ff15Badge tone="neutral">
-					Provider {PROVIDER_LABELS[mission.providerId]}
+					{PROVIDER_LABELS[mission.providerId]}
 				</Ff15Badge>
-				<Ff15Badge tone={mission.terminalReady ? "active" : "neutral"}>
-					{mission.terminalReady ? "Terminal Attached" : "Terminal Detached"}
-				</Ff15Badge>
-				<Ff15Badge tone="neutral">Probe {probeVerdictLabel}</Ff15Badge>
 			</div>
 
 			<Accordion
 				className="rounded-xl border border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.5)] px-3"
-				type="multiple"
+				collapsible
+				type="single"
 			>
-				<AccordionItem className="border-none" value="mission-details">
-					<AccordionTrigger className="ff15-label py-2.5 tracking-[0.16em] hover:no-underline">
-						Mission Details
+				<AccordionItem className="border-none" value="details">
+					<AccordionTrigger className="ff15-label py-2 tracking-[0.16em] hover:no-underline">
+						Details
 					</AccordionTrigger>
-					<AccordionContent className="grid gap-2.5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-xs leading-5">
-						<div className="grid gap-1">
-							<div className="text-[10px] uppercase tracking-[0.14em]">
-								Selected Operation Ref
-							</div>
-							<div className="break-all font-medium text-[color:var(--vscode-foreground)]">
-								{selectedOperation?.ref ?? "None selected yet"}
-							</div>
-						</div>
-						<div className="grid gap-1 sm:grid-cols-2 sm:gap-3">
+					<AccordionContent className="grid gap-2.5 text-[color:var(--ff15-text-muted)] text-xs leading-5">
+						<div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
 							<div>
 								<div className="text-[10px] uppercase tracking-[0.14em]">
 									Current Step
 								</div>
-								<div>{mission.workflow.currentStep ?? "Not reported yet"}</div>
+								<div className="text-[color:var(--ff15-text)]">
+									{mission.workflow.currentStep ?? "Not reported yet"}
+								</div>
 							</div>
 							<div>
 								<div className="text-[10px] uppercase tracking-[0.14em]">
 									Active Task
 								</div>
-								<div>{mission.workflow.activeTask ?? "Not reported yet"}</div>
+								<div className="text-[color:var(--ff15-text)]">
+									{mission.workflow.activeTask ?? "Not reported yet"}
+								</div>
+							</div>
+							<div>
+								<div className="text-[10px] uppercase tracking-[0.14em]">
+									Runtime
+								</div>
+								<div className="text-[color:var(--ff15-text)]">
+									{runtimeStatusLabel}
+								</div>
+							</div>
+							<div>
+								<div className="text-[10px] uppercase tracking-[0.14em]">
+									Probe
+								</div>
+								<div className="text-[color:var(--ff15-text)]">
+									{probeVerdictLabel}
+								</div>
 							</div>
 						</div>
 						<div className="grid gap-1">
@@ -460,31 +476,22 @@ const MissionWorkbenchHeader = ({
 								{mission.workspaceRoot ?? "Workspace root unavailable"}
 							</div>
 						</div>
-					</AccordionContent>
-				</AccordionItem>
-				<AccordionItem className="border-none" value="runtime-notes">
-					<AccordionTrigger className="ff15-label py-2.5 tracking-[0.16em] hover:no-underline">
-						Runtime Notes
-					</AccordionTrigger>
-					<AccordionContent className="grid gap-2.5 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.76))] text-xs leading-5">
-						<div>
-							<div className="text-[10px] uppercase tracking-[0.14em]">
-								Probe Summary
+						{mission.workflow.probe.summary ? (
+							<div className="grid gap-1">
+								<div className="text-[10px] uppercase tracking-[0.14em]">
+									Probe Summary
+								</div>
+								<div>{mission.workflow.probe.summary}</div>
 							</div>
-							<div>
-								{mission.workflow.probe.summary ??
-									"No probe summary reported yet."}
+						) : null}
+						{mission.workflow.lastReportSummary ? (
+							<div className="grid gap-1">
+								<div className="text-[10px] uppercase tracking-[0.14em]">
+									Last Report
+								</div>
+								<div>{mission.workflow.lastReportSummary}</div>
 							</div>
-						</div>
-						<div>
-							<div className="text-[10px] uppercase tracking-[0.14em]">
-								Last Report Summary
-							</div>
-							<div>
-								{mission.workflow.lastReportSummary ??
-									"No report summary captured yet."}
-							</div>
-						</div>
+						) : null}
 					</AccordionContent>
 				</AccordionItem>
 			</Accordion>
@@ -576,7 +583,7 @@ const OperationCatalogPanel = ({
 	const comboboxAnchor = useComboboxAnchor();
 
 	return (
-		<Ff15Panel className="flex flex-col gap-3 px-4 py-3.5">
+		<Ff15Panel className="flex flex-col gap-2.5 px-4 py-3">
 			<Ff15SectionHeading
 				aside={
 					<Ff15Badge tone={hasDeliverableOperation ? "active" : "gold"}>
@@ -640,10 +647,6 @@ const OperationCatalogPanel = ({
 					</ComboboxList>
 				</ComboboxContent>
 			</Combobox>
-
-			<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.68))] leading-4">
-				{selectedOperation?.ref ?? OPERATION_REQUIRED_MESSAGE}
-			</div>
 
 			{hasCatalogEntries ? (
 				<div className="grid gap-3">
@@ -713,50 +716,31 @@ const PromptComposerPanel = ({
 	onDraftChange,
 	onSend,
 }: PromptComposerPanelProps) => {
-	let footerMessage = OPERATION_REQUIRED_MESSAGE;
-	if (hasDeliverableOperation) {
-		footerMessage = mission.terminalReady
-			? (mission.lastError ??
-				"Prompt delivery stays mission-scoped and preserves this workbench context.")
-			: TERMINAL_REQUIRED_MESSAGE;
-	}
-
-	let statusBadgeLabel = "Operation Required";
-	if (hasDeliverableOperation) {
-		statusBadgeLabel = mission.terminalReady
-			? MISSION_STATUS_LABELS[mission.status]
-			: "Launch Required";
-	}
+	// Only surface the contextual note when the composer is blocked or errored.
+	// In the normal ready state the placeholder is enough — no redundant box.
+	const showStatusNote =
+		Boolean(mission.lastError) ||
+		!hasDeliverableOperation ||
+		!mission.terminalReady;
 
 	return (
-		<Ff15Panel className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3.5">
-			<Ff15SectionHeading
-				aside={
-					<Ff15Badge
-						tone={
-							hasDeliverableOperation && mission.terminalReady
-								? "active"
-								: "sending"
-						}
-					>
-						{statusBadgeLabel}
-					</Ff15Badge>
-				}
-				title="Prompt Composer"
-			/>
+		<Ff15Panel className="flex min-h-0 flex-1 flex-col gap-2.5 px-4 py-3">
+			<Ff15SectionHeading title="Prompt Composer" />
 
-			<div
-				className={cn(
-					"rounded-xl border px-3 py-2 text-[11px] leading-5",
-					mission.lastError
-						? "border-[color:rgba(248,113,113,0.4)] bg-[color:rgba(248,113,113,0.1)] text-[color:#fca5a5]"
-						: "border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.5)] text-[color:var(--ff15-text-muted)]"
-				)}
-			>
-				{composerStatusMessage}
-			</div>
+			{showStatusNote ? (
+				<div
+					className={cn(
+						"rounded-lg border px-3 py-1.5 text-[11px] leading-5",
+						mission.lastError
+							? "border-[color:rgba(248,113,113,0.4)] bg-[color:rgba(248,113,113,0.1)] text-[color:#fca5a5]"
+							: "border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.5)] text-[color:var(--ff15-text-muted)]"
+					)}
+				>
+					{composerStatusMessage}
+				</div>
+			) : null}
 
-			<div className="min-h-0 flex-1">
+			<div className="min-h-0 flex-1 basis-[16rem]">
 				<TextareaPanel
 					containerClassName="px-0"
 					disabled={composerDisabled}
@@ -765,20 +749,20 @@ const PromptComposerPanel = ({
 					}}
 					placeholder={composerPlaceholder}
 					rows={10}
-					textareaClassName="min-h-[15rem] px-4 text-sm leading-6"
+					textareaClassName="h-full min-h-0 overflow-y-auto px-4 text-sm leading-6"
 					value={draft}
 				>
-					<div className="flex items-center justify-between gap-3 border-[color:var(--ff15-border-soft)] border-t px-4 pt-2.5 pb-2.5">
-						<div className="min-w-0 text-[10px] text-[color:var(--ff15-text-muted)] leading-4">
-							{footerMessage}
-						</div>
-						<Ff15RuneButton
-							className="h-7 self-end px-3 text-[11px]"
+					{/* Footer action bar: a dedicated non-input strip below the
+					    textarea for the Send action and any future controls/status. */}
+					<div className="flex items-center justify-end gap-3 border-[color:var(--ff15-border-soft)] border-t px-4 pt-2.5">
+						<SidebarActionButton
+							className="h-7 w-auto gap-1.5 px-4 text-[11px]"
 							disabled={composerActionDisabled}
 							onClick={onSend}
 						>
+							<SendHorizontalIcon className="h-3.5 w-3.5" />
 							{composerActionLabel}
-						</Ff15RuneButton>
+						</SidebarActionButton>
 					</div>
 				</TextareaPanel>
 			</div>
@@ -864,26 +848,35 @@ const Route = () => {
 		!mission?.terminalReady ||
 		draft.trim().length === 0 ||
 		mission?.status === "sending";
-	const composerActionLabel = retryingErroredMission
-		? "Retry Delivery"
-		: "Send to Noctis";
+	// The mission prompt is delivered to the agent that owns the selected
+	// operation's initial step (Noctis for the bundled operations today). Surface
+	// that agent dynamically rather than hard-coding "Noctis".
+	const deliveryAgentName = selectedOperation
+		? AGENT_DISPLAY_NAMES[selectedOperation.initialStepAgent]
+		: null;
+	const deliveryAgentLabel = deliveryAgentName ?? "the lead agent";
+	const composerActionLabel = getComposerActionLabel({
+		deliveryAgentName,
+		retryingErroredMission,
+	});
 	const terminalActionLabel = mission?.terminalReady
 		? "Reopen Terminal"
 		: "Launch Terminal";
 	const runtimeStatusLabel = getRuntimeStatusLabel(mission);
 	const probeVerdictLabel = getProbeVerdictLabel(mission);
 	const composerStatusMessage = getComposerStatusMessage({
+		deliveryAgentLabel,
 		draft,
 		hasDeliverableOperation,
 		mission,
 		terminalActionLabel,
 	});
 	let composerPlaceholder =
-		"Choose a supported operation before drafting a delivery for Noctis.";
+		"Choose a supported operation before drafting a delivery.";
 	if (hasDeliverableOperation) {
 		composerPlaceholder = mission?.terminalReady
 			? `Draft a message for ${mission?.title ?? "this mission"}...`
-			: "Launch Terminal before sending a delivery to Noctis.";
+			: `Launch Terminal before sending a delivery to ${deliveryAgentLabel}.`;
 	}
 	const hasCatalogEntries =
 		state.operations.supported.length > 0 ||
@@ -1042,7 +1035,7 @@ const Route = () => {
 	}
 
 	return (
-		<Ff15Screen contentClassName="mx-auto flex h-full max-w-5xl flex-col gap-4 px-5 py-4">
+		<Ff15Screen contentClassName="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 px-4 py-3">
 			<MissionWorkbenchHeader
 				isEditingTitle={isEditingTitle}
 				mission={mission}
@@ -1053,66 +1046,76 @@ const Route = () => {
 				onTitleDraftChange={handleTitleDraftChange}
 				onTitleEditKeyDown={handleTitleEditKeyDown}
 				pendingDelete={pendingDelete}
+				primaryStatus={getPrimaryMissionStatus(
+					mission,
+					hasDeliverableOperation
+				)}
 				probeVerdictLabel={probeVerdictLabel}
 				renameActionDisabled={
 					titleDraft.trim().length === 0 || titleDraft.trim() === mission.title
 				}
 				runtimeStatusLabel={runtimeStatusLabel}
-				selectedOperation={selectedOperation}
 				terminalActionLabel={terminalActionLabel}
 				titleDraft={titleDraft}
 			/>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-4">
-				<OperationCatalogPanel
-					filteredUnsupportedOperations={filteredUnsupportedOperations}
-					hasCatalogEntries={hasCatalogEntries}
-					hasDeliverableOperation={hasDeliverableOperation}
-					hasUnsupportedOperations={hasUnsupportedOperations}
-					onOperationQueryChange={handleOperationQueryChange}
-					onSelectOperation={handleSelectOperation}
-					operationQuery={operationQuery}
-					selectedOperation={selectedOperation}
-					supportedOperationCount={state.operations.supported.length}
-					supportedOperations={state.operations.supported}
-				/>
+			<div className="grid flex-1 gap-3 md:min-h-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+				{/* Primary column (right on md): operation selection sits atop the
+				    composer, which expands to own the remaining height. */}
+				<div className="flex min-h-0 flex-col gap-3 md:order-2">
+					<OperationCatalogPanel
+						filteredUnsupportedOperations={filteredUnsupportedOperations}
+						hasCatalogEntries={hasCatalogEntries}
+						hasDeliverableOperation={hasDeliverableOperation}
+						hasUnsupportedOperations={hasUnsupportedOperations}
+						onOperationQueryChange={handleOperationQueryChange}
+						onSelectOperation={handleSelectOperation}
+						operationQuery={operationQuery}
+						selectedOperation={selectedOperation}
+						supportedOperationCount={state.operations.supported.length}
+						supportedOperations={state.operations.supported}
+					/>
 
-				<PartyRosterPanel
-					bulkLiveApplyEnabled={Boolean(
-						state.provider?.capabilities.modelSelection.enabled
-					)}
-					bulkLiveApplyReason={
-						state.provider?.capabilities.modelSelection.unavailableReason ??
-						null
-					}
-					bulkModelSelection={state.bulkModelSelection}
-					bulkModelSelectionSupported={Boolean(
-						state.provider?.capabilities.modelSelection.supported
-					)}
-					modelCatalog={state.modelCatalog}
-					modelCatalogStatusMessage={state.modelCatalogStatusMessage}
-					modelSelectionDisabledReason={state.modelSelectionDisabledReason}
-					onApplyBulkModel={handleApplyBulkModel}
-					onChangeAgentModel={handleChangeAgentModel}
-					onChangeAgentVariant={handleChangeAgentVariant}
-					onContinueAgent={handleContinueAgent}
-					partyRoster={state.partyRoster}
-					partyRosterEnabled={mission.terminalReady}
-					provider={state.provider}
-				/>
+					<PromptComposerPanel
+						composerActionDisabled={composerActionDisabled}
+						composerActionLabel={composerActionLabel}
+						composerDisabled={composerDisabled}
+						composerPlaceholder={composerPlaceholder}
+						composerStatusMessage={composerStatusMessage}
+						draft={draft}
+						hasDeliverableOperation={hasDeliverableOperation}
+						mission={mission}
+						onDraftChange={handleDraftChange}
+						onSend={handleSend}
+					/>
+				</div>
 
-				<PromptComposerPanel
-					composerActionDisabled={composerActionDisabled}
-					composerActionLabel={composerActionLabel}
-					composerDisabled={composerDisabled}
-					composerPlaceholder={composerPlaceholder}
-					composerStatusMessage={composerStatusMessage}
-					draft={draft}
-					hasDeliverableOperation={hasDeliverableOperation}
-					mission={mission}
-					onDraftChange={handleDraftChange}
-					onSend={handleSend}
-				/>
+				{/* Secondary column (left on md): the party roster. */}
+				<div className="md:order-1 md:min-h-0 md:overflow-y-auto md:pr-1">
+					<PartyRosterPanel
+						bulkLiveApplyEnabled={Boolean(
+							state.provider?.capabilities.modelSelection.enabled
+						)}
+						bulkLiveApplyReason={
+							state.provider?.capabilities.modelSelection.unavailableReason ??
+							null
+						}
+						bulkModelSelection={state.bulkModelSelection}
+						bulkModelSelectionSupported={Boolean(
+							state.provider?.capabilities.modelSelection.supported
+						)}
+						modelCatalog={state.modelCatalog}
+						modelCatalogStatusMessage={state.modelCatalogStatusMessage}
+						modelSelectionDisabledReason={state.modelSelectionDisabledReason}
+						onApplyBulkModel={handleApplyBulkModel}
+						onChangeAgentModel={handleChangeAgentModel}
+						onChangeAgentVariant={handleChangeAgentVariant}
+						onContinueAgent={handleContinueAgent}
+						partyRoster={state.partyRoster}
+						partyRosterEnabled={mission.terminalReady}
+						provider={state.provider}
+					/>
+				</div>
 			</div>
 		</Ff15Screen>
 	);
