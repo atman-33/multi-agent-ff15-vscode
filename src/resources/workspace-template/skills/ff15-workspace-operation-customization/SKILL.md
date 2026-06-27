@@ -6,27 +6,27 @@ argument-hint: Describe the workspace-local operation or facet files to create o
 
 # Workspace Operation Customization
 
-Create or revise workspace-local FF15 operations for the VS Code extension without assuming the bundled builtin catalog will discover them automatically.
+Create or revise workspace-authored FF15 operations for the VS Code extension. The extension's bundled catalog (`catalog.ts:39-68` `FF15_BUNDLED_OPERATION_DEFINITIONS`) only loads four builtin operations and never indexes arbitrary workspace-authored YAML under `.ff15/operations/`. A workspace-authored file can still pass the validator and be executed as a mission by referencing it directly via the operation loader — but it will not appear in any builtin picker.
 
 ## When To Use
 
 - Add or edit `.ff15/operations/*.yaml`
-- Add or edit workspace-local `.ff15/facets/**` files referenced by a custom operation
+- Add or edit workspace-local `.ff15/facets/**` files referenced by a workspace-authored operation
 - Diagnose workspace-local routing, placeholder, or path-resolution failures
-- Validate custom operation YAML after every edit
+- Validate workspace-authored operation YAML after every edit
 
 ## Workflow
 
 1. Confirm the workspace root and the target operation path under `.ff15/operations/`.
-2. Inspect the closest existing workspace-local operation and any referenced `.ff15/facets/**` files before drafting.
+2. Inspect the closest existing workspace-authored operation and any referenced `.ff15/facets/**` files before drafting. If no workspace-authored example exists, study the four bundled samples materialized under `.ff15/operations/` — `idea-to-prd-and-issues.yaml` (noctis-only) and `shiritori-smoke-test.yaml`, `github-issue-to-openspec-dev.yaml`, `idea-to-openspec-dev.yaml` (four-agent).
 3. Keep every `file:` reference relative to the operation YAML file.
-4. Keep each step to `name`, `agent`, `instruction`, `output_contracts`, and `rules`; prefer a file-backed `instruction` once an inline instruction becomes non-trivial, and reference reusable project skills inline with `{{ facet_skill("name") }}` instead of separate `job`/`skills`/`policies` fields.
+4. Keep each step to `name`, `agent`, `instruction`, `output_contracts`, and `rules`; prefer a file-backed `instruction` once an inline instruction becomes non-trivial, and reference reusable project skills inline with `{{ facet_skill("name") }}`.
 5. Run the bundled validator on every created or modified operation YAML:
    - `python .claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
    - If your environment exposes `python3` instead of `python`, use that equivalent command.
    - You may pass multiple files or the whole `.ff15/operations` directory.
-6. Treat validator failures as blocking.
-7. If the operation still does not show up or load, check whether the current extension build actually catalogs arbitrary workspace-authored operations before assuming the YAML is wrong.
+6. Treat validator failures as blocking. The runtime operation loader (`definition.ts` `parseOperationDefinition` / `readOperationStep`) is lenient: unknown step fields, missing `rules`, non-noctis `initial_step`, and unresolved `instruction.file` are silently skipped or nulled rather than raised. The validator is the only authority that catches these — do not skip it for small edits.
+7. If the file still does not show up in a picker, confirm whether the active extension build catalogs arbitrary workspace-authored operations. As of the current build it does not; surface this as an explicit runtime limitation rather than treating the YAML as wrong.
 8. Summarize changed files, validator results, and any remaining runtime limitation.
 
 ## Diagnostics
@@ -35,12 +35,10 @@ Create or revise workspace-local FF15 operations for the VS Code extension witho
 - Check `instruction.file` and `output_contracts.report[].format.file` relative to the YAML file.
 - Check `{{ output(...) }}`, `{{ setting(...) }}`, `{{ root(...) }}`, and `{{ facet_skill(...) }}` placeholders for supported syntax and declared outputs. `{{ facet_skill("name") }}` resolves to the absolute path of the project facet skill at `.ff15/facets/skills/<name>/SKILL.md`.
 - Check multiline `inline: |` blocks for accidental nesting of sibling fields.
-- If the operation is expected to appear in a picker, verify whether the active extension build catalogs workspace-authored operations or only bundled ones.
 
 ## Guardrails
 
-- Do not assume same-name workspace and bundled operations collapse into one entry.
-- Do not skip the validator for small edits.
+- Workspace-authored operations are never merged or shadowed into the bundled catalog: the loader resolves `builtin:*` refs only against `FF15_BUNDLED_OPERATION_DEFINITIONS` and ignores unrelated files under `.ff15/operations/`.
 - Keep the fewest steps that satisfy ownership and artifact boundaries.
 - Treat missing Python or PyYAML (`yaml`) support as a setup blocker for validator use.
 - Treat unsupported legacy fields and unresolved file references as blocking.
