@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Disposable, Webview, WebviewPanel } from "vscode";
 import { commands, Uri, ViewColumn, window } from "vscode";
 import { getWebviewContent } from "../../lib/webview/get-webview-content";
+import { launchExternalProjectTerminal } from "../ff15-launch/launch-terminal";
 import {
 	saveFf15ProjectsContext,
 	type Ff15ProjectsContextDraft,
@@ -21,6 +22,10 @@ interface CreateFf15ProjectsWorkbenchControllerOptions {
 	createWebviewPanel?: typeof window.createWebviewPanel;
 	devMode?: boolean;
 	extensionUri: Uri;
+	launchProjectTerminal?: (input: {
+		cwd: string;
+		name: string;
+	}) => Promise<void> | void;
 	renderWebviewContent?: (
 		webview: Webview,
 		extensionUri: Uri,
@@ -117,6 +122,8 @@ export const createFf15ProjectsWorkbenchController = (
 ): Ff15ProjectsWorkbenchController => {
 	const createWebviewPanel =
 		options.createWebviewPanel ?? window.createWebviewPanel;
+	const launchProjectTerminal =
+		options.launchProjectTerminal ?? launchExternalProjectTerminal;
 	const renderWebviewContent =
 		options.renderWebviewContent ?? getWebviewContent;
 	const saveProjectsContext =
@@ -425,7 +432,7 @@ export const createFf15ProjectsWorkbenchController = (
 		return path;
 	};
 
-	const openProjectTerminal = (message: {
+	const openProjectTerminal = async (message: {
 		path?: unknown;
 		projectId?: unknown;
 	}) => {
@@ -438,8 +445,15 @@ export const createFf15ProjectsWorkbenchController = (
 			typeof message.projectId === "string"
 				? message.projectId
 				: "FF15 Project";
-		const terminal = window.createTerminal({ cwd: path, name });
-		terminal.show();
+		try {
+			await launchProjectTerminal({ cwd: path, name });
+		} catch (error) {
+			window.showErrorMessage(
+				error instanceof Error
+					? error.message
+					: "Failed to open a terminal for the project."
+			);
+		}
 	};
 
 	const openProjectInVscode = async (message: {
@@ -465,7 +479,7 @@ export const createFf15ProjectsWorkbenchController = (
 					}
 					return;
 				case "ff15-projects-workbench.openTerminal":
-					openProjectTerminal(message);
+					await openProjectTerminal(message);
 					return;
 				case "ff15-projects-workbench.openInVscode":
 					await openProjectInVscode(message);
