@@ -16,6 +16,8 @@ import {
 	getWorkspaceMissionOutputFilePath,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
+
+const toShellSafePath = (p: string): string => p.replace(/\\/g, "/");
 import {
 	createFf15OperationRuntimeProbeService,
 	FF15_BRIDGE_MANIFEST_FILE_NAME,
@@ -517,7 +519,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						paneId: "terminal_1",
-						prompt: expect.stringContaining(outputPath),
+						prompt: expect.stringContaining(toShellSafePath(outputPath)),
 						sessionName: "ff15-session",
 					})
 				);
@@ -660,7 +662,9 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						paneId: "terminal_1",
-						prompt: expect.stringContaining(secondAttemptOutputPath),
+						prompt: expect.stringContaining(
+							toShellSafePath(secondAttemptOutputPath)
+						),
 						sessionName: "ff15-session",
 					})
 				);
@@ -1054,12 +1058,14 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining("bridge.mjs submit-report"),
+						prompt: expect.stringContaining("bridge.mjs&quot; submit-report"),
 					})
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining(`execution_root: ${workspaceRoot}`),
+						prompt: expect.stringContaining(
+							`execution_root: ${toShellSafePath(workspaceRoot)}`
+						),
 					})
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
@@ -1072,7 +1078,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						prompt: expect.stringContaining(
-							`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+							`openspec_root: ${toShellSafePath(join(workspaceRoot, "selected-project", "openspec"))}`
 						),
 					})
 				);

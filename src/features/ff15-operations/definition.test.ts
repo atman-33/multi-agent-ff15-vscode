@@ -20,6 +20,8 @@ import {
 	loadMissionOperationDefinition,
 } from "./definition";
 
+const toShellSafePath = (p: string): string => p.replace(/\\/g, "/");
+
 const MISSING_FILE_ERROR_PATTERN = /missing file/i;
 const MISSING_OUTPUT_CONTRACT_ERROR_PATTERN =
 	/does not declare output contract/i;
@@ -271,11 +273,13 @@ describe("ff15 operation definition", () => {
 
 			expect(prompt).toContain("<operation-prompt>");
 			expect(prompt).toContain("<workspace-context>");
-			expect(prompt).toContain(`execution_root: ${workspaceRoot}`);
+			expect(prompt).toContain(
+				`execution_root: ${toShellSafePath(workspaceRoot)}`
+			);
 			expect(prompt).toContain("<tooling-context>");
 			expect(prompt).toContain("active_projects:\n  - frontend\n  - backend");
 			expect(prompt).toContain(
-				`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+				`openspec_root: ${toShellSafePath(join(workspaceRoot, "selected-project", "openspec"))}`
 			);
 			expect(prompt).not.toContain("activate_project:");
 			expect(prompt).not.toContain("project_root:");
@@ -290,23 +294,27 @@ describe("ff15 operation definition", () => {
 			expect(prompt).toContain("Draft the spec plan and prepare the handoff.");
 			expect(prompt).toContain("<output-contract>");
 			expect(prompt).toContain(
-				getWorkspaceMissionOutputFilePath({
-					fileName: "spec-plan.md",
-					missionId: "mission-1",
-					stepName: "spec-planning",
-					taskId: "task-spec-planning",
-					workspaceRoot,
-				})
+				toShellSafePath(
+					getWorkspaceMissionOutputFilePath({
+						fileName: "spec-plan.md",
+						missionId: "mission-1",
+						stepName: "spec-planning",
+						taskId: "task-spec-planning",
+						workspaceRoot,
+					})
+				)
 			);
 			expect(prompt).toContain("Include the accepted plan.");
 			expect(prompt).toContain("<step-completion-contract>");
 			expect(prompt).toContain(
-				`node ${join(
-					workspaceRoot,
-					FF15_WORKSPACE_RUNTIME_DIR_NAME,
-					"bridge",
-					"bridge.mjs"
-				)} submit-report`
+				`node &quot;${toShellSafePath(
+					join(
+						workspaceRoot,
+						FF15_WORKSPACE_RUNTIME_DIR_NAME,
+						"bridge",
+						"bridge.mjs"
+					)
+				)}&quot; submit-report`
 			);
 			expect(prompt).toContain("task-spec-planning");
 			expect(prompt).toContain('<user-request from="user" to="noctis">');
@@ -340,10 +348,16 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 			});
 
-			expect(prompt).toContain(`execution_root: ${workspaceRoot}`);
+			expect(prompt).toContain(
+				`execution_root: ${toShellSafePath(workspaceRoot)}`
+			);
 			expect(prompt).toContain("active_projects:\n  - frontend\n  - backend");
-			expect(prompt).toContain(`openspec_root: ${openspecRoot}`);
-			expect(prompt).not.toContain(`openspec_root: ${workspaceRoot}\n`);
+			expect(prompt).toContain(
+				`openspec_root: ${toShellSafePath(openspecRoot)}`
+			);
+			expect(prompt).not.toContain(
+				`openspec_root: ${toShellSafePath(workspaceRoot)}\n`
+			);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -386,7 +400,9 @@ describe("ff15 operation definition", () => {
 				}
 			);
 
-			expect(prompt).toContain(expectedSecondAttemptOutputPath);
+			expect(prompt).toContain(
+				toShellSafePath(expectedSecondAttemptOutputPath)
+			);
 			expect(prompt).toContain("task-spec-planning-2");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
@@ -432,7 +448,7 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 			});
 
-			expect(prompt).toContain(expectedOutputPath);
+			expect(prompt).toContain(toShellSafePath(expectedOutputPath));
 			expect(prompt).not.toContain(
 				'{{ output("clarify-requirements", "latest", "requirements-brief.md") }}'
 			);
@@ -567,7 +583,7 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 			});
 
-			expect(prompt).toContain(workspaceRoot);
+			expect(prompt).toContain(toShellSafePath(workspaceRoot));
 			expect(prompt).not.toContain('{{ root("execution_root") }}');
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
@@ -617,13 +633,15 @@ describe("ff15 operation definition", () => {
 			});
 
 			expect(prompt).toContain(
-				join(
-					workspaceRoot,
-					FF15_WORKSPACE_RUNTIME_DIR_NAME,
-					"facets",
-					"skills",
-					"handoff",
-					"SKILL.md"
+				toShellSafePath(
+					join(
+						workspaceRoot,
+						FF15_WORKSPACE_RUNTIME_DIR_NAME,
+						"facets",
+						"skills",
+						"handoff",
+						"SKILL.md"
+					)
 				)
 			);
 			expect(prompt).not.toContain('{{ facet_skill("handoff") }}');
@@ -716,11 +734,13 @@ describe("ff15 operation definition", () => {
 				workspaceRoot,
 			});
 
-			expect(prompt).toContain(expectedOutputPath);
-			expect(prompt).toContain(`execution_root: ${workspaceRoot}`);
+			expect(prompt).toContain(toShellSafePath(expectedOutputPath));
+			expect(prompt).toContain(
+				`execution_root: ${toShellSafePath(workspaceRoot)}`
+			);
 			expect(prompt).toContain("active_projects:\n  - frontend\n  - backend");
 			expect(prompt).toContain(
-				`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+				`openspec_root: ${toShellSafePath(join(workspaceRoot, "selected-project", "openspec"))}`
 			);
 			expect(prompt).not.toContain(
 				'{{ output("spec", "latest", "spec-plan.md") }}'

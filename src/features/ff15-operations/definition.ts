@@ -13,6 +13,8 @@ import {
 	FF15_WORKSPACE_OPERATIONS_DIR_NAME,
 } from "./catalog";
 
+const toShellSafePath = (p: string): string => p.replace(/\\/g, "/");
+
 interface ParsedOperationContentSource {
 	file?: unknown;
 	inline?: unknown;
@@ -287,7 +289,7 @@ const buildToolingContextLines = (input: {
 	const openspecRoot =
 		typeof input.openspecRoot === "string" &&
 		input.openspecRoot.trim().length > 0
-			? input.openspecRoot
+			? toShellSafePath(input.openspecRoot)
 			: null;
 
 	return [
@@ -298,17 +300,17 @@ const buildToolingContextLines = (input: {
 					...activeProjects.map((activeProject) => `  - ${activeProject}`),
 				]),
 		...(openspecRoot ? [`openspec_root: ${openspecRoot}`] : []),
-		`bridge_scripts_dir: ${join(
-			input.workspaceRoot,
-			FF15_WORKSPACE_RUNTIME_DIR_NAME,
-			"bridge"
+		`bridge_scripts_dir: ${toShellSafePath(
+			join(input.workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME, "bridge")
 		)}`,
-		`bridge_command: node ${join(
-			input.workspaceRoot,
-			FF15_WORKSPACE_RUNTIME_DIR_NAME,
-			"bridge",
-			"bridge.mjs"
-		)} <command> [args]`,
+		`bridge_command: node "${toShellSafePath(
+			join(
+				input.workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"bridge",
+				"bridge.mjs"
+			)
+		)}" <command> [args]`,
 		"bridge_commands: get-mission <mission_id> | get-workflow <mission_id> | submit-task <mission_id> <task> [step] | submit-report <mission_id> <task_id> <next> <message>",
 	];
 };
@@ -372,16 +374,18 @@ const buildOutputContractSections = (
 ): string[] =>
 	outputContracts
 		.map((outputContract) => {
-			const outputPath = getWorkspaceMissionOutputFilePath({
-				fileName: outputContract.name,
-				missionId: context.missionId,
-				stepName: activation.stepName,
-				taskId: getOperationStepTaskId({
+			const outputPath = toShellSafePath(
+				getWorkspaceMissionOutputFilePath({
+					fileName: outputContract.name,
+					missionId: context.missionId,
 					stepName: activation.stepName,
-					workflow: context.workflow,
-				}),
-				workspaceRoot: context.workspaceRoot,
-			});
+					taskId: getOperationStepTaskId({
+						stepName: activation.stepName,
+						workflow: context.workflow,
+					}),
+					workspaceRoot: context.workspaceRoot,
+				})
+			);
 
 			return buildTextSection(
 				"output-contract",
@@ -464,7 +468,7 @@ const resolveOutputPlaceholderPath = (input: {
 		);
 	}
 
-	return outputPath;
+	return toShellSafePath(outputPath);
 };
 
 const resolveCompletedTaskId = (input: {
@@ -539,7 +543,7 @@ const resolveRootPlaceholderValue = (
 	workspaceRoot: string
 ): string => {
 	if (scope === "app_root" || scope === "execution_root") {
-		return workspaceRoot;
+		return toShellSafePath(workspaceRoot);
 	}
 
 	throw new Error(`Unsupported root placeholder scope "${scope}".`);
@@ -563,7 +567,7 @@ const resolveFacetSkillPlaceholderValue = (
 		);
 	}
 
-	return skillPath;
+	return toShellSafePath(skillPath);
 };
 
 const resolveInstructionPlaceholders = (input: {
@@ -700,18 +704,20 @@ const buildStepCompletionContract = (input: {
 		return null;
 	}
 
-	const bridgeScriptPath = join(
-		input.workspaceRoot,
-		FF15_WORKSPACE_RUNTIME_DIR_NAME,
-		"bridge",
-		"bridge.mjs"
+	const bridgeScriptPath = toShellSafePath(
+		join(
+			input.workspaceRoot,
+			FF15_WORKSPACE_RUNTIME_DIR_NAME,
+			"bridge",
+			"bridge.mjs"
+		)
 	);
 	const taskId = getOperationStepTaskId({
 		stepName: input.activation.stepName,
 		workflow: input.workflow,
 	});
 
-	const commandLine = `node ${bridgeScriptPath} submit-report ${input.missionId} ${taskId} <next> "<message>"`;
+	const commandLine = `node "${bridgeScriptPath}" submit-report ${input.missionId} ${taskId} <next> "<message>"`;
 
 	return buildTextSection(
 		"step-completion-contract",
@@ -827,7 +833,7 @@ export const buildOperationAwarePrompt = (input: {
 			"operation-prompt",
 			[
 				buildPlainSection("workspace-context", [
-					`execution_root: ${input.workspaceRoot}`,
+					`execution_root: ${toShellSafePath(input.workspaceRoot)}`,
 				]),
 				buildPlainSection(
 					"tooling-context",
@@ -883,7 +889,7 @@ export const buildWorkerOperationAwarePrompt = (input: {
 			"operation-prompt",
 			[
 				buildPlainSection("workspace-context", [
-					`execution_root: ${input.workspaceRoot}`,
+					`execution_root: ${toShellSafePath(input.workspaceRoot)}`,
 				]),
 				buildPlainSection(
 					"tooling-context",

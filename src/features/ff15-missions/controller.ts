@@ -189,16 +189,24 @@ const prepareMissionSend = async (
 		workspaceRoot: runtimeContext.executionRoot,
 	});
 
-	try {
-		await dependencies.ensureCommandAvailable("zellij");
-	} catch {
-		return {
-			result: await dependencies.missionsStore.updateMission(input.missionId, {
-				lastError: MISSING_ZELLIJ_MESSAGE,
-				status: "error",
-				workspaceRoot: runtimeContext.executionRoot,
-			}),
-		};
+	const terminalReady =
+		dependencies.isMissionTerminalReady?.(input.missionId) ?? false;
+
+	if (!terminalReady) {
+		try {
+			await dependencies.ensureCommandAvailable("zellij");
+		} catch {
+			return {
+				result: await dependencies.missionsStore.updateMission(
+					input.missionId,
+					{
+						lastError: MISSING_ZELLIJ_MESSAGE,
+						status: "error",
+						workspaceRoot: runtimeContext.executionRoot,
+					}
+				),
+			};
+		}
 	}
 
 	if (!currentMission) {
@@ -209,16 +217,21 @@ const prepareMissionSend = async (
 
 	const launchClient = dependencies.getLaunchClient(currentMission);
 
-	try {
-		await launchClient.ensureDependenciesAvailable();
-	} catch {
-		return {
-			result: await dependencies.missionsStore.updateMission(input.missionId, {
-				lastError: launchClient.getMissingDependencyMessage(),
-				status: "error",
-				workspaceRoot: runtimeContext.executionRoot,
-			}),
-		};
+	if (!terminalReady) {
+		try {
+			await launchClient.ensureDependenciesAvailable();
+		} catch {
+			return {
+				result: await dependencies.missionsStore.updateMission(
+					input.missionId,
+					{
+						lastError: launchClient.getMissingDependencyMessage(),
+						status: "error",
+						workspaceRoot: runtimeContext.executionRoot,
+					}
+				),
+			};
+		}
 	}
 
 	const paneLaunchPlanEntry = getNoctisPaneLaunchPlanEntry(launchClient);
