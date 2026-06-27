@@ -263,6 +263,51 @@ describe("createFf15MissionSendController", () => {
 		expect(githubClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
 	});
 
+	it("notifies listeners when the mission snapshot changes after a prompt is submitted", async () => {
+		const { storage } = createStorage();
+		const workspaceRoot = "C:/repo";
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-03T00:15:00.000Z",
+		});
+		await missionsStore.createMission({ providerId: "opencode" });
+		await selectMissionOperation(missionsStore);
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+			getLaunchClient: () => createLaunchClient(),
+			getWorkspaceRoot: () => workspaceRoot,
+			missionTransport: {
+				ensureMissionSession: vi.fn().mockResolvedValue({
+					agentPanes: createAgentPanes("terminal_7"),
+					paneId: "terminal_7",
+				}),
+				sendPrompt: vi.fn().mockResolvedValue(undefined),
+			},
+			missionsStore,
+		});
+
+		const listener = vi.fn();
+		controller.onDidChangeMissionSnapshot(listener);
+
+		await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenCalledWith(
+			expect.objectContaining({
+				missions: expect.arrayContaining([
+					expect.objectContaining({
+						id: "mission-1",
+						title: "Investigate the regression",
+					}),
+				]),
+			})
+		);
+	});
+
 	it("launches or attaches the mission session and marks the mission active after the first prompt is delivered", async () => {
 		const { storage } = createStorage();
 		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {

@@ -21,10 +21,17 @@ describe("Ff15MissionsViewProvider", () => {
 				missions: unknown[];
 		  }) => void)
 		| undefined;
+	let missionSendSnapshotListener:
+		| ((snapshot: {
+				activeMissionId: string | null;
+				missions: unknown[];
+		  }) => void)
+		| undefined;
 
 	beforeEach(() => {
 		messageHandler = undefined;
 		missionSnapshotListener = undefined;
+		missionSendSnapshotListener = undefined;
 	});
 
 	it("renders the FF15 missions page and posts the initial mission snapshot", () => {
@@ -290,7 +297,14 @@ describe("Ff15MissionsViewProvider", () => {
 			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
 		};
 		const missionSendController = {
-			submitPrompt: vi.fn().mockResolvedValue(sentSnapshot),
+			onDidChangeMissionSnapshot: vi.fn((listener) => {
+				missionSendSnapshotListener = listener;
+				return { dispose: vi.fn() };
+			}),
+			submitPrompt: vi.fn().mockImplementation(() => {
+				missionSendSnapshotListener?.(sentSnapshot);
+				return Promise.resolve(sentSnapshot);
+			}),
 		};
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
@@ -367,7 +381,14 @@ describe("Ff15MissionsViewProvider", () => {
 			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
 		};
 		const missionSendController = {
-			submitPrompt: vi.fn().mockResolvedValue(retriedSnapshot),
+			onDidChangeMissionSnapshot: vi.fn((listener) => {
+				missionSendSnapshotListener = listener;
+				return { dispose: vi.fn() };
+			}),
+			submitPrompt: vi.fn().mockImplementation(() => {
+				missionSendSnapshotListener?.(retriedSnapshot);
+				return Promise.resolve(retriedSnapshot);
+			}),
 		};
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
