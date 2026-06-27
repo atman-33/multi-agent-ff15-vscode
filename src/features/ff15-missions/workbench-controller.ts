@@ -143,6 +143,7 @@ interface WorkbenchState {
 
 interface CreateFf15MissionWorkbenchControllerOptions {
 	createWebviewPanel?: typeof window.createWebviewPanel;
+	devMode?: boolean;
 	extensionUri: Uri;
 	loadOperationsCatalog: (
 		workspaceRoot: string | null
@@ -376,6 +377,7 @@ export const createFf15MissionWorkbenchController = (
 		panel.title = state.mission?.title ?? "Mission Workbench";
 		await panel.webview.postMessage({
 			command: "ff15-mission-workbench.state",
+			devMode: options.devMode ?? false,
 			state,
 		});
 	};

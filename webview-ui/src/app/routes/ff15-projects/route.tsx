@@ -1,6 +1,7 @@
 import { DevBadge } from "@/components/dev-badge";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
 import {
@@ -11,7 +12,7 @@ import {
 
 const Route = () => {
 	const [snapshot, setSnapshot] = useState<ProjectsSnapshot>(EMPTY_SNAPSHOT);
-	const [devMode, setDevMode] = useState(false);
+	const devMode = useDevMode("ff15-projects.state");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -21,7 +22,6 @@ const Route = () => {
 			}
 
 			setSnapshot(payload.snapshot ?? EMPTY_SNAPSHOT);
-			setDevMode(payload.devMode ?? false);
 		};
 
 		window.addEventListener("message", listener);

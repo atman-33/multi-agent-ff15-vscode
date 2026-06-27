@@ -26,6 +26,7 @@ describe("Ff15SettingsViewProvider", () => {
 		};
 		const provider = new Ff15SettingsViewProvider(
 			{} as never,
+			false,
 			openSettings,
 			launchController as never
 		);
@@ -46,6 +47,10 @@ describe("Ff15SettingsViewProvider", () => {
 
 		expect(webviewView.webview.html).toContain('data-page="ff15-settings"');
 		expect(messageHandler).toBeTypeOf("function");
+		expect(webviewView.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-settings.devMode",
+			devMode: false,
+		});
 
 		await messageHandler?.({ command: "ff15-settings.open" });
 
@@ -62,6 +67,7 @@ describe("Ff15SettingsViewProvider", () => {
 		};
 		const provider = new Ff15SettingsViewProvider(
 			{} as never,
+			false,
 			openSettings,
 			launchController as never
 		);
@@ -84,11 +90,15 @@ describe("Ff15SettingsViewProvider", () => {
 
 		expect(launchController.launch).toHaveBeenCalledTimes(1);
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
+			command: "ff15-settings.devMode",
+			devMode: false,
+		});
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-launch.status",
 			message: "Checking dependencies and opening Zellij...",
 			state: "launching",
 		});
-		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(3, {
 			command: "ff15-launch.status",
 			message: "FF15 launch started in C:/workspace",
 			state: "launched",

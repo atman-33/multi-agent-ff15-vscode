@@ -110,6 +110,7 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					providerId: "github-copilot-cli",
@@ -219,6 +220,7 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					providerId: "opencode",
@@ -298,6 +300,7 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				modelCatalog: [],
 				modelCatalogStatusMessage: null,
@@ -382,6 +385,7 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				provider: {
 					capabilities: {
@@ -544,6 +548,7 @@ describe("createFf15MissionWorkbenchController", () => {
 
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				bulkModelSelection: {
 					effort: "low",
@@ -1063,6 +1068,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		expect(missionOnePanel.panel.webview.html).toBe("<html />");
 		expect(missionOnePanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					id: "mission-1",
@@ -1072,6 +1078,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		});
 		expect(missionTwoPanel.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					id: "mission-2",
@@ -1182,6 +1189,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		expect(record.operationRef).toBe("builtin:idea-to-prd-and-issues");
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenLastCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					operationRef: "builtin:idea-to-prd-and-issues",
@@ -1261,6 +1269,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		expect(missionPanel.panel.title).toBe("Customer onboarding handoff");
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenLastCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					title: "Customer onboarding handoff",
@@ -1332,6 +1341,7 @@ describe("createFf15MissionWorkbenchController", () => {
 		expect(openMissionSession).toHaveBeenCalledWith("mission-1");
 		expect(missionPanel.panel.webview.postMessage).toHaveBeenLastCalledWith({
 			command: "ff15-mission-workbench.state",
+			devMode: false,
 			state: expect.objectContaining({
 				mission: expect.objectContaining({
 					terminalReady: true,

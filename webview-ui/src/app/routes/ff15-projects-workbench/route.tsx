@@ -1,5 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { DevBadge } from "@/components/dev-badge";
 import { Ff15Panel } from "@/components/ff15/ff15-panel";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
@@ -78,6 +80,7 @@ const Route = () => {
 		"Waiting for Projects context..."
 	);
 	const [saveState, setSaveState] = useState<SaveState>("idle");
+	const devMode = useDevMode("ff15-projects-workbench.state");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -156,6 +159,7 @@ const Route = () => {
 	return (
 		<Ff15Screen>
 			<div className="mx-auto flex h-full max-w-4xl flex-col gap-4 px-6 py-5">
+				{devMode ? <DevBadge /> : null}
 				<div className="flex flex-col gap-2">
 					<span className="font-semibold text-[color:var(--ff15-gold)] text-sm uppercase tracking-[0.18em]">
 						Projects Editor

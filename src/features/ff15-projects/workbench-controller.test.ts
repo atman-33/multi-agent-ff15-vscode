@@ -118,6 +118,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		);
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects-workbench.state",
+			devMode: false,
 			snapshot,
 		});
 		expect(panelDouble.panel.reveal).toHaveBeenCalledWith(
@@ -190,6 +191,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		});
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects-workbench.state",
+			devMode: false,
 			snapshot: savedSnapshot,
 		});
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
@@ -232,6 +234,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects-workbench.state",
+			devMode: false,
 			snapshot: externalSnapshot,
 		});
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
@@ -300,6 +303,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects-workbench.state",
+			devMode: false,
 			snapshot: externalSnapshot,
 		});
 	});
@@ -354,6 +358,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		expect(saveProjectsContext).not.toHaveBeenCalled();
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects-workbench.state",
+			devMode: false,
 			snapshot: initialSnapshot,
 		});
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
@@ -434,6 +439,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		});
 		expect(panelDouble.panel.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-projects-workbench.state",
+			devMode: false,
 			snapshot: savedSnapshot,
 		});
 	});

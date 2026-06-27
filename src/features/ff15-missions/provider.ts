@@ -30,6 +30,7 @@ interface Ff15MissionSessionController {
 }
 
 interface Ff15MissionsViewProviderControllers {
+	devMode?: boolean;
 	missionSendController?: Ff15MissionSendController;
 	missionSessionController?: Ff15MissionSessionController;
 	missionWorkbenchController?: Ff15MissionWorkbenchController;
@@ -39,6 +40,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 	static readonly viewId = FF15_MISSIONS_VIEW_ID;
 
 	private readonly extensionUri: Uri;
+	private readonly devMode: boolean;
 	private readonly missionsStore: Ff15MissionsStore;
 	private readonly missionSendController: Ff15MissionSendController;
 	private readonly missionSessionController: Ff15MissionSessionController;
@@ -52,6 +54,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 		controllers: Ff15MissionsViewProviderControllers = {}
 	) {
 		this.extensionUri = extensionUri;
+		this.devMode = controllers.devMode ?? false;
 		this.missionsStore = missionsStore;
 		this.missionSendController = controllers.missionSendController ?? {
 			submitPrompt: () => Promise.resolve(missionsStore.getSnapshot()),
@@ -164,6 +167,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 	private postSnapshot(snapshot: Ff15MissionsStoreSnapshot) {
 		this.view?.webview.postMessage({
 			command: "ff15-missions.state",
+			devMode: this.devMode,
 			snapshot,
 		});
 	}

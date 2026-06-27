@@ -1,8 +1,10 @@
+import { DevBadge } from "@/components/dev-badge";
 import { Ff15Badge, type Ff15BadgeTone } from "@/components/ff15/ff15-badge";
 import { Ff15Panel } from "@/components/ff15/ff15-panel";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { Ff15SectionHeading } from "@/components/ff15/ff15-section-heading";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { TextareaPanel } from "@/components/textarea-panel";
 import {
 	Accordion,
@@ -770,14 +772,10 @@ const PromptComposerPanel = ({
 	);
 };
 
-const Route = () => {
-	const [draft, setDraft] = useState("");
-	const [isEditingTitle, setIsEditingTitle] = useState(false);
-	const [isLoading, setIsLoading] = useState(true);
-	const [operationQuery, setOperationQuery] = useState("");
-	const [pendingDelete, setPendingDelete] = useState(false);
+const useMissionWorkbenchState = () => {
 	const [state, setState] = useState<MissionWorkbenchState>(EMPTY_STATE);
-	const [titleDraft, setTitleDraft] = useState("");
+	const [isLoading, setIsLoading] = useState(true);
+	const devMode = useDevMode("ff15-mission-workbench.state");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -797,6 +795,17 @@ const Route = () => {
 			window.removeEventListener("message", listener);
 		};
 	}, []);
+
+	return { devMode, isLoading, state };
+};
+
+const Route = () => {
+	const [draft, setDraft] = useState("");
+	const [isEditingTitle, setIsEditingTitle] = useState(false);
+	const [operationQuery, setOperationQuery] = useState("");
+	const [pendingDelete, setPendingDelete] = useState(false);
+	const [titleDraft, setTitleDraft] = useState("");
+	const { devMode, isLoading, state } = useMissionWorkbenchState();
 
 	const mission = state.mission;
 
@@ -1016,14 +1025,15 @@ const Route = () => {
 		});
 	};
 
+	if (isLoading) {
+		return (
+			<Ff15Screen contentClassName="flex items-center justify-center">
+				<Spinner size={32} />
+			</Ff15Screen>
+		);
+	}
+
 	if (!mission) {
-		if (isLoading) {
-			return (
-				<Ff15Screen contentClassName="flex items-center justify-center">
-					<Spinner size={32} />
-				</Ff15Screen>
-			);
-		}
 		return (
 			<Ff15Screen contentClassName="flex items-center justify-center px-6 py-6">
 				<Ff15Panel className="max-w-md px-6 py-6 text-center text-[color:var(--ff15-text-muted)] text-sm leading-6">
@@ -1036,6 +1046,7 @@ const Route = () => {
 
 	return (
 		<Ff15Screen contentClassName="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 px-4 py-3">
+			{devMode ? <DevBadge /> : null}
 			<MissionWorkbenchHeader
 				isEditingTitle={isEditingTitle}
 				mission={mission}

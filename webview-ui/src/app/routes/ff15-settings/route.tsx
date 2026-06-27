@@ -1,5 +1,7 @@
+import { DevBadge } from "@/components/dev-badge";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
 
@@ -7,6 +9,7 @@ type LaunchState = "error" | "idle" | "launched" | "launching";
 
 const Route = () => {
 	const [launchState, setLaunchState] = useState<LaunchState>("idle");
+	const devMode = useDevMode("ff15-settings.devMode");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -27,6 +30,7 @@ const Route = () => {
 	return (
 		<Ff15Screen background={false}>
 			<div className="flex flex-col gap-2 px-3 py-1.5">
+				{devMode ? <DevBadge /> : null}
 				<SidebarActionButton
 					disabled={launchState === "launching"}
 					onClick={() => {

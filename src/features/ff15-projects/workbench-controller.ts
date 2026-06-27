@@ -19,6 +19,7 @@ export interface Ff15ProjectsWorkbenchController {
 
 interface CreateFf15ProjectsWorkbenchControllerOptions {
 	createWebviewPanel?: typeof window.createWebviewPanel;
+	devMode?: boolean;
 	extensionUri: Uri;
 	renderWebviewContent?: (
 		webview: Webview,
@@ -201,6 +202,7 @@ export const createFf15ProjectsWorkbenchController = (
 		applyAcceptedSnapshot(snapshot, draftOverride);
 		await targetPanel.webview.postMessage({
 			command: "ff15-projects-workbench.state",
+			devMode: options.devMode ?? false,
 			snapshot,
 		});
 	};
@@ -288,6 +290,7 @@ export const createFf15ProjectsWorkbenchController = (
 		syncContextWatcher(snapshot, targetPanel);
 		await targetPanel.webview.postMessage({
 			command: "ff15-projects-workbench.state",
+			devMode: options.devMode ?? false,
 			snapshot,
 		});
 	};
@@ -359,6 +362,7 @@ export const createFf15ProjectsWorkbenchController = (
 		if (lastAcceptedSnapshot) {
 			await targetPanel.webview.postMessage({
 				command: "ff15-projects-workbench.state",
+				devMode: options.devMode ?? false,
 				snapshot: lastAcceptedSnapshot,
 			});
 		}

@@ -1,7 +1,9 @@
+import { DevBadge } from "@/components/dev-badge";
 import { Ff15Badge, type Ff15BadgeTone } from "@/components/ff15/ff15-badge";
 import { Ff15Panel } from "@/components/ff15/ff15-panel";
 import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
 import { PlusIcon } from "lucide-react";
@@ -45,6 +47,7 @@ const EMPTY_SNAPSHOT: MissionSnapshot = {
 
 const Route = () => {
 	const [snapshot, setSnapshot] = useState<MissionSnapshot>(EMPTY_SNAPSHOT);
+	const devMode = useDevMode("ff15-missions.state");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -69,6 +72,7 @@ const Route = () => {
 	return (
 		<Ff15Screen background={false}>
 			<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-4 py-3">
+				{devMode ? <DevBadge /> : null}
 				<Ff15RuneButton
 					className="w-full"
 					onClick={() => {

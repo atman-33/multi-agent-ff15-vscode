@@ -58,6 +58,7 @@ describe("Ff15MissionsViewProvider", () => {
 		expect(missionsStore.getSnapshot).toHaveBeenCalledTimes(1);
 		expect(webviewView.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: {
 				activeMissionId: null,
 				missions: [],
@@ -171,14 +172,17 @@ describe("Ff15MissionsViewProvider", () => {
 		);
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: createdSnapshot,
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(3, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: selectedSnapshot,
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(4, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: deletedSnapshot,
 		});
 	});
@@ -238,6 +242,7 @@ describe("Ff15MissionsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: initialSnapshot,
 		});
 
@@ -245,6 +250,7 @@ describe("Ff15MissionsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: deletedSnapshot,
 		});
 	});
@@ -320,6 +326,7 @@ describe("Ff15MissionsViewProvider", () => {
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: sentSnapshot,
 		});
 	});
@@ -396,6 +403,7 @@ describe("Ff15MissionsViewProvider", () => {
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: retriedSnapshot,
 		});
 	});

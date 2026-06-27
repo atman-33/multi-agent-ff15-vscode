@@ -136,6 +136,7 @@ const registerFf15Views = (
 		});
 	activeRuntimeProbeService = ff15OperationRuntimeProbeService;
 	const ff15MissionWorkbenchController = createFf15MissionWorkbenchController({
+		devMode: isDevMode,
 		loadOpenCodeModelCatalog: (workspaceRoot) =>
 			ff15OpenCodeModelCatalogLoader.readCatalog({
 				waitForLatest: true,
@@ -157,6 +158,7 @@ const registerFf15Views = (
 		context.extensionUri,
 		ff15MissionsStore,
 		{
+			devMode: isDevMode,
 			missionSendController: ff15MissionSendController,
 			missionSessionController: ff15MissionSessionController,
 			missionWorkbenchController: ff15MissionWorkbenchController,
@@ -164,6 +166,7 @@ const registerFf15Views = (
 	);
 	const ff15ProjectsWorkbenchController = createFf15ProjectsWorkbenchController(
 		{
+			devMode: isDevMode,
 			extensionUri: context.extensionUri,
 			resolveProjectsContext: resolveFf15ProjectsContext,
 			saveProjectsContext: saveFf15ProjectsContext,
@@ -177,7 +180,8 @@ const registerFf15Views = (
 		}
 	);
 	const ff15SettingsViewProvider = new Ff15SettingsViewProvider(
-		context.extensionUri
+		context.extensionUri,
+		isDevMode
 	);
 	debug.log("FF15 controllers and providers constructed");
 	context.subscriptions.push(
