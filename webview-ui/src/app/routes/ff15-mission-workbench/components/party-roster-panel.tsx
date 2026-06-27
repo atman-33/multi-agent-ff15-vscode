@@ -35,7 +35,6 @@ const AGENT_THEMES: Record<
 		glow: string;
 		glowSoft: string;
 		surface: string;
-		text: string;
 	}
 > = {
 	gladiolus: {
@@ -44,7 +43,6 @@ const AGENT_THEMES: Record<
 		glowSoft: "rgba(255, 255, 255, 0.46)",
 		surface:
 			"linear-gradient(180deg, rgba(12, 8, 10, 0.98), rgba(7, 6, 8, 0.96) 58%, rgba(18, 9, 12, 0.94))",
-		text: "rgba(248, 214, 220, 0.92)",
 	},
 	ignis: {
 		accent: "rgba(255, 255, 255, 0.82)",
@@ -52,7 +50,6 @@ const AGENT_THEMES: Record<
 		glowSoft: "rgba(255, 255, 255, 0.4)",
 		surface:
 			"linear-gradient(180deg, rgba(7, 11, 9, 0.98), rgba(5, 8, 7, 0.96) 58%, rgba(9, 15, 12, 0.94))",
-		text: "rgba(223, 247, 234, 0.92)",
 	},
 	noctis: {
 		accent: "rgba(255, 255, 255, 0.82)",
@@ -60,7 +57,6 @@ const AGENT_THEMES: Record<
 		glowSoft: "rgba(255, 255, 255, 0.42)",
 		surface:
 			"linear-gradient(180deg, rgba(8, 10, 16, 0.98), rgba(6, 8, 13, 0.96) 58%, rgba(10, 12, 21, 0.94))",
-		text: "rgba(224, 231, 255, 0.94)",
 	},
 	prompto: {
 		accent: "rgba(255, 255, 255, 0.82)",
@@ -68,7 +64,6 @@ const AGENT_THEMES: Record<
 		glowSoft: "rgba(255, 255, 255, 0.42)",
 		surface:
 			"linear-gradient(180deg, rgba(14, 11, 5, 0.98), rgba(9, 8, 4, 0.96) 58%, rgba(17, 14, 8, 0.94))",
-		text: "rgba(255, 243, 196, 0.92)",
 	},
 };
 
@@ -631,10 +626,7 @@ export const PartyRosterPanel = ({
 										</div>
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2">
-												<div
-													className="truncate font-bold text-sm uppercase tracking-wider"
-													style={{ color: theme.text }}
-												>
+												<div className="truncate font-bold text-sm uppercase tracking-wider">
 													{agent.displayName}
 												</div>
 												<div
