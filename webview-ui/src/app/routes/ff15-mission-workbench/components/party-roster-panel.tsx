@@ -619,7 +619,7 @@ export const PartyRosterPanel = ({
 									}}
 								>
 									<div className="flex min-w-0 items-center gap-3.5">
-										<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
+										<div className="relative flex h-12 w-12 shrink-0 items-end justify-center">
 											<span
 												aria-hidden="true"
 												className="pointer-events-none absolute rounded-full"
@@ -645,11 +645,11 @@ export const PartyRosterPanel = ({
 											) : null}
 											<img
 												alt={agent.displayName}
-												className="relative z-10 h-full w-full object-cover object-bottom"
-												height={64}
+												className="relative z-10 h-12 w-auto max-w-full object-contain object-bottom"
+												height={48}
 												src={AGENT_PORTRAITS[agent.agentId]}
 												style={{ filter: portraitFilter }}
-												width={40}
+												width={48}
 											/>
 										</div>
 										<div className="min-w-0 flex-1">
