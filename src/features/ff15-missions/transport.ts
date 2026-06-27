@@ -58,6 +58,7 @@ interface CreateFf15MissionZellijTransportDependencies {
 	runZellijCommand?: (
 		input: RunZellijCommandInput
 	) => Promise<RunZellijCommandResult>;
+	getPromptInputDelayMs?: () => number;
 	waitForPromptDelivery?: () => Promise<void>;
 }
 
@@ -253,11 +254,13 @@ export const createFf15MissionZellijTransport = (
 	dependencies: CreateFf15MissionZellijTransportDependencies = {}
 ) => {
 	const runCommand = dependencies.runZellijCommand ?? runZellijCommand;
+	const getPromptInputDelayMs =
+		dependencies.getPromptInputDelayMs ?? (() => FF15_PROMPT_INPUT_DELAY_MS);
 	const waitForPromptDelivery =
 		dependencies.waitForPromptDelivery ??
 		(() =>
 			new Promise<void>((resolve) => {
-				setTimeout(resolve, FF15_PROMPT_INPUT_DELAY_MS);
+				setTimeout(resolve, getPromptInputDelayMs());
 			}));
 	const sendPaneInputSequence = async (input: {
 		steps: Ff15MissionPaneInputStep[];

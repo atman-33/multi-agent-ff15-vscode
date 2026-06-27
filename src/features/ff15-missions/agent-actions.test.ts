@@ -498,6 +498,107 @@ describe("createFf15MissionAgentActionController", () => {
 		});
 	});
 
+	it("re-applies each agent's configured model to its live pane without persisting state", async () => {
+		const missionRecord = createMissionRecord({
+			agentModels: {
+				...createDefaultFf15MissionAgentModels(),
+				ignis: { effort: "1", modelId: "gpt-5-mini" },
+				noctis: { effort: "3", modelId: "gpt-5.4" },
+			},
+		});
+		missionRecord.agentPanes = {
+			gladiolus: "terminal_3",
+			ignis: "terminal_2",
+			noctis: "terminal_1",
+			prompto: "terminal_4",
+		};
+		const reconcileMissionAgentPanes = vi
+			.fn()
+			.mockResolvedValue(missionRecord.agentPanes);
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const updateMission = vi.fn().mockResolvedValue({ missions: [] });
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: { reconcileMissionAgentPanes, sendPaneInputSequence },
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission,
+			} as never,
+		});
+
+		await controller.applyConfiguredAgentModels({ missionId: "mission-1" });
+
+		expect(sendPaneInputSequence).toHaveBeenCalledTimes(4);
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5.4" },
+				{ kind: "enter" },
+				{ kind: "write", value: "3" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_1",
+			sessionName: "ff15-session",
+		});
+		expect(sendPaneInputSequence).toHaveBeenCalledWith({
+			steps: [
+				{ kind: "write", value: "/model" },
+				{ kind: "enter" },
+				{ kind: "write", value: "GPT-5 mini" },
+				{ kind: "enter" },
+				{ kind: "write", value: "1" },
+				{ kind: "enter" },
+			],
+			paneId: "terminal_2",
+			sessionName: "ff15-session",
+		});
+		expect(updateMission).not.toHaveBeenCalled();
+	});
+
+	it("skips agents without a live pane when re-applying configured models", async () => {
+		const missionRecord = createMissionRecord();
+		const reconcileMissionAgentPanes = vi
+			.fn()
+			.mockResolvedValue(missionRecord.agentPanes);
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: { reconcileMissionAgentPanes, sendPaneInputSequence },
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(missionRecord),
+				getSnapshot: vi.fn(),
+				updateMission: vi.fn().mockResolvedValue({ missions: [] }),
+			} as never,
+		});
+
+		await controller.applyConfiguredAgentModels({ missionId: "mission-1" });
+
+		// Only Noctis has a live pane in the default record.
+		expect(sendPaneInputSequence).toHaveBeenCalledTimes(1);
+		expect(sendPaneInputSequence).toHaveBeenCalledWith(
+			expect.objectContaining({ paneId: "terminal_1" })
+		);
+	});
+
+	it("is a no-op when the mission session is unavailable", async () => {
+		const sendPaneInputSequence = vi.fn().mockResolvedValue(undefined);
+		const reconcileMissionAgentPanes = vi.fn();
+		const controller = createFf15MissionAgentActionController({
+			missionTransport: { reconcileMissionAgentPanes, sendPaneInputSequence },
+			missionsStore: {
+				getMissionRecord: vi.fn().mockReturnValue(undefined),
+				getSnapshot: vi.fn(),
+				updateMission: vi.fn(),
+			} as never,
+		});
+
+		await expect(
+			controller.applyConfiguredAgentModels({ missionId: "missing" })
+		).resolves.toBeUndefined();
+		expect(sendPaneInputSequence).not.toHaveBeenCalled();
+		expect(reconcileMissionAgentPanes).not.toHaveBeenCalled();
+	});
+
 	it("reconciles panes on demand when the roster card is enabled before pane ids are cached", async () => {
 		const missionRecord = createMissionRecord({ noctisPaneId: null });
 		const reconcileMissionAgentPanes = vi.fn().mockResolvedValue({

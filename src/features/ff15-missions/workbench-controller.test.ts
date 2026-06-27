@@ -1595,4 +1595,138 @@ describe("createFf15MissionWorkbenchController", () => {
 			})
 		);
 	});
+
+	const createSendScenario = (input: {
+		applyModelsBeforeSend: boolean;
+		terminalReady: boolean;
+		order: string[];
+	}) => {
+		const missionPanel = createPanelDouble();
+		const applyConfiguredAgentModels = vi.fn(() => {
+			input.order.push("apply");
+			return Promise.resolve();
+		});
+		const submitPrompt = vi.fn(() => {
+			input.order.push("submit");
+			return Promise.resolve();
+		});
+		const controller = createFf15MissionWorkbenchController({
+			createWebviewPanel: vi.fn().mockReturnValue(missionPanel.panel),
+			extensionUri: { fsPath: "C:/extension" } as never,
+			getApplyModelsBeforeSend: () => input.applyModelsBeforeSend,
+			getPromptInputDelayMs: () => 0,
+			loadOperationsCatalog: vi.fn().mockResolvedValue({
+				supported: [],
+				unsupported: [],
+			}),
+			missionAgentActionController: {
+				applyConfiguredAgentModels,
+				changeAgentModel: vi.fn(),
+				changeAgentVariant: vi.fn(),
+				continueAgent: vi.fn(),
+			},
+			missionSendController: { submitPrompt },
+			missionSessionController: {
+				deleteMission: vi.fn(),
+				isMissionTerminalReady: () => input.terminalReady,
+				openMissionSession: vi.fn(),
+				selectMission: vi.fn(),
+			},
+			missionsStore: {
+				getMissionRecord: vi.fn(() => ({
+					agentPanes: {
+						gladiolus: null,
+						ignis: null,
+						noctis: "terminal_1",
+						prompto: null,
+					},
+					createdAt: "2026-06-01T00:00:00.000Z",
+					id: "mission-1",
+					lastError: null,
+					operationRef: null,
+					providerId: "opencode" as const,
+					providerState: createDefaultFf15MissionProviderState(),
+					schemaVersion: 2 as const,
+					sessionName: "ff15-session",
+					status: "active" as const,
+					title: "Mission 1",
+					updatedAt: "2026-06-01T00:00:00.000Z",
+					workflow: createEmptyWorkflowState(),
+					workspaceRoot: "C:/repo",
+				})),
+				updateMission: vi.fn(),
+			} as never,
+			renderWebviewContent: vi.fn().mockReturnValue("<html />"),
+		});
+
+		return {
+			applyConfiguredAgentModels,
+			controller,
+			missionPanel,
+			submitPrompt,
+		};
+	};
+
+	const dispatchSend = async (
+		missionPanel: ReturnType<typeof createPanelDouble>
+	) => {
+		const onDidReceiveMessage = missionPanel.panel.webview.onDidReceiveMessage
+			.mock.calls[0]?.[0] as
+			| ((message: { command: string; prompt?: unknown }) => Promise<void>)
+			| undefined;
+		await onDidReceiveMessage?.({
+			command: "ff15-mission-workbench.send",
+			prompt: "do the thing",
+		});
+	};
+
+	it("applies configured agent models before submitting the prompt when enabled and the terminal is ready", async () => {
+		const order: string[] = [];
+		const scenario = createSendScenario({
+			applyModelsBeforeSend: true,
+			order,
+			terminalReady: true,
+		});
+
+		await scenario.controller.showMission("mission-1");
+		await dispatchSend(scenario.missionPanel);
+
+		expect(scenario.applyConfiguredAgentModels).toHaveBeenCalledWith({
+			missionId: "mission-1",
+		});
+		expect(scenario.submitPrompt).toHaveBeenCalled();
+		expect(order).toEqual(["apply", "submit"]);
+	});
+
+	it("does not apply configured agent models before sending when the setting is disabled", async () => {
+		const order: string[] = [];
+		const scenario = createSendScenario({
+			applyModelsBeforeSend: false,
+			order,
+			terminalReady: true,
+		});
+
+		await scenario.controller.showMission("mission-1");
+		await dispatchSend(scenario.missionPanel);
+
+		expect(scenario.applyConfiguredAgentModels).not.toHaveBeenCalled();
+		expect(scenario.submitPrompt).toHaveBeenCalled();
+		expect(order).toEqual(["submit"]);
+	});
+
+	it("skips applying configured agent models before sending when the terminal is not ready", async () => {
+		const order: string[] = [];
+		const scenario = createSendScenario({
+			applyModelsBeforeSend: true,
+			order,
+			terminalReady: false,
+		});
+
+		await scenario.controller.showMission("mission-1");
+		await dispatchSend(scenario.missionPanel);
+
+		expect(scenario.applyConfiguredAgentModels).not.toHaveBeenCalled();
+		expect(scenario.submitPrompt).toHaveBeenCalled();
+		expect(order).toEqual(["submit"]);
+	});
 });

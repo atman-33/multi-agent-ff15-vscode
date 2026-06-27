@@ -286,4 +286,22 @@ describe("createFf15MissionZellijTransport", () => {
 		expect(runZellijCommand).toHaveBeenCalledTimes(6);
 		expect(waitForPromptDelivery).toHaveBeenCalledTimes(6);
 	});
+
+	it("uses the configurable prompt input delay for the default pane delivery wait", async () => {
+		const runZellijCommand = vi.fn().mockResolvedValue({ stdout: "" });
+		const getPromptInputDelayMs = vi.fn(() => 0);
+		const transport = createFf15MissionZellijTransport({
+			getPromptInputDelayMs,
+			runZellijCommand,
+		});
+
+		await transport.sendPaneInputSequence({
+			steps: [{ kind: "write", value: "/model" }, { kind: "enter" }],
+			paneId: "terminal_2",
+			sessionName: "ff15-session",
+		});
+
+		// One read per input step (write + enter), driving the default delay wait.
+		expect(getPromptInputDelayMs).toHaveBeenCalledTimes(2);
+	});
 });

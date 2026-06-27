@@ -98,6 +98,13 @@ const registerFf15Views = (
 		debug.log("workspace template files materialized");
 	}
 
+	const getFf15Configuration = () =>
+		workspace.getConfiguration("multi-agent-ff15-vscode");
+	const getPromptInputDelayMs = () =>
+		getFf15Configuration().get<number>("promptInputDelayMs", 500);
+	const getApplyModelsBeforeSend = () =>
+		getFf15Configuration().get<boolean>("applyModelsBeforeSend", true);
+
 	debug.log("constructing FF15 controllers and providers");
 	const ff15MissionsStore = createWorkspaceStateFf15MissionsStore(
 		context.workspaceState,
@@ -106,7 +113,9 @@ const registerFf15Views = (
 		}
 	);
 	const ff15OpenCodeModelCatalogLoader = createFf15OpenCodeModelCatalogLoader();
-	const ff15MissionTransport = createFf15MissionZellijTransport();
+	const ff15MissionTransport = createFf15MissionZellijTransport({
+		getPromptInputDelayMs,
+	});
 	const ff15MissionSessionController = createVsCodeFf15MissionSessionController(
 		context.extensionUri,
 		ff15MissionsStore,
@@ -137,6 +146,8 @@ const registerFf15Views = (
 	activeRuntimeProbeService = ff15OperationRuntimeProbeService;
 	const ff15MissionWorkbenchController = createFf15MissionWorkbenchController({
 		devMode: isDevMode,
+		getApplyModelsBeforeSend,
+		getPromptInputDelayMs,
 		loadOpenCodeModelCatalog: (workspaceRoot) =>
 			ff15OpenCodeModelCatalogLoader.readCatalog({
 				waitForLatest: true,
