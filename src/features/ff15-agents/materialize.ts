@@ -43,7 +43,7 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 			"skills",
 			"ff15-workspace-operation-customization",
 			"scripts",
-			"validate-operation-yaml.py",
+			"validate-operation-yaml.mjs",
 		],
 		destinations: [
 			[
@@ -51,7 +51,7 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 				"skills",
 				"ff15-workspace-operation-customization",
 				"scripts",
-				"validate-operation-yaml.py",
+				"validate-operation-yaml.mjs",
 			],
 		],
 	},

@@ -22,8 +22,8 @@ Create or revise workspace-authored FF15 operations for the VS Code extension. T
 3. Keep every `file:` reference relative to the operation YAML file.
 4. Keep each step to `name`, `agent`, `instruction`, `output_contracts`, and `rules`; prefer a file-backed `instruction` once an inline instruction becomes non-trivial, and reference reusable project skills inline with `{{ facet_skill("name") }}`.
 5. Run the bundled validator on every created or modified operation YAML:
-   - `python .claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py .ff15/operations/<file>.yaml`
-   - If your environment exposes `python3` instead of `python`, use that equivalent command.
+   - `node .claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.mjs .ff15/operations/<file>.yaml`
+   - The same `node` command works on Windows and WSL. The script prefers the `yaml` npm package when resolvable and otherwise falls back to a built-in minimal parser scoped to the operation schema, so it needs no extra install in the materialized workspace.
    - You may pass multiple files or the whole `.ff15/operations` directory.
 6. Treat validator failures as blocking. The runtime operation loader (`definition.ts` `parseOperationDefinition` / `readOperationStep`) is lenient: unknown step fields, missing `rules`, non-noctis `initial_step`, and unresolved `instruction.file` are silently skipped or nulled rather than raised. The validator is the only authority that catches these — do not skip it for small edits.
 7. If the file still does not show up in a picker, confirm whether the active extension build catalogs arbitrary workspace-authored operations. As of the current build it does not; surface this as an explicit runtime limitation rather than treating the YAML as wrong.
@@ -40,7 +40,7 @@ Create or revise workspace-authored FF15 operations for the VS Code extension. T
 
 - Workspace-authored operations are never merged or shadowed into the bundled catalog: the loader resolves `builtin:*` refs only against `FF15_BUNDLED_OPERATION_DEFINITIONS` and ignores unrelated files under `.ff15/operations/`.
 - Keep the fewest steps that satisfy ownership and artifact boundaries.
-- Treat missing Python or PyYAML (`yaml`) support as a setup blocker for validator use.
+- Treat missing `node` as a setup blocker for validator use. The `yaml` npm package is optional; the validator falls back to a built-in minimal parser when it cannot be resolved.
 - Treat unsupported legacy fields and unresolved file references as blocking.
 
 ## Completion Criteria

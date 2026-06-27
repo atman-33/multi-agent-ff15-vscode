@@ -146,7 +146,7 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 				".github/agents/noctis.agent.md",
 				".opencode/agents/noctis.md",
 				".claude/skills/ff15-workspace-operation-customization/SKILL.md",
-				".claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py",
+				".claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.mjs",
 				".claude/skills/ff15-workspace-project-setup/SKILL.md",
 				".claude/skills/ff15-workspace-project-setup/scripts/validate-project-yaml.mjs",
 			])
