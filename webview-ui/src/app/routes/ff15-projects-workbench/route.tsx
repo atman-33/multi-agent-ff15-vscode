@@ -5,7 +5,6 @@ import { useDevMode } from "@/hooks/use-dev-mode";
 import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Select,
 	SelectContent,
@@ -221,7 +220,7 @@ const Route = () => {
 										const isActive = draft.activeProjects.includes(profile.id);
 										const isOpenspecSource =
 											draft.openspec.projectId === profile.id;
-										const checkboxId = `active-project-${profile.id}`;
+										const activeSwitchId = `active-project-${profile.id}`;
 										const switchId = `openspec-project-${profile.id}`;
 										return (
 											<div
@@ -230,13 +229,13 @@ const Route = () => {
 											>
 												<label
 													className="flex min-w-0 flex-1 cursor-pointer items-start gap-2"
-													htmlFor={checkboxId}
+													htmlFor={activeSwitchId}
 												>
-													<Checkbox
+													<Switch
 														checked={isActive}
 														className="mt-0.5 shrink-0"
 														disabled={inputsDisabled}
-														id={checkboxId}
+														id={activeSwitchId}
 														onCheckedChange={(nextCheckedState) => {
 															const nextActive = nextCheckedState === true;
 															const nextActiveProjects = nextActive
