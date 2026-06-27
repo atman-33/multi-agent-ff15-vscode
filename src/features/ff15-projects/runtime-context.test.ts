@@ -9,7 +9,6 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 				languageName: "en",
 				error: null,
 				openspec: {
-					mode: "project",
 					path: "C:/workspace/selected-project/openspec",
 					sourceProjectId: "project-a",
 				},
@@ -39,7 +38,6 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 				languageName: "en",
 				error: null,
 				openspec: {
-					mode: "harness",
 					path: "C:/workspace/openspec",
 					sourceProjectId: null,
 				},
@@ -69,7 +67,6 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 				languageName: null,
 				error: "Missing profile.",
 				openspec: {
-					mode: null,
 					path: null,
 					sourceProjectId: null,
 				},

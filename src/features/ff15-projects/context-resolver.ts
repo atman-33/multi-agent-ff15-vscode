@@ -10,7 +10,6 @@ import { dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 
 export type Ff15ProjectsContextSourceKind = "ff15";
-export type Ff15ProjectsContextOpenspecMode = "project" | "harness";
 export type Ff15ProjectsContextLanguageName = "en" | "ja";
 
 export interface Ff15ProjectsContextReadySnapshot {
@@ -22,7 +21,6 @@ export interface Ff15ProjectsContextReadySnapshot {
 	profiles: Ff15ProjectsContextProfile[];
 	languageName: Ff15ProjectsContextLanguageName;
 	openspec: {
-		mode: Ff15ProjectsContextOpenspecMode;
 		path: string | null;
 		sourceProjectId: string | null;
 	};
@@ -43,7 +41,6 @@ export interface Ff15ProjectsContextErrorSnapshot {
 	profiles: [];
 	languageName: null;
 	openspec: {
-		mode: null;
 		path: null;
 		sourceProjectId: null;
 	};
@@ -58,7 +55,6 @@ export interface Ff15ProjectsContextDraft {
 	activeProjects: string[];
 	languageName: Ff15ProjectsContextLanguageName;
 	openspec: {
-		mode: Ff15ProjectsContextOpenspecMode;
 		projectId: string | null;
 	};
 }
@@ -70,7 +66,6 @@ const BOOTSTRAP_CONFIG_CONTENT = [
 	"language: en",
 	"",
 	"openspec:",
-	"  mode: project",
 	"  project_id: default",
 	"",
 ].join("\n");
@@ -138,20 +133,20 @@ export const saveFf15ProjectsContext = (input: {
 		input.draft.activeProjects
 	);
 	const languageName = getLanguageName(input.draft.languageName);
-	const openspecMode = getOpenspecMode(input.draft.openspec.mode);
-	const openspecProjectId =
-		openspecMode === "project"
-			? getExistingProfileId({
-					harnessRoot: harnessSource.harnessRoot,
-					projectId: input.draft.openspec.projectId,
-				})
-			: input.draft.openspec.projectId;
+	const openspecProjectId = resolveOpenspecProjectId({
+		harnessRoot: harnessSource.harnessRoot,
+		projectId: input.draft.openspec.projectId,
+		activeProjects: normalizedActiveProjects,
+	});
 
 	configDocument.set("active_projects", normalizedActiveProjects);
 	configDocument.set("language", languageName);
-	configDocument.setIn(["openspec", "mode"], openspecMode);
-	if (openspecProjectId && openspecProjectId.trim().length > 0) {
+	// Drop the legacy `openspec.mode` key; resolution is now driven by project_id.
+	configDocument.deleteIn(["openspec", "mode"]);
+	if (openspecProjectId) {
 		configDocument.setIn(["openspec", "project_id"], openspecProjectId);
+	} else {
+		configDocument.deleteIn(["openspec", "project_id"]);
 	}
 
 	writeFileSync(configPath, configDocument.toString(), "utf8");
@@ -178,14 +173,20 @@ const loadHarnessSnapshot = (input: {
 			harnessOwnerRoot,
 			harnessRoot: input.harnessRoot,
 		});
-		const openspecRecord = getRecord(configRecord.openspec, "openspec");
-		const openspecMode = getOpenspecMode(openspecRecord.mode);
+		const openspecRecord = getOptionalRecord(configRecord.openspec, "openspec");
+		// Legacy compatibility: an explicit `mode: harness` forces the working
+		// directory even if a stale `project_id` lingers in the config.
+		const legacyHarnessMode = openspecRecord.mode === "harness";
+		const openspecProjectId = legacyHarnessMode
+			? null
+			: getOptionalNonEmptyString(openspecRecord.project_id);
+		const openspecProjectExists = openspecProjectId
+			? existsSync(
+					join(input.harnessRoot, "projects", `${openspecProjectId}.yaml`)
+				)
+			: false;
 
-		if (openspecMode === "project") {
-			const openspecProjectId = getNonEmptyString(
-				openspecRecord.project_id,
-				"openspec.project_id"
-			);
+		if (openspecProjectId && openspecProjectExists) {
 			const openspecProjectRecord = parseProjectProfileRecord({
 				harnessRoot: input.harnessRoot,
 				projectId: openspecProjectId,
@@ -200,7 +201,6 @@ const loadHarnessSnapshot = (input: {
 				profiles,
 				languageName,
 				openspec: {
-					mode: "project",
 					path: openspecRoot
 						? resolve(harnessOwnerRoot, openspecRoot, "openspec")
 						: null,
@@ -219,7 +219,6 @@ const loadHarnessSnapshot = (input: {
 			profiles,
 			languageName,
 			openspec: {
-				mode: "harness",
 				path: join(harnessOwnerRoot, "openspec"),
 				sourceProjectId: null,
 			},
@@ -383,16 +382,18 @@ const getProfileRepoWarnings = (input: {
 	return { hasDefaultChecks, repoWarnings: warnings };
 };
 
-const getExistingProfileId = (input: {
+const resolveOpenspecProjectId = (input: {
 	harnessRoot: string;
 	projectId: string | null;
-}) => {
-	const projectId = getNonEmptyString(input.projectId, "openspec.project_id");
-	parseProjectProfileRecord({
-		harnessRoot: input.harnessRoot,
-		projectId,
-	});
-	return projectId;
+	activeProjects: string[];
+}): string | null => {
+	const projectId = getOptionalNonEmptyString(input.projectId);
+	if (!(projectId && input.activeProjects.includes(projectId))) {
+		return null;
+	}
+
+	const profilePath = join(input.harnessRoot, "projects", `${projectId}.yaml`);
+	return existsSync(profilePath) ? projectId : null;
 };
 
 const getLanguageName = (value: unknown): Ff15ProjectsContextLanguageName => {
@@ -407,8 +408,15 @@ const getLanguageName = (value: unknown): Ff15ProjectsContextLanguageName => {
 	throw new Error("Expected language to be en or ja.");
 };
 
-const getRecord = (value: unknown, key: string): Record<string, unknown> => {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
+const getOptionalRecord = (
+	value: unknown,
+	key: string
+): Record<string, unknown> => {
+	if (value === undefined || value === null) {
+		return {};
+	}
+
+	if (typeof value !== "object" || Array.isArray(value)) {
 		throw new Error(`Expected ${key} to be a mapping object.`);
 	}
 
@@ -446,14 +454,6 @@ const getOptionalNonEmptyString = (value: unknown) => {
 
 	const trimmedValue = value.trim();
 	return trimmedValue.length > 0 ? trimmedValue : null;
-};
-
-const getOpenspecMode = (value: unknown): Ff15ProjectsContextOpenspecMode => {
-	if (value === "project" || value === "harness") {
-		return value;
-	}
-
-	throw new Error("Expected openspec.mode to be project or harness.");
 };
 
 const getHarnessOwnerRoot = (harnessRoot: string): string =>
@@ -544,7 +544,6 @@ const buildErrorSnapshot = (input: {
 		profiles: [],
 		languageName: null,
 		openspec: {
-			mode: null,
 			path: null,
 			sourceProjectId: null,
 		},

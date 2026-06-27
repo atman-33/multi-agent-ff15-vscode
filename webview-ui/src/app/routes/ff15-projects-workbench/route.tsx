@@ -11,6 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { vscode } from "@/lib/vscode";
 import {
 	buildDraftFromSnapshot,
@@ -22,8 +23,6 @@ import {
 	type ProjectsSnapshot,
 	type SaveState,
 } from "../ff15-projects/model";
-
-const EMPTY_PROJECT_SELECT_VALUE = "__none__";
 
 const applyStateMessage = (input: {
 	payload: { snapshot?: ProjectsSnapshot };
@@ -131,6 +130,16 @@ const Route = () => {
 		});
 	};
 
+	const setOpenspecProjectId = (projectId: string | null) => {
+		updateDraft({
+			...draft,
+			openspec: {
+				...draft.openspec,
+				projectId,
+			},
+		});
+	};
+
 	const resolveConflict = (
 		resolution: "discard-local" | "keep-local" | "reload"
 	) => {
@@ -143,8 +152,6 @@ const Route = () => {
 	const availableProfiles =
 		snapshot.status === "ready" ? snapshot.profiles : [];
 	const inputsDisabled = snapshot.status !== "ready" || conflictMessage != null;
-	const selectedOpenSpecProjectId =
-		draft.openspec.projectId ?? EMPTY_PROJECT_SELECT_VALUE;
 
 	return (
 		<Ff15Screen>
@@ -199,46 +206,90 @@ const Route = () => {
 					<div className="grid gap-3">
 						<Ff15Panel className="px-4 py-3 text-sm">
 							<div className="ff15-label">Active Projects</div>
+							<p className="mt-1 text-[11px] text-[color:var(--ff15-text-muted)] leading-5">
+								Turn on the OpenSpec switch for one active project to use its
+								openspec folder. With every switch off, the working directory
+								openspec folder is used.
+							</p>
 							<div className="mt-2 grid gap-2">
 								{availableProfiles.length > 0 ? (
 									availableProfiles.map((profile) => {
-										const checked = draft.activeProjects.includes(profile.id);
+										const isActive = draft.activeProjects.includes(profile.id);
+										const isOpenspecSource =
+											draft.openspec.projectId === profile.id;
 										const checkboxId = `active-project-${profile.id}`;
+										const switchId = `openspec-project-${profile.id}`;
 										return (
-											<label
-												className="flex cursor-pointer items-start gap-2 rounded-lg border border-[color:var(--ff15-border-soft)] px-3 py-2 transition-colors hover:border-[color:var(--ff15-border)]"
-												htmlFor={checkboxId}
+											<div
+												className="flex items-start gap-3 rounded-lg border border-[color:var(--ff15-border-soft)] px-3 py-2 transition-colors hover:border-[color:var(--ff15-border)]"
 												key={profile.id}
 											>
-												<Checkbox
-													checked={checked}
-													className="mt-0.5 shrink-0"
-													disabled={inputsDisabled}
-													id={checkboxId}
-													onCheckedChange={(nextCheckedState) => {
-														const nextActiveProjects =
-															nextCheckedState === true
+												<label
+													className="flex min-w-0 flex-1 cursor-pointer items-start gap-2"
+													htmlFor={checkboxId}
+												>
+													<Checkbox
+														checked={isActive}
+														className="mt-0.5 shrink-0"
+														disabled={inputsDisabled}
+														id={checkboxId}
+														onCheckedChange={(nextCheckedState) => {
+															const nextActive = nextCheckedState === true;
+															const nextActiveProjects = nextActive
 																? [...draft.activeProjects, profile.id]
 																: draft.activeProjects.filter(
 																		(projectId) => projectId !== profile.id
 																	);
-														updateDraft({
-															...draft,
-															activeProjects: nextActiveProjects,
-														});
-													}}
-												/>
-												<div className="min-w-0 flex-1">
-													<div className="font-medium text-[color:var(--ff15-text)] text-sm">
-														{profile.id}
-													</div>
-													{profile.warnings.length > 0 ? (
-														<div className="mt-1 text-[11px] text-[color:#fcd34d]">
-															{profile.warnings.join(" ")}
+															// Deactivating the OpenSpec source falls back to
+															// the working directory openspec folder.
+															const nextProjectId =
+																!nextActive && isOpenspecSource
+																	? null
+																	: draft.openspec.projectId;
+															updateDraft({
+																...draft,
+																activeProjects: nextActiveProjects,
+																openspec: {
+																	...draft.openspec,
+																	projectId: nextProjectId,
+																},
+															});
+														}}
+													/>
+													<div className="min-w-0 flex-1">
+														<div className="font-medium text-[color:var(--ff15-text)] text-sm">
+															{profile.id}
 														</div>
-													) : null}
+														{profile.warnings.length > 0 ? (
+															<div className="mt-1 text-[11px] text-[color:#fcd34d]">
+																{profile.warnings.join(" ")}
+															</div>
+														) : null}
+													</div>
+												</label>
+												<div className="flex shrink-0 flex-col items-center gap-1">
+													<label
+														className="text-[10px] text-[color:var(--ff15-text-muted)] uppercase tracking-[0.12em]"
+														htmlFor={switchId}
+													>
+														OpenSpec
+													</label>
+													<Switch
+														checked={isOpenspecSource}
+														disabled={inputsDisabled || !isActive}
+														id={switchId}
+														onCheckedChange={(nextCheckedState) => {
+															// Single-select: enabling one clears the others;
+															// disabling the active source clears it.
+															if (nextCheckedState) {
+																setOpenspecProjectId(profile.id);
+															} else if (isOpenspecSource) {
+																setOpenspecProjectId(null);
+															}
+														}}
+													/>
 												</div>
-											</label>
+											</div>
 										);
 									})
 								) : (
@@ -250,94 +301,13 @@ const Route = () => {
 						</Ff15Panel>
 
 						<Ff15Panel className="px-4 py-3 text-sm">
-							<div className="ff15-label">OpenSpec</div>
-							<div className="mt-2 flex flex-col gap-1 text-xs">
-								<label
-									className="text-[color:var(--ff15-text-muted)] uppercase tracking-[0.12em]"
-									htmlFor="openspec-mode"
-								>
-									Mode
-								</label>
-								<Select
-									disabled={inputsDisabled}
-									onValueChange={(value) => {
-										const mode = value as "project" | "harness";
-										updateDraft({
-											...draft,
-											openspec: {
-												...draft.openspec,
-												mode,
-											},
-										});
-									}}
-									value={draft.openspec.mode}
-								>
-									<SelectTrigger
-										className="w-full border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.6)] text-[color:var(--ff15-text)]"
-										id="openspec-mode"
-									>
-										<SelectValue placeholder="Select mode" />
-									</SelectTrigger>
-									<SelectContent
-										align="start"
-										className="border-[color:var(--ff15-border-soft)] bg-[rgba(8,10,16,0.98)] text-[color:var(--ff15-text)]"
-										position="popper"
-									>
-										<SelectItem value="project">project</SelectItem>
-										<SelectItem value="harness">harness</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							{draft.openspec.mode === "project" ? (
-								<div className="mt-2 flex flex-col gap-1 text-xs">
-									<label
-										className="text-[color:var(--ff15-text-muted)] uppercase tracking-[0.12em]"
-										htmlFor="openspec-project"
-									>
-										Project
-									</label>
-									<Select
-										disabled={inputsDisabled}
-										onValueChange={(value) => {
-											updateDraft({
-												...draft,
-												openspec: {
-													...draft.openspec,
-													projectId:
-														value === EMPTY_PROJECT_SELECT_VALUE ? null : value,
-												},
-											});
-										}}
-										value={selectedOpenSpecProjectId}
-									>
-										<SelectTrigger
-											className="w-full border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.6)] text-[color:var(--ff15-text)]"
-											id="openspec-project"
-										>
-											<SelectValue placeholder="Select a project" />
-										</SelectTrigger>
-										<SelectContent
-											align="start"
-											className="border-[color:var(--ff15-border-soft)] bg-[rgba(8,10,16,0.98)] text-[color:var(--ff15-text)]"
-											position="popper"
-										>
-											<SelectItem value={EMPTY_PROJECT_SELECT_VALUE}>
-												Select a project
-											</SelectItem>
-											{availableProfiles.map((profile) => (
-												<SelectItem key={profile.id} value={profile.id}>
-													{profile.id}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								</div>
-							) : null}
-							<div className="mt-3 break-all text-[color:var(--ff15-text-muted)] text-xs leading-5">
+							<div className="ff15-label">OpenSpec Resolution</div>
+							<div className="mt-2 break-all text-[color:var(--ff15-text-muted)] text-xs leading-5">
 								Resolved Path: {snapshot.openspec.path ?? "-"}
 							</div>
 							<div className="mt-1 text-[color:var(--ff15-text-muted)] text-xs">
-								Resolved Project: {snapshot.openspec.sourceProjectId ?? "-"}
+								Source Project:{" "}
+								{snapshot.openspec.sourceProjectId ?? "working directory"}
 							</div>
 						</Ff15Panel>
 					</div>

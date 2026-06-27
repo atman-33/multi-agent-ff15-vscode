@@ -43,10 +43,10 @@ const Route = () => {
 	}
 
 	let openSpecSummary = "-";
-	if (snapshot.openspec.mode === "project") {
-		openSpecSummary = `project: ${snapshot.openspec.sourceProjectId ?? "-"}`;
-	} else if (snapshot.openspec.mode === "harness") {
-		openSpecSummary = "harness";
+	if (snapshot.status === "ready") {
+		openSpecSummary = snapshot.openspec.sourceProjectId
+			? `project: ${snapshot.openspec.sourceProjectId}`
+			: "workspace";
 	}
 
 	return (

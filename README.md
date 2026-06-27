@@ -99,8 +99,8 @@ The Projects Editor is the main place to configure FF15 for a workspace.
 It lets you:
 
 - choose one or more `active_projects`,
-- switch `OpenSpec` mode between `project` and `harness`,
-- choose the project that supplies the OpenSpec root when `project` mode is active,
+- turn on the `OpenSpec` switch for one active project to use its OpenSpec root,
+- leave every `OpenSpec` switch off to use the working directory OpenSpec folder,
 - review the resolved config source path and warnings.
 
 Changes are autosaved back to the harness config.
@@ -242,9 +242,12 @@ active_projects:
 language: en
 
 openspec:
-  mode: project
   project_id: default
 ```
+
+`openspec.project_id` names the active project whose `openspec_root` supplies the
+OpenSpec folder. Omit it (or leave every `OpenSpec` switch off in the editor) to
+fall back to the working directory `openspec` folder.
 
 The default project profile is effectively shaped like this:
 

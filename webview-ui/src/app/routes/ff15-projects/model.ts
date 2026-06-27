@@ -12,7 +12,6 @@ export type ProjectsSnapshot =
 			profiles: ProjectProfile[];
 			languageName: "en" | "ja";
 			openspec: {
-				mode: "project" | "harness";
 				path: string | null;
 				sourceProjectId: string | null;
 			};
@@ -26,7 +25,6 @@ export type ProjectsSnapshot =
 			profiles: [];
 			languageName: null;
 			openspec: {
-				mode: null;
 				path: null;
 				sourceProjectId: null;
 			};
@@ -37,7 +35,6 @@ export interface ProjectsDraft {
 	activeProjects: string[];
 	languageName: "en" | "ja";
 	openspec: {
-		mode: "project" | "harness";
 		projectId: string | null;
 	};
 }
@@ -48,7 +45,6 @@ export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 	activeProjects: [],
 	error: "Waiting for Projects context...",
 	openspec: {
-		mode: null,
 		path: null,
 		sourceProjectId: null,
 	},
@@ -63,7 +59,6 @@ export const EMPTY_DRAFT: ProjectsDraft = {
 	activeProjects: [],
 	languageName: "en",
 	openspec: {
-		mode: "project",
 		projectId: null,
 	},
 };
@@ -90,11 +85,7 @@ export const buildDraftFromSnapshot = (
 		activeProjects: snapshot.activeProjects,
 		languageName: snapshot.languageName,
 		openspec: {
-			mode: snapshot.openspec.mode,
-			projectId:
-				snapshot.openspec.mode === "project"
-					? snapshot.openspec.sourceProjectId
-					: previousDraft.openspec.projectId,
+			projectId: snapshot.openspec.sourceProjectId,
 		},
 	};
 };

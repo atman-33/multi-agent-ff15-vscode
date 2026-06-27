@@ -40,7 +40,6 @@ const createReadySnapshot = (overrides: Record<string, unknown> = {}) =>
 		languageName: "en",
 		error: null,
 		openspec: {
-			mode: "project",
 			path: "C:/workspace/project-a/openspec",
 			sourceProjectId: "project-a",
 		},
@@ -135,7 +134,6 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const savedSnapshot = createReadySnapshot({
 			activeProjects: ["project-b"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/project-b/openspec",
 				sourceProjectId: "project-b",
 			},
@@ -166,14 +164,14 @@ describe("createFf15ProjectsWorkbenchController", () => {
 			command: "ff15-projects-workbench.updateDraft",
 			draft: {
 				activeProjects: ["project-a"],
-				openspec: { mode: "project", projectId: "project-a" },
+				openspec: { projectId: "project-a" },
 			},
 		});
 		await onDidReceiveMessage?.({
 			command: "ff15-projects-workbench.updateDraft",
 			draft: {
 				activeProjects: ["project-b"],
-				openspec: { mode: "project", projectId: "project-b" },
+				openspec: { projectId: "project-b" },
 			},
 		});
 
@@ -186,7 +184,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		expect(saveProjectsContext).toHaveBeenCalledWith({
 			draft: {
 				activeProjects: ["project-b"],
-				openspec: { mode: "project", projectId: "project-b" },
+				openspec: { projectId: "project-b" },
 			},
 			workspaceRoot: "C:/workspace",
 		});
@@ -208,7 +206,6 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const externalSnapshot = createReadySnapshot({
 			activeProjects: ["project-b"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/project-b/openspec",
 				sourceProjectId: "project-b",
 			},
@@ -252,7 +249,6 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const externalSnapshot = createReadySnapshot({
 			activeProjects: ["project-b"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/project-b/openspec",
 				sourceProjectId: "project-b",
 			},
@@ -282,7 +278,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 			command: "ff15-projects-workbench.updateDraft",
 			draft: {
 				activeProjects: ["project-b"],
-				openspec: { mode: "project", projectId: "project-b" },
+				openspec: { projectId: "project-b" },
 			},
 		});
 
@@ -316,7 +312,6 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const externalSnapshot = createReadySnapshot({
 			activeProjects: ["project-b"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/project-b/openspec",
 				sourceProjectId: "project-b",
 			},
@@ -346,7 +341,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 			command: "ff15-projects-workbench.updateDraft",
 			draft: {
 				activeProjects: ["project-b"],
-				openspec: { mode: "project", projectId: "project-b" },
+				openspec: { projectId: "project-b" },
 			},
 		});
 
@@ -376,7 +371,6 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const externalSnapshot = createReadySnapshot({
 			activeProjects: ["project-b"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/project-b/openspec",
 				sourceProjectId: "project-b",
 			},
@@ -384,7 +378,6 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const savedSnapshot = createReadySnapshot({
 			activeProjects: ["project-c"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/project-c/openspec",
 				sourceProjectId: "project-c",
 			},
@@ -417,7 +410,7 @@ describe("createFf15ProjectsWorkbenchController", () => {
 		const onDidReceiveMessage = getMessageHandler(panelDouble);
 		const localDraft = {
 			activeProjects: ["project-c"],
-			openspec: { mode: "project", projectId: "project-c" },
+			openspec: { projectId: "project-c" },
 		} as const;
 		await onDidReceiveMessage?.({
 			command: "ff15-projects-workbench.updateDraft",

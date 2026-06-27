@@ -38,7 +38,6 @@ describe("Ff15ProjectsViewProvider", () => {
 			languageName: "en",
 			error: null,
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/openspec",
 				sourceProjectId: "project-a",
 			},
@@ -95,7 +94,6 @@ describe("Ff15ProjectsViewProvider", () => {
 			languageName: "en",
 			error: null,
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/openspec",
 				sourceProjectId: "project-a",
 			},
@@ -140,7 +138,6 @@ describe("Ff15ProjectsViewProvider", () => {
 			languageName: "en",
 			error: null,
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/openspec-a",
 				sourceProjectId: "project-a",
 			},
@@ -154,7 +151,6 @@ describe("Ff15ProjectsViewProvider", () => {
 			...initialSnapshot,
 			activeProjects: ["project-b"],
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/openspec-b",
 				sourceProjectId: "project-b",
 			},
@@ -250,7 +246,6 @@ describe("Ff15ProjectsViewProvider", () => {
 			languageName: "en",
 			error: null,
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/openspec",
 				sourceProjectId: "default",
 			},
@@ -285,7 +280,6 @@ describe("Ff15ProjectsViewProvider", () => {
 			languageName: "en",
 			error: null,
 			openspec: {
-				mode: "project",
 				path: "C:/workspace/openspec",
 				sourceProjectId: "default",
 			},

@@ -13,8 +13,6 @@ import {
 	saveFf15ProjectsContext,
 } from "./context-resolver";
 
-const MISSING_PROFILE_PATTERN = /missing-profile/;
-
 const createTmpWorkspace = () =>
 	join(tmpdir(), `ff15-projects-context-${crypto.randomUUID()}`);
 
@@ -89,7 +87,6 @@ describe("resolveFf15ProjectsContext", () => {
 			expect(snapshot.bootstrapped).toBe(false);
 			expect(snapshot.activeProjects).toEqual(["primary"]);
 			expect(snapshot.languageName).toBe("en");
-			expect(snapshot.openspec.mode).toBe("project");
 			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
 			expect(snapshot.openspec.sourceProjectId).toBe("primary");
 		} finally {
@@ -135,7 +132,6 @@ describe("resolveFf15ProjectsContext", () => {
 
 			expect(snapshot.activeProjects).toEqual(["primary"]);
 			expect(snapshot.languageName).toBe("en");
-			expect(snapshot.openspec.mode).toBe("project");
 			expect(snapshot.openspec.sourceProjectId).toBe("context-only");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
@@ -157,7 +153,6 @@ describe("resolveFf15ProjectsContext", () => {
 			expect(snapshot.sourcePath).toBe(join(workspaceRoot, ".ff15"));
 			expect(snapshot.activeProjects).toEqual(["default"]);
 			expect(snapshot.languageName).toBe("en");
-			expect(snapshot.openspec.mode).toBe("project");
 			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
 			expect(snapshot.openspec.sourceProjectId).toBe("default");
 			expect(
@@ -180,7 +175,7 @@ describe("resolveFf15ProjectsContext", () => {
 		}
 	});
 
-	it("returns explicit error when project-mode profile is missing", () => {
+	it("falls back to the working directory when openspec.project_id has no profile", () => {
 		const workspaceRoot = createTmpWorkspace();
 		const ff15Root = join(workspaceRoot, ".ff15");
 
@@ -191,7 +186,6 @@ describe("resolveFf15ProjectsContext", () => {
 					"active_projects:",
 					"  - primary",
 					"openspec:",
-					"  mode: project",
 					"  project_id: missing-profile",
 					"",
 				].join("\n")
@@ -199,13 +193,13 @@ describe("resolveFf15ProjectsContext", () => {
 
 			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
 
-			expect(snapshot.status).toBe("error");
-			if (snapshot.status !== "error") {
-				throw new Error("Expected error projects context snapshot.");
+			expect(snapshot.status).toBe("ready");
+			if (snapshot.status !== "ready") {
+				throw new Error("Expected ready projects context snapshot.");
 			}
 
-			expect(snapshot.error).toContain("missing-profile");
-			expect(snapshot.error).toContain("openspec.project_id");
+			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
+			expect(snapshot.openspec.sourceProjectId).toBeNull();
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -235,7 +229,7 @@ describe("resolveFf15ProjectsContext", () => {
 			}
 
 			expect(snapshot.languageName).toBe("en");
-			expect(snapshot.openspec.mode).toBe("harness");
+			expect(snapshot.openspec.sourceProjectId).toBeNull();
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -302,8 +296,7 @@ describe("resolveFf15ProjectsContext", () => {
 					activeProjects: ["beta", "alpha", "beta"],
 					languageName: "en",
 					openspec: {
-						mode: "project",
-						projectId: "source-project",
+						projectId: "beta",
 					},
 				},
 				workspaceRoot,
@@ -316,8 +309,7 @@ describe("resolveFf15ProjectsContext", () => {
 
 			expect(snapshot.activeProjects).toEqual(["alpha", "beta"]);
 			expect(snapshot.languageName).toBe("en");
-			expect(snapshot.openspec.mode).toBe("project");
-			expect(snapshot.openspec.sourceProjectId).toBe("source-project");
+			expect(snapshot.openspec.sourceProjectId).toBe("beta");
 
 			const savedConfig = readFileSync(configPath, "utf8");
 			expect(savedConfig).toContain(
@@ -335,7 +327,9 @@ describe("resolveFf15ProjectsContext", () => {
 			expect(savedConfig).toContain("  - alpha");
 			expect(savedConfig).toContain("  - beta");
 			expect(savedConfig).toContain("language: en");
-			expect(savedConfig).toContain("  project_id: source-project");
+			expect(savedConfig).toContain("  project_id: beta");
+			// The legacy `mode` key is dropped on save.
+			expect(savedConfig).not.toContain("mode:");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -385,7 +379,7 @@ describe("resolveFf15ProjectsContext", () => {
 				throw new Error("Expected ready projects context snapshot.");
 			}
 
-			expect(snapshot.openspec.mode).toBe("project");
+			expect(snapshot.openspec.sourceProjectId).toBe("alpha");
 			expect(snapshot.openspec.path).toBeNull();
 			expect(snapshot.profiles.map((profile) => profile.id)).toEqual([
 				"alpha",
@@ -401,7 +395,7 @@ describe("resolveFf15ProjectsContext", () => {
 		}
 	});
 
-	it("rejects unknown openspec.project_id during save without changing the file", () => {
+	it("drops openspec.project_id on save when it is not an active project", () => {
 		const workspaceRoot = createTmpWorkspace();
 		const ff15Root = join(workspaceRoot, ".ff15");
 		const configPath = join(ff15Root, "config", "config.yaml");
@@ -430,23 +424,29 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 
-			const beforeSave = readFileSync(configPath, "utf8");
-
-			expect(() =>
-				saveFf15ProjectsContext({
-					draft: {
-						activeProjects: ["alpha"],
-						languageName: "en",
-						openspec: {
-							mode: "project",
-							projectId: "missing-profile",
-						},
+			const snapshot = saveFf15ProjectsContext({
+				draft: {
+					activeProjects: ["alpha"],
+					languageName: "en",
+					openspec: {
+						// Not part of activeProjects -> falls back to working directory.
+						projectId: "beta",
 					},
-					workspaceRoot,
-				})
-			).toThrowError(MISSING_PROFILE_PATTERN);
+				},
+				workspaceRoot,
+			});
 
-			expect(readFileSync(configPath, "utf8")).toBe(beforeSave);
+			expect(snapshot.status).toBe("ready");
+			if (snapshot.status !== "ready") {
+				throw new Error("Expected ready projects context snapshot.");
+			}
+
+			expect(snapshot.openspec.sourceProjectId).toBeNull();
+			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
+
+			const savedConfig = readFileSync(configPath, "utf8");
+			expect(savedConfig).not.toContain("project_id:");
+			expect(savedConfig).not.toContain("mode:");
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
@@ -475,7 +475,6 @@ describe("resolveFf15ProjectsContext", () => {
 				throw new Error("Expected ready projects context snapshot.");
 			}
 
-			expect(snapshot.openspec.mode).toBe("harness");
 			expect(snapshot.openspec.path).toBe(join(workspaceRoot, "openspec"));
 			expect(snapshot.openspec.sourceProjectId).toBeNull();
 		} finally {
@@ -602,7 +601,6 @@ describe("resolveFf15ProjectsContext", () => {
 					activeProjects: ["alpha"],
 					languageName: "ja",
 					openspec: {
-						mode: "project",
 						projectId: "alpha",
 					},
 				},

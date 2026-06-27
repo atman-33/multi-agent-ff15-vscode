@@ -42,7 +42,6 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		activeProjects: [],
 		error: "Unable to resolve workspace root for Projects view.",
 		openspec: {
-			mode: null,
 			path: null,
 			sourceProjectId: null,
 		},
@@ -132,7 +131,6 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 				activeProjects: [],
 				error: "Unable to resolve workspace root for Projects view.",
 				openspec: {
-					mode: null,
 					path: null,
 					sourceProjectId: null,
 				},
