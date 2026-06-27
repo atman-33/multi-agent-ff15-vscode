@@ -599,11 +599,12 @@ const OperationCatalogPanel = ({
 			/>
 
 			<Combobox
+				filter={(operation, query) =>
+					matchesOperationQuery(operation, normalizeOperationQuery(query))
+				}
 				inputValue={operationQuery}
 				items={supportedOperations}
-				itemToStringLabel={(operation) =>
-					[operation.name, operation.ref, operation.fileName].join(" ")
-				}
+				itemToStringLabel={(operation) => operation.name}
 				itemToStringValue={(operation) => operation.name}
 				onInputValueChange={onOperationQueryChange}
 				onValueChange={(operation) => {
@@ -624,6 +625,7 @@ const OperationCatalogPanel = ({
 							"[&_[data-slot=input-group-input]]:text-[color:var(--vscode-foreground)]"
 						)}
 						placeholder="Search supported operations"
+						showClear
 						showTrigger
 					/>
 				</div>
@@ -924,9 +926,14 @@ const Route = () => {
 	};
 
 	const handleSelectOperation = (operationRef: string) => {
-		// Do not clear the query here. The input text is reconciled to the
-		// confirmed selection by the effect that watches `selectedOperation`
-		// once the extension echoes the new mission state back.
+		// Optimistically show the selected operation name in the input. This also
+		// covers re-selecting the same operation after a clear, where the
+		// `selectedOperation` effect would not re-fire (ref is unchanged). The
+		// effect still reconciles the input on initial mount / async echoes.
+		const selected = state.operations.supported.find(
+			(operation) => operation.ref === operationRef
+		);
+		setOperationQuery(selected ? selected.name : "");
 		vscode.postMessage({
 			command: "ff15-mission-workbench.select-operation",
 			operationRef,
