@@ -610,7 +610,7 @@ export const PartyRosterPanel = ({
 										"border border-transparent",
 										"px-3 py-2.5",
 										"transition-transform",
-										"hover:-translate-y-0.5",
+										"hover:scale-[1.02]",
 										"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
 									)}
 									style={{
@@ -620,29 +620,6 @@ export const PartyRosterPanel = ({
 								>
 									<div className="flex min-w-0 items-center gap-3.5">
 										<div className="relative flex h-12 w-12 shrink-0 items-end justify-center">
-											<span
-												aria-hidden="true"
-												className="pointer-events-none absolute rounded-full"
-												style={{
-													background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
-													bottom: 0,
-													height: "2rem",
-													left: "50%",
-													opacity: agent.available ? 1 : 0.72,
-													transform: "translateX(-50%)",
-													width: "2rem",
-												}}
-											/>
-											{agent.available ? (
-												<span
-													aria-hidden="true"
-													className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
-													style={{
-														background: theme.glow,
-														filter: "blur(16px)",
-													}}
-												/>
-											) : null}
 											<img
 												alt={agent.displayName}
 												className="relative z-10 h-12 w-auto max-w-full object-contain object-bottom"
