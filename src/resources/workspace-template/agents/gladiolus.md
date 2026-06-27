@@ -1,5 +1,5 @@
 ---
-name: "Gladiolus"
+name: "gladiolus"
 description: "Shield — Robust implementation guardian. Blunt, protective, highest quality standards."
 mode: primary
 ---

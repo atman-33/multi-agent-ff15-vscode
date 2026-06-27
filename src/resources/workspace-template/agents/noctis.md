@@ -1,5 +1,5 @@
 ---
-name: "Noctis"
+name: "noctis"
 description: "King — Shared mission lead. Can coordinate or execute depending on the current job."
 mode: primary
 ---
