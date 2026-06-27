@@ -39,6 +39,7 @@ Create or revise workspace-authored FF15 operations for the VS Code extension. T
 ## Guardrails
 
 - Workspace-authored operations are never merged or shadowed into the bundled catalog: the loader resolves `builtin:*` refs only against `FF15_BUNDLED_OPERATION_DEFINITIONS` and ignores unrelated files under `.ff15/operations/`.
+- Never edit `.ff15/operations/.ff15-managed-operations.json`. The extension regenerates it from `FF15_BUNDLED_OPERATION_DEFINITIONS` only, and any entry outside that set is treated as a stale bundled file and `rmSync`-deleted on the next materialize — so a workspace-authored file listed there is silently destroyed.
 - Keep the fewest steps that satisfy ownership and artifact boundaries.
 - Treat missing `node` as a setup blocker for validator use. The `yaml` npm package is optional; the validator falls back to a built-in minimal parser when it cannot be resolved.
 - Treat unsupported legacy fields and unresolved file references as blocking.
