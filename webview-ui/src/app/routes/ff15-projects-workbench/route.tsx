@@ -1,4 +1,8 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { Ff15Panel } from "@/components/ff15/ff15-panel";
+import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
+import { Ff15Screen } from "@/components/ff15/ff15-screen";
+import { SidebarActionButton } from "@/components/sidebar-action-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Select,
@@ -143,230 +147,224 @@ const Route = () => {
 		draft.openspec.projectId ?? EMPTY_PROJECT_SELECT_VALUE;
 
 	return (
-		<div className="mx-auto flex h-full max-w-4xl flex-col gap-4 px-6 py-5">
-			<div className="flex flex-col gap-1">
-				<h1 className="font-semibold text-[color:var(--vscode-foreground)] text-base uppercase tracking-[0.08em]">
-					Projects Editor
-				</h1>
-				<p className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] text-sm leading-6">
-					Update active projects and OpenSpec resolution here. Changes are
-					autosaved back to the harness config.
-				</p>
-			</div>
-
-			<div className={`text-xs ${getSaveStateColor(saveState)}`}>
-				{saveMessage}
-			</div>
-
-			{conflictMessage ? (
-				<div className="rounded-xl border border-[color:var(--vscode-warningForeground,#fbbf24)]/40 bg-[color:var(--vscode-warningForeground,#fbbf24)]/10 px-4 py-3 text-sm">
-					<div className="font-medium text-[color:var(--vscode-warningForeground,#fbbf24)]">
-						External change conflict
-					</div>
-					<p className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.82))] text-xs leading-5">
-						{conflictMessage}
+		<Ff15Screen>
+			<div className="mx-auto flex h-full max-w-4xl flex-col gap-4 px-6 py-5">
+				<div className="flex flex-col gap-2">
+					<span className="font-semibold text-[color:var(--ff15-gold)] text-sm uppercase tracking-[0.18em]">
+						Projects Editor
+					</span>
+					<div className="ff15-divider" />
+					<p className="text-[color:var(--ff15-text-muted)] text-sm leading-6">
+						Update active projects and OpenSpec resolution here. Changes are
+						autosaved back to the harness config.
 					</p>
-					<div className="mt-3 flex flex-wrap gap-2">
-						<button
-							className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-3 py-1 text-xs"
-							onClick={() => resolveConflict("reload")}
-							type="button"
-						>
-							Reload
-						</button>
-						<button
-							className="rounded-md border border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] px-3 py-1 text-xs"
-							onClick={() => resolveConflict("discard-local")}
-							type="button"
-						>
-							Discard local
-						</button>
-						<button
-							className="rounded-md border border-[color:var(--vscode-textLink-foreground,#60a5fa)] bg-[color:color-mix(in_srgb,var(--vscode-textLink-foreground,#60a5fa)_14%,transparent)] px-3 py-1 text-xs"
-							onClick={() => resolveConflict("keep-local")}
-							type="button"
-						>
-							Keep local
-						</button>
-					</div>
 				</div>
-			) : null}
 
-			<div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-				<div className="grid gap-3">
-					<div className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-4 py-3 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-							Active Projects
+				<div className={`text-xs ${getSaveStateColor(saveState)}`}>
+					{saveMessage}
+				</div>
+
+				{conflictMessage ? (
+					<div className="rounded-xl border border-[color:rgba(252,211,77,0.4)] bg-[color:rgba(252,211,77,0.1)] px-4 py-3 text-sm">
+						<div className="font-medium text-[color:#fcd34d]">
+							External change conflict
 						</div>
-						<div className="mt-2 grid gap-2">
-							{availableProfiles.length > 0 ? (
-								availableProfiles.map((profile) => {
-									const checked = draft.activeProjects.includes(profile.id);
-									const checkboxId = `active-project-${profile.id}`;
-									return (
-										<label
-											className="flex cursor-pointer items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] px-3 py-2"
-											htmlFor={checkboxId}
-											key={profile.id}
-										>
-											<Checkbox
-												checked={checked}
-												className="mt-0.5 shrink-0"
-												disabled={inputsDisabled}
-												id={checkboxId}
-												onCheckedChange={(nextCheckedState) => {
-													const nextActiveProjects =
-														nextCheckedState === true
-															? [...draft.activeProjects, profile.id]
-															: draft.activeProjects.filter(
-																	(projectId) => projectId !== profile.id
-																);
-													updateDraft({
-														...draft,
-														activeProjects: nextActiveProjects,
-													});
-												}}
-											/>
-											<div className="min-w-0 flex-1">
-												<div className="font-medium text-[color:var(--vscode-foreground)] text-sm">
-													{profile.id}
-												</div>
-												{profile.warnings.length > 0 ? (
-													<div className="mt-1 text-[11px] text-[color:var(--vscode-warningForeground,#fbbf24)]">
-														{profile.warnings.join(" ")}
-													</div>
-												) : null}
-											</div>
-										</label>
-									);
-								})
-							) : (
-								<div className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-									No project profiles found.
-								</div>
-							)}
+						<p className="mt-1 text-[color:var(--ff15-text-muted)] text-xs leading-5">
+							{conflictMessage}
+						</p>
+						<div className="mt-3 flex flex-wrap gap-2">
+							<SidebarActionButton
+								className="h-7 w-auto px-3 text-[11px]"
+								onClick={() => resolveConflict("reload")}
+							>
+								Reload
+							</SidebarActionButton>
+							<SidebarActionButton
+								className="h-7 w-auto px-3 text-[11px]"
+								onClick={() => resolveConflict("discard-local")}
+							>
+								Discard local
+							</SidebarActionButton>
+							<Ff15RuneButton
+								className="h-7 px-3"
+								onClick={() => resolveConflict("keep-local")}
+							>
+								Keep local
+							</Ff15RuneButton>
 						</div>
 					</div>
+				) : null}
 
-					<div className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-4 py-3 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-							OpenSpec
-						</div>
-						<div className="mt-2 flex flex-col gap-1 text-xs">
-							<label
-								className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] uppercase tracking-[0.12em]"
-								htmlFor="openspec-mode"
-							>
-								Mode
-							</label>
-							<Select
-								disabled={inputsDisabled}
-								onValueChange={(value) => {
-									const mode = value as "project" | "harness";
-									updateDraft({
-										...draft,
-										openspec: {
-											...draft.openspec,
-											mode,
-										},
-									});
-								}}
-								value={draft.openspec.mode}
-							>
-								<SelectTrigger
-									className="w-full border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
-									id="openspec-mode"
-								>
-									<SelectValue placeholder="Select mode" />
-								</SelectTrigger>
-								<SelectContent
-									align="start"
-									className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
-									position="popper"
-								>
-									<SelectItem value="project">project</SelectItem>
-									<SelectItem value="harness">harness</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-						{draft.openspec.mode === "project" ? (
+				<div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+					<div className="grid gap-3">
+						<Ff15Panel className="px-4 py-3 text-sm">
+							<div className="ff15-label">Active Projects</div>
+							<div className="mt-2 grid gap-2">
+								{availableProfiles.length > 0 ? (
+									availableProfiles.map((profile) => {
+										const checked = draft.activeProjects.includes(profile.id);
+										const checkboxId = `active-project-${profile.id}`;
+										return (
+											<label
+												className="flex cursor-pointer items-start gap-2 rounded-lg border border-[color:var(--ff15-border-soft)] px-3 py-2 transition-colors hover:border-[color:var(--ff15-border)]"
+												htmlFor={checkboxId}
+												key={profile.id}
+											>
+												<Checkbox
+													checked={checked}
+													className="mt-0.5 shrink-0"
+													disabled={inputsDisabled}
+													id={checkboxId}
+													onCheckedChange={(nextCheckedState) => {
+														const nextActiveProjects =
+															nextCheckedState === true
+																? [...draft.activeProjects, profile.id]
+																: draft.activeProjects.filter(
+																		(projectId) => projectId !== profile.id
+																	);
+														updateDraft({
+															...draft,
+															activeProjects: nextActiveProjects,
+														});
+													}}
+												/>
+												<div className="min-w-0 flex-1">
+													<div className="font-medium text-[color:var(--ff15-text)] text-sm">
+														{profile.id}
+													</div>
+													{profile.warnings.length > 0 ? (
+														<div className="mt-1 text-[11px] text-[color:#fcd34d]">
+															{profile.warnings.join(" ")}
+														</div>
+													) : null}
+												</div>
+											</label>
+										);
+									})
+								) : (
+									<div className="text-[color:var(--ff15-text-muted)] text-xs">
+										No project profiles found.
+									</div>
+								)}
+							</div>
+						</Ff15Panel>
+
+						<Ff15Panel className="px-4 py-3 text-sm">
+							<div className="ff15-label">OpenSpec</div>
 							<div className="mt-2 flex flex-col gap-1 text-xs">
 								<label
-									className="text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] uppercase tracking-[0.12em]"
-									htmlFor="openspec-project"
+									className="text-[color:var(--ff15-text-muted)] uppercase tracking-[0.12em]"
+									htmlFor="openspec-mode"
 								>
-									Project
+									Mode
 								</label>
 								<Select
 									disabled={inputsDisabled}
 									onValueChange={(value) => {
+										const mode = value as "project" | "harness";
 										updateDraft({
 											...draft,
 											openspec: {
 												...draft.openspec,
-												projectId:
-													value === EMPTY_PROJECT_SELECT_VALUE ? null : value,
+												mode,
 											},
 										});
 									}}
-									value={selectedOpenSpecProjectId}
+									value={draft.openspec.mode}
 								>
 									<SelectTrigger
-										className="w-full border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
-										id="openspec-project"
+										className="w-full border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.6)] text-[color:var(--ff15-text)]"
+										id="openspec-mode"
 									>
-										<SelectValue placeholder="Select a project" />
+										<SelectValue placeholder="Select mode" />
 									</SelectTrigger>
 									<SelectContent
 										align="start"
-										className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_18%,transparent)] bg-[color:var(--vscode-input-background)] text-[color:var(--vscode-input-foreground)]"
+										className="border-[color:var(--ff15-border-soft)] bg-[rgba(8,10,16,0.98)] text-[color:var(--ff15-text)]"
 										position="popper"
 									>
-										<SelectItem value={EMPTY_PROJECT_SELECT_VALUE}>
-											Select a project
-										</SelectItem>
-										{availableProfiles.map((profile) => (
-											<SelectItem key={profile.id} value={profile.id}>
-												{profile.id}
-											</SelectItem>
-										))}
+										<SelectItem value="project">project</SelectItem>
+										<SelectItem value="harness">harness</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
+							{draft.openspec.mode === "project" ? (
+								<div className="mt-2 flex flex-col gap-1 text-xs">
+									<label
+										className="text-[color:var(--ff15-text-muted)] uppercase tracking-[0.12em]"
+										htmlFor="openspec-project"
+									>
+										Project
+									</label>
+									<Select
+										disabled={inputsDisabled}
+										onValueChange={(value) => {
+											updateDraft({
+												...draft,
+												openspec: {
+													...draft.openspec,
+													projectId:
+														value === EMPTY_PROJECT_SELECT_VALUE ? null : value,
+												},
+											});
+										}}
+										value={selectedOpenSpecProjectId}
+									>
+										<SelectTrigger
+											className="w-full border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.6)] text-[color:var(--ff15-text)]"
+											id="openspec-project"
+										>
+											<SelectValue placeholder="Select a project" />
+										</SelectTrigger>
+										<SelectContent
+											align="start"
+											className="border-[color:var(--ff15-border-soft)] bg-[rgba(8,10,16,0.98)] text-[color:var(--ff15-text)]"
+											position="popper"
+										>
+											<SelectItem value={EMPTY_PROJECT_SELECT_VALUE}>
+												Select a project
+											</SelectItem>
+											{availableProfiles.map((profile) => (
+												<SelectItem key={profile.id} value={profile.id}>
+													{profile.id}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							) : null}
+							<div className="mt-3 break-all text-[color:var(--ff15-text-muted)] text-xs leading-5">
+								Resolved Path: {snapshot.openspec.path ?? "-"}
+							</div>
+							<div className="mt-1 text-[color:var(--ff15-text-muted)] text-xs">
+								Resolved Project: {snapshot.openspec.sourceProjectId ?? "-"}
+							</div>
+						</Ff15Panel>
+					</div>
+
+					<div className="grid gap-3">
+						<Ff15Panel className="px-4 py-3 text-sm">
+							<div className="ff15-label">Source</div>
+							<div className="mt-2 font-medium text-[color:var(--ff15-text)]">
+								{formatSourceKind(snapshot.sourceKind)}
+							</div>
+							<div className="mt-1 break-all text-[color:var(--ff15-text-muted)] text-xs leading-5">
+								{snapshot.sourcePath ?? "-"}
+							</div>
+							<div className="mt-1 text-[color:var(--ff15-text-muted)] text-xs">
+								Config Version: {snapshot.configVersion ?? "-"}
+							</div>
+						</Ff15Panel>
+
+						{snapshot.status === "error" ? (
+							<div className="rounded-xl border border-[color:rgba(248,113,113,0.4)] bg-[color:rgba(248,113,113,0.12)] px-4 py-3 text-[color:#fca5a5] text-sm leading-6">
+								{snapshot.error}
+							</div>
 						) : null}
-						<div className="mt-3 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs leading-5">
-							Resolved Path: {snapshot.openspec.path ?? "-"}
-						</div>
-						<div className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-							Resolved Project: {snapshot.openspec.sourceProjectId ?? "-"}
-						</div>
 					</div>
-				</div>
-
-				<div className="grid gap-3">
-					<div className="rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent)] px-4 py-3 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-							Source
-						</div>
-						<div className="mt-2 font-medium text-[color:var(--vscode-foreground)]">
-							{formatSourceKind(snapshot.sourceKind)}
-						</div>
-						<div className="mt-1 break-all text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs leading-5">
-							{snapshot.sourcePath ?? "-"}
-						</div>
-						<div className="mt-1 text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))] text-xs">
-							Config Version: {snapshot.configVersion ?? "-"}
-						</div>
-					</div>
-
-					{snapshot.status === "error" ? (
-						<div className="rounded-xl border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 px-4 py-3 text-[color:var(--vscode-errorForeground,#f87171)] text-sm leading-6">
-							{snapshot.error}
-						</div>
-					) : null}
 				</div>
 			</div>
-		</div>
+		</Ff15Screen>
 	);
 };
 

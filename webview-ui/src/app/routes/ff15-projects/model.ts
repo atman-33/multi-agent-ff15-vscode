@@ -96,17 +96,19 @@ export const buildDraftFromSnapshot = (
 	};
 };
 
+// FF15 palette tones so the status line stays readable on the dark mission
+// backdrop regardless of the active VSCode theme.
 export const getSaveStateColor = (state: SaveState) => {
 	switch (state) {
 		case "error":
-			return "text-[color:var(--vscode-errorForeground,#f87171)]";
+			return "text-[color:#fca5a5]";
 		case "conflict":
-			return "text-[color:var(--vscode-warningForeground,#fbbf24)]";
+			return "text-[color:#fcd34d]";
 		case "saved":
-			return "text-[color:var(--vscode-testing-iconPassed,#4ade80)]";
+			return "text-[color:#6ee7b7]";
 		case "saving":
-			return "text-[color:var(--vscode-textLink-foreground,#60a5fa)]";
+			return "text-[color:var(--ff15-cyan)]";
 		default:
-			return "text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))]";
+			return "text-[color:var(--ff15-text-muted)]";
 	}
 };
