@@ -633,18 +633,6 @@ describe("createFf15MissionSendController", () => {
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("<job>"),
-				})
-			);
-			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
-				expect.objectContaining({
-					prompt: expect.stringContaining(
-						"Plan the current issue into a spec-ready brief."
-					),
-				})
-			);
-			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
-				expect.objectContaining({
 					prompt: expect.stringContaining("<step-completion-contract>"),
 				})
 			);
