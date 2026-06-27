@@ -1,3 +1,4 @@
+import { window } from "vscode";
 import type {
 	CancellationToken,
 	Disposable,
@@ -49,9 +50,11 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		profiles: [],
 		sourceKind: null,
 		sourcePath: null,
+		bootstrapped: false,
 		status: "error",
 	};
 	private view?: WebviewView;
+	private bootstrapNotified = false;
 
 	constructor(
 		extensionUri: Uri,
@@ -137,6 +140,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 				profiles: [],
 				sourceKind: null,
 				sourcePath: null,
+				bootstrapped: false,
 				status: "error",
 			};
 		}
@@ -146,6 +150,12 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 
 	private postSnapshot(snapshot: Ff15ProjectsContextSnapshot) {
 		this.latestSnapshot = snapshot;
+		if (snapshot.bootstrapped && !this.bootstrapNotified) {
+			this.bootstrapNotified = true;
+			window.showInformationMessage(
+				"Created default FF15 configuration in .ff15/harness."
+			);
+		}
 		this.view?.webview.postMessage({
 			command: "ff15-projects.state",
 			devMode: this.devMode,

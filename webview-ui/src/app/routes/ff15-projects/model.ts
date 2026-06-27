@@ -6,7 +6,7 @@ export interface ProjectProfile {
 export type ProjectsSnapshot =
 	| {
 			status: "ready";
-			sourceKind: "agents" | "ff15";
+			sourceKind: "ff15";
 			sourcePath: string;
 			configVersion: number | string | null;
 			activeProjects: string[];
@@ -20,7 +20,7 @@ export type ProjectsSnapshot =
 	  }
 	| {
 			status: "error";
-			sourceKind: "agents" | "ff15" | null;
+			sourceKind: "ff15" | null;
 			sourcePath: string | null;
 			configVersion: null;
 			activeProjects: string[];
@@ -69,10 +69,6 @@ export const EMPTY_DRAFT: ProjectsDraft = {
 export const formatSourceKind = (
 	sourceKind: ProjectsSnapshot["sourceKind"]
 ) => {
-	if (sourceKind === "agents") {
-		return ".agents/harness";
-	}
-
 	if (sourceKind === "ff15") {
 		return ".ff15/harness";
 	}

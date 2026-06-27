@@ -105,12 +105,11 @@ It lets you:
 
 Changes are autosaved back to the harness config.
 
-Source resolution order:
+Configuration source:
 
-1. `.agents/harness`
-2. `.ff15/harness`
-
-If neither exists, FF15 bootstraps a default harness under `.ff15/harness`.
+FF15 reads harness configuration only from `.ff15/harness`. If it does not exist,
+FF15 bootstraps a default harness there and shows a notification. Any legacy
+`.agents/harness` directory is ignored.
 
 ### Missions
 
@@ -217,7 +216,7 @@ When the extension activates, it materializes workspace helper files so the miss
 
 You will typically see FF15-managed files under:
 
-- `.ff15/harness/` for bootstrapped harness config when no `.agents/harness` exists
+- `.ff15/harness/` for harness config (bootstrapped with defaults when missing)
 - `.ff15/operations/` for bundled operation definitions
 - `.ff15/facets/` for bundled operation facets and prompt references
 - `.ff15/missions/` for canonical mission runtime data and mission-scoped outputs
@@ -226,7 +225,7 @@ You will typically see FF15-managed files under:
 
 Important behavior:
 
-- `.agents/harness` takes precedence over `.ff15/harness` when both exist.
+- `.ff15/harness` is the only configuration source; any `.agents/harness` is ignored.
 - bundled operations are refreshed into `.ff15/operations/`, while unmanaged custom files are preserved,
 - mission state persists per workspace so you can reopen the same mission later.
 

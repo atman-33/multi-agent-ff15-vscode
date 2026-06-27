@@ -48,8 +48,9 @@ const createReadySnapshot = (overrides: Record<string, unknown> = {}) =>
 			{ id: "project-a", warnings: [] },
 			{ id: "project-b", warnings: [] },
 		],
-		sourceKind: "agents",
-		sourcePath: "C:/workspace/.agents/harness",
+		sourceKind: "ff15",
+		sourcePath: "C:/workspace/.ff15/harness",
+		bootstrapped: false,
 		status: "ready",
 		...overrides,
 	}) as const;

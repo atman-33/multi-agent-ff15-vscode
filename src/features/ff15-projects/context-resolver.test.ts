@@ -24,29 +24,29 @@ const writeFile = (filePath: string, content: string) => {
 };
 
 describe("resolveFf15ProjectsContext", () => {
-	it("prefers valid .agents/harness over .ff15/harness", () => {
+	it("reads existing .ff15/harness and ignores .agents/harness", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+		const legacyAgentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
 		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
-			mkdirSync(join(workspaceRoot, "beta"), { recursive: true });
+			// .agents/harness must be ignored entirely.
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				join(legacyAgentsHarnessRoot, "config", "agent-harness.yaml"),
 				[
-					"version: 3",
+					"version: 2",
 					"active_projects:",
-					"  - primary",
+					"  - legacy",
 					"openspec:",
 					"  mode: project",
-					"  project_id: primary",
+					"  project_id: legacy",
 					"",
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "primary.yaml"),
+				join(legacyAgentsHarnessRoot, "projects", "legacy.yaml"),
 				[
-					"id: primary",
+					"id: legacy",
 					"openspec_root: .",
 					"repos:",
 					"  - id: extension",
@@ -58,19 +58,19 @@ describe("resolveFf15ProjectsContext", () => {
 			writeFile(
 				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
 				[
-					"version: 2",
+					"version: 3",
 					"active_projects:",
-					"  - fallback",
+					"  - primary",
 					"openspec:",
 					"  mode: project",
-					"  project_id: fallback",
+					"  project_id: primary",
 					"",
 				].join("\n")
 			);
 			writeFile(
-				join(ff15HarnessRoot, "projects", "fallback.yaml"),
+				join(ff15HarnessRoot, "projects", "primary.yaml"),
 				[
-					"id: fallback",
+					"id: primary",
 					"openspec_root: .",
 					"repos:",
 					"  - id: extension",
@@ -86,8 +86,9 @@ describe("resolveFf15ProjectsContext", () => {
 				throw new Error("Expected ready projects context snapshot.");
 			}
 
-			expect(snapshot.sourceKind).toBe("agents");
-			expect(snapshot.sourcePath).toBe(agentsHarnessRoot);
+			expect(snapshot.sourceKind).toBe("ff15");
+			expect(snapshot.sourcePath).toBe(ff15HarnessRoot);
+			expect(snapshot.bootstrapped).toBe(false);
 			expect(snapshot.activeProjects).toEqual(["primary"]);
 			expect(snapshot.configVersion).toBe(3);
 			expect(snapshot.openspec.mode).toBe("project");
@@ -100,12 +101,12 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("supports v2 config while using a non-active openspec.project_id", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
 			mkdirSync(join(workspaceRoot, "beta"), { recursive: true });
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
 				[
 					"version: 2",
 					"active_projects:",
@@ -117,7 +118,7 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "context-only.yaml"),
+				join(ff15HarnessRoot, "projects", "context-only.yaml"),
 				[
 					"id: context-only",
 					"openspec_root: .",
@@ -202,11 +203,11 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("returns explicit error when project-mode profile is missing", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
 				[
 					"version: 3",
 					"active_projects:",
@@ -234,11 +235,11 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("preserves non-v2/v3 config versions without failing resolution", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
 				[
 					"version: 1",
 					"active_projects:",
@@ -265,8 +266,8 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("normalizes saved active_projects while preserving yaml comments and key order", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
-		const configPath = join(agentsHarnessRoot, "config", "agent-harness.yaml");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
+		const configPath = join(ff15HarnessRoot, "config", "agent-harness.yaml");
 
 		try {
 			writeFile(
@@ -286,7 +287,7 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "alpha.yaml"),
+				join(ff15HarnessRoot, "projects", "alpha.yaml"),
 				[
 					"id: alpha",
 					"openspec_root: .",
@@ -297,7 +298,7 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "beta.yaml"),
+				join(ff15HarnessRoot, "projects", "beta.yaml"),
 				[
 					"id: beta",
 					"openspec_root: .",
@@ -308,7 +309,7 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "source-project.yaml"),
+				join(ff15HarnessRoot, "projects", "source-project.yaml"),
 				[
 					"id: source-project",
 					"openspec_root: .",
@@ -362,12 +363,12 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("loads known profiles and keeps path/default-check issues as warnings", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
 			mkdirSync(join(workspaceRoot, "beta"), { recursive: true });
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
 				[
 					"version: 3",
 					"active_projects:",
@@ -379,13 +380,13 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "alpha.yaml"),
+				join(ff15HarnessRoot, "projects", "alpha.yaml"),
 				["id: alpha", "repos:", "  - id: extension", "    root: .", ""].join(
 					"\n"
 				)
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "beta.yaml"),
+				join(ff15HarnessRoot, "projects", "beta.yaml"),
 				[
 					"id: beta",
 					"openspec_root: beta",
@@ -423,8 +424,8 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("rejects unknown openspec.project_id during save without changing the file", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
-		const configPath = join(agentsHarnessRoot, "config", "agent-harness.yaml");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
+		const configPath = join(ff15HarnessRoot, "config", "agent-harness.yaml");
 
 		try {
 			writeFile(
@@ -440,7 +441,7 @@ describe("resolveFf15ProjectsContext", () => {
 				].join("\n")
 			);
 			writeFile(
-				join(agentsHarnessRoot, "projects", "alpha.yaml"),
+				join(ff15HarnessRoot, "projects", "alpha.yaml"),
 				[
 					"id: alpha",
 					"openspec_root: .",
@@ -474,11 +475,11 @@ describe("resolveFf15ProjectsContext", () => {
 
 	it("resolves harness mode from owner root and clears sourceProjectId", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
+		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
+				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
 				[
 					"version: 3",
 					"active_projects:",
@@ -504,38 +505,14 @@ describe("resolveFf15ProjectsContext", () => {
 		}
 	});
 
-	it("returns an explicit error when .agents/harness is invalid and does not fall back", () => {
+	it("returns an explicit error when .ff15/harness config is invalid", () => {
 		const workspaceRoot = createTmpWorkspace();
-		const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
 		const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
 		try {
 			writeFile(
-				join(agentsHarnessRoot, "config", "agent-harness.yaml"),
-				"this-is-not-valid-yaml: ["
-			);
-			writeFile(
 				join(ff15HarnessRoot, "config", "agent-harness.yaml"),
-				[
-					"version: 2",
-					"active_projects:",
-					"  - fallback",
-					"openspec:",
-					"  mode: project",
-					"  project_id: fallback",
-					"",
-				].join("\n")
-			);
-			writeFile(
-				join(ff15HarnessRoot, "projects", "fallback.yaml"),
-				[
-					"id: fallback",
-					"openspec_root: .",
-					"repos:",
-					"  - id: extension",
-					"    root: .",
-					"",
-				].join("\n")
+				"this-is-not-valid-yaml: ["
 			);
 
 			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
@@ -545,9 +522,26 @@ describe("resolveFf15ProjectsContext", () => {
 				throw new Error("Expected error projects context snapshot.");
 			}
 
-			expect(snapshot.sourceKind).toBe("agents");
-			expect(snapshot.sourcePath).toBe(agentsHarnessRoot);
-			expect(snapshot.error).toContain(".agents");
+			expect(snapshot.sourceKind).toBe("ff15");
+			expect(snapshot.sourcePath).toBe(ff15HarnessRoot);
+			expect(snapshot.error).toContain(".ff15");
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("sets bootstrapped true and creates defaults only when .ff15/harness is absent", () => {
+		const workspaceRoot = createTmpWorkspace();
+
+		try {
+			const created = resolveFf15ProjectsContext({ workspaceRoot });
+			expect(created.status).toBe("ready");
+			expect(created.bootstrapped).toBe(true);
+
+			// Second resolution finds the existing config and must not re-bootstrap.
+			const reused = resolveFf15ProjectsContext({ workspaceRoot });
+			expect(reused.status).toBe("ready");
+			expect(reused.bootstrapped).toBe(false);
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

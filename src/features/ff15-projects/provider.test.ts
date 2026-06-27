@@ -1,5 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { window } from "vscode";
 import { Ff15ProjectsViewProvider } from "./provider";
+
+const createWebviewViewDouble = (
+	onListener: (listener: (message: { command?: string }) => void) => void
+) => ({
+	webview: {
+		html: "",
+		localResourceRoots: [],
+		options: undefined,
+		postMessage: vi.fn(),
+		onDidReceiveMessage: vi.fn((listener) => {
+			onListener(listener);
+			return { dispose: vi.fn() };
+		}),
+	},
+});
 
 vi.mock("../../lib/webview/get-webview-content", () => ({
 	getWebviewContent: vi
@@ -27,8 +43,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				sourceProjectId: "project-a",
 			},
 			profiles: [{ id: "project-a", warnings: [] }],
-			sourceKind: "agents",
-			sourcePath: "C:/workspace/.agents/harness",
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15/harness",
+			bootstrapped: false,
 			status: "ready",
 		} as const;
 		const resolveProjectsContext = vi.fn().mockReturnValue(resolverSnapshot);
@@ -83,8 +100,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				sourceProjectId: "project-a",
 			},
 			profiles: [{ id: "project-a", warnings: [] }],
-			sourceKind: "agents",
-			sourcePath: "C:/workspace/.agents/harness",
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15/harness",
+			bootstrapped: false,
 			status: "ready",
 		} as const;
 		const showProjectsEditor = vi.fn().mockResolvedValue(undefined);
@@ -127,8 +145,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				sourceProjectId: "project-a",
 			},
 			profiles: [{ id: "project-a", warnings: [] }],
-			sourceKind: "agents",
-			sourcePath: "C:/workspace/.agents/harness",
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15/harness",
+			bootstrapped: false,
 			status: "ready",
 		} as const;
 		const updatedSnapshot = {
@@ -220,5 +239,73 @@ describe("Ff15ProjectsViewProvider", () => {
 				status: "error",
 			}),
 		});
+	});
+
+	it("notifies once when default config was bootstrapped", async () => {
+		const infoSpy = vi
+			.spyOn(window, "showInformationMessage")
+			.mockResolvedValue(undefined);
+		const snapshot = {
+			activeProjects: ["default"],
+			configVersion: 3,
+			error: null,
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/openspec",
+				sourceProjectId: "default",
+			},
+			profiles: [{ id: "default", warnings: [] }],
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15/harness",
+			bootstrapped: true,
+			status: "ready",
+		} as const;
+		const provider = new Ff15ProjectsViewProvider({} as never, {
+			getWorkspaceRoot: () => "C:/workspace",
+			resolveProjectsContext: vi.fn().mockReturnValue(snapshot),
+		});
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+		// A second post (e.g. webview ready) must not re-notify.
+		await messageHandler?.({ command: "ff15-projects.ready" });
+
+		expect(infoSpy).toHaveBeenCalledTimes(1);
+		infoSpy.mockRestore();
+	});
+
+	it("does not notify when config already exists", () => {
+		const infoSpy = vi
+			.spyOn(window, "showInformationMessage")
+			.mockResolvedValue(undefined);
+		const snapshot = {
+			activeProjects: ["default"],
+			configVersion: 3,
+			error: null,
+			openspec: {
+				mode: "project",
+				path: "C:/workspace/openspec",
+				sourceProjectId: "default",
+			},
+			profiles: [{ id: "default", warnings: [] }],
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15/harness",
+			bootstrapped: false,
+			status: "ready",
+		} as const;
+		const provider = new Ff15ProjectsViewProvider({} as never, {
+			getWorkspaceRoot: () => "C:/workspace",
+			resolveProjectsContext: vi.fn().mockReturnValue(snapshot),
+		});
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		expect(infoSpy).not.toHaveBeenCalled();
+		infoSpy.mockRestore();
 	});
 });

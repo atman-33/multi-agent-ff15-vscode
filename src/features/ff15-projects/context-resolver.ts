@@ -9,7 +9,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 
-export type Ff15ProjectsContextSourceKind = "agents" | "ff15";
+export type Ff15ProjectsContextSourceKind = "ff15";
 export type Ff15ProjectsContextOpenspecMode = "project" | "harness";
 export type Ff15ProjectsContextConfigVersion = number | string | null;
 
@@ -17,6 +17,7 @@ export interface Ff15ProjectsContextReadySnapshot {
 	status: "ready";
 	sourceKind: Ff15ProjectsContextSourceKind;
 	sourcePath: string;
+	bootstrapped: boolean;
 	configVersion: Ff15ProjectsContextConfigVersion;
 	activeProjects: string[];
 	profiles: Ff15ProjectsContextProfile[];
@@ -37,6 +38,7 @@ export interface Ff15ProjectsContextErrorSnapshot {
 	status: "error";
 	sourceKind: Ff15ProjectsContextSourceKind | null;
 	sourcePath: string | null;
+	bootstrapped: boolean;
 	configVersion: null;
 	activeProjects: string[];
 	profiles: [];
@@ -103,12 +105,14 @@ export const resolveFf15ProjectsContext = (input: {
 			error: harnessSource.error,
 			sourceKind: harnessSource.sourceKind,
 			sourcePath: harnessSource.harnessRoot,
+			bootstrapped: harnessSource.bootstrapped,
 		});
 	}
 
 	return loadHarnessSnapshot({
 		harnessRoot: harnessSource.harnessRoot,
-		sourceKind: harnessSource.sourceKind as Ff15ProjectsContextSourceKind,
+		sourceKind: harnessSource.sourceKind,
+		bootstrapped: harnessSource.bootstrapped,
 	});
 };
 
@@ -155,13 +159,15 @@ export const saveFf15ProjectsContext = (input: {
 
 	return loadHarnessSnapshot({
 		harnessRoot: harnessSource.harnessRoot,
-		sourceKind: harnessSource.sourceKind as Ff15ProjectsContextSourceKind,
+		sourceKind: harnessSource.sourceKind,
+		bootstrapped: harnessSource.bootstrapped,
 	});
 };
 
 const loadHarnessSnapshot = (input: {
 	harnessRoot: string;
 	sourceKind: Ff15ProjectsContextSourceKind;
+	bootstrapped: boolean;
 }): Ff15ProjectsContextSnapshot => {
 	try {
 		const harnessOwnerRoot = getHarnessOwnerRoot(input.harnessRoot);
@@ -203,6 +209,7 @@ const loadHarnessSnapshot = (input: {
 				},
 				sourceKind: input.sourceKind,
 				sourcePath: input.harnessRoot,
+				bootstrapped: input.bootstrapped,
 				status: "ready",
 			};
 		}
@@ -219,6 +226,7 @@ const loadHarnessSnapshot = (input: {
 			},
 			sourceKind: input.sourceKind,
 			sourcePath: input.harnessRoot,
+			bootstrapped: input.bootstrapped,
 			status: "ready",
 		};
 	} catch (error) {
@@ -226,6 +234,7 @@ const loadHarnessSnapshot = (input: {
 			error,
 			sourceKind: input.sourceKind,
 			sourcePath: input.harnessRoot,
+			bootstrapped: input.bootstrapped,
 		});
 	}
 };
@@ -451,54 +460,55 @@ type Ff15ProjectsHarnessSource =
 	| {
 			harnessRoot: string;
 			sourceKind: Ff15ProjectsContextSourceKind;
+			bootstrapped: boolean;
 			status: "ready";
 	  }
 	| {
 			error: unknown;
 			harnessRoot: string;
 			sourceKind: Ff15ProjectsContextSourceKind;
+			bootstrapped: boolean;
 			status: "error";
 	  };
 
 const createReadyHarnessSource = (
 	harnessRoot: string,
-	sourceKind: Ff15ProjectsContextSourceKind
+	sourceKind: Ff15ProjectsContextSourceKind,
+	bootstrapped: boolean
 ): Ff15ProjectsHarnessSource => ({
 	harnessRoot,
 	sourceKind,
+	bootstrapped,
 	status: "ready",
 });
 
 const createErrorHarnessSource = (
 	error: unknown,
 	harnessRoot: string,
-	sourceKind: Ff15ProjectsContextSourceKind
+	sourceKind: Ff15ProjectsContextSourceKind,
+	bootstrapped: boolean
 ): Ff15ProjectsHarnessSource => ({
 	error,
 	harnessRoot,
 	sourceKind,
+	bootstrapped,
 	status: "error",
 });
 
 const resolveHarnessSource = (
 	workspaceRoot: string
 ): Ff15ProjectsHarnessSource => {
-	const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
 	const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
 
-	if (isDirectory(agentsHarnessRoot)) {
-		return createReadyHarnessSource(agentsHarnessRoot, "agents");
-	}
-
 	if (isDirectory(ff15HarnessRoot)) {
-		return createReadyHarnessSource(ff15HarnessRoot, "ff15");
+		return createReadyHarnessSource(ff15HarnessRoot, "ff15", false);
 	}
 
 	try {
 		bootstrapFf15Harness(ff15HarnessRoot);
-		return createReadyHarnessSource(ff15HarnessRoot, "ff15");
+		return createReadyHarnessSource(ff15HarnessRoot, "ff15", true);
 	} catch (error) {
-		return createErrorHarnessSource(error, ff15HarnessRoot, "ff15");
+		return createErrorHarnessSource(error, ff15HarnessRoot, "ff15", true);
 	}
 };
 
@@ -514,6 +524,7 @@ const buildErrorSnapshot = (input: {
 	error: unknown;
 	sourceKind: Ff15ProjectsContextSourceKind | null;
 	sourcePath: string | null;
+	bootstrapped: boolean;
 }): Ff15ProjectsContextErrorSnapshot => {
 	const detail =
 		input.error instanceof Error
@@ -535,6 +546,7 @@ const buildErrorSnapshot = (input: {
 		},
 		sourceKind: input.sourceKind,
 		sourcePath: input.sourcePath,
+		bootstrapped: input.bootstrapped,
 		status: "error",
 	};
 };
