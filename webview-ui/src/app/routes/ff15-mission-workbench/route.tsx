@@ -19,14 +19,13 @@ import {
 	ComboboxInput,
 	ComboboxItem,
 	ComboboxList,
-	useComboboxAnchor,
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
 import { CheckIcon, PencilIcon, SendHorizontalIcon } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { PartyRosterPanel } from "./components/party-roster-panel";
 
 type MissionWorkbenchAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
@@ -582,7 +581,10 @@ const OperationCatalogPanel = ({
 	supportedOperations,
 	supportedOperationCount,
 }: OperationCatalogPanelProps) => {
-	const comboboxAnchor = useComboboxAnchor();
+	// The shadcn Combobox input no longer wraps itself in an anchor element, so
+	// the popup would otherwise anchor to the small trigger button and collapse
+	// its width. Anchor the popup to this full-width wrapper instead.
+	const comboboxAnchor = useRef<HTMLDivElement | null>(null);
 
 	return (
 		<Ff15Panel className="flex flex-col gap-2.5 px-4 py-3">
@@ -611,20 +613,20 @@ const OperationCatalogPanel = ({
 				}}
 				value={selectedOperation?.supported ? selectedOperation : undefined}
 			>
-				<ComboboxInput
-					anchorRef={comboboxAnchor}
-					aria-label="Choose operation"
-					className={cn(
-						"w-full",
-						"[&_[data-slot=input-group]]:h-9",
-						"[&_[data-slot=input-group-input]]:border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)]",
-						"[&_[data-slot=input-group-input]]:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)]",
-						"[&_[data-slot=input-group-input]]:text-sm",
-						"[&_[data-slot=input-group-input]]:text-[color:var(--vscode-foreground)]"
-					)}
-					placeholder="Search supported operations"
-					showTrigger
-				/>
+				<div ref={comboboxAnchor}>
+					<ComboboxInput
+						aria-label="Choose operation"
+						className={cn(
+							"h-9 w-full",
+							"[&_[data-slot=input-group-input]]:border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)]",
+							"[&_[data-slot=input-group-input]]:bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_82%,transparent)]",
+							"[&_[data-slot=input-group-input]]:text-sm",
+							"[&_[data-slot=input-group-input]]:text-[color:var(--vscode-foreground)]"
+						)}
+						placeholder="Search supported operations"
+						showTrigger
+					/>
+				</div>
 				<ComboboxContent
 					anchor={comboboxAnchor}
 					className="border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[color:color-mix(in_srgb,var(--vscode-editor-background)_96%,transparent)] text-[color:var(--vscode-foreground)]"
@@ -833,6 +835,15 @@ const Route = () => {
 		state.operations.supported,
 		state.operations.unsupported,
 	]);
+	// Reflect the confirmed operation into the Combobox input. The Combobox is
+	// controlled on both `value` and `inputValue`, which disables Base UI's
+	// built-in selection->input sync, so we own that reconciliation here.
+	// Depend on the primitive ref/name (not the object identity) so unrelated
+	// state echoes — e.g. runtime probe updates that rebuild the operations
+	// array — do not clobber an in-progress search query.
+	useEffect(() => {
+		setOperationQuery(selectedOperation ? selectedOperation.name : "");
+	}, [selectedOperation?.ref, selectedOperation?.name]);
 	const deferredOperationQuery = useDeferredValue(
 		normalizeOperationQuery(operationQuery)
 	);
@@ -913,6 +924,9 @@ const Route = () => {
 	};
 
 	const handleSelectOperation = (operationRef: string) => {
+		// Do not clear the query here. The input text is reconciled to the
+		// confirmed selection by the effect that watches `selectedOperation`
+		// once the extension echoes the new mission state back.
 		vscode.postMessage({
 			command: "ff15-mission-workbench.select-operation",
 			operationRef,
