@@ -1,5 +1,9 @@
 import { createServer, request } from "http";
 import { connect } from "net";
+import { buildFf15InjectionStyle } from "./ff15-theme";
+
+// FF15 reskin injected into the OpenCode app's <head> (see ff15-theme.ts).
+const FF15_STYLE = buildFf15InjectionStyle();
 
 const WEBVIEW_SCRIPT = /*html*/ `
 <script>
@@ -359,9 +363,13 @@ export function startWebviewProxy(
 							body += chunk.toString();
 						});
 						proxyRes.on("end", () => {
+							// Inject the FF15 reskin first so it lands inside <head>,
+							// then the webview bridge script — both before </head> when
+							// present, otherwise appended.
+							const injection = `${FF15_STYLE}${WEBVIEW_SCRIPT}`;
 							body = body.includes("</head>")
-								? body.replace("</head>", `${WEBVIEW_SCRIPT}</head>`)
-								: body + WEBVIEW_SCRIPT;
+								? body.replace("</head>", `${injection}</head>`)
+								: body + injection;
 
 							const outHeaders = { ...proxyRes.headers };
 							outHeaders["content-length"] = Buffer.byteLength(body).toString();

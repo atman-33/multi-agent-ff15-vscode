@@ -1,9 +1,12 @@
-// The OpenCode wrapper chrome follows the active VSCode color theme so the seam
-// around the iframe and the loading/error screens match the editor.
+import { FF15_TOKENS } from "./ff15-theme";
+
+// The OpenCode wrapper chrome (loading/error screens + the seam around the
+// iframe) uses the FF15 palette so it matches the reskinned chat and the other
+// FF15 views, rather than the plain VSCode editor theme.
 export const FF15_THEME = {
-	surface: "var(--vscode-editor-background)",
-	foreground: "var(--vscode-foreground)",
-	fontFamily: "var(--vscode-font-family)",
+	surface: FF15_TOKENS.base,
+	foreground: FF15_TOKENS.text,
+	fontFamily: FF15_TOKENS.fontFamily,
 } as const;
 
 export const OPENCODE_LOADING_TEMPLATE = `<!doctype html>
@@ -32,6 +35,8 @@ export const OPENCODE_LOADING_TEMPLATE = `<!doctype html>
         width: 48px;
         height: 48px;
         margin: 0 auto 16px;
+        color: ${FF15_TOKENS.gold};
+        filter: drop-shadow(0 0 10px ${FF15_TOKENS.goldSoft});
         animation: pulse 2s infinite ease-in-out;
       }
       @keyframes pulse {
@@ -45,7 +50,12 @@ export const OPENCODE_LOADING_TEMPLATE = `<!doctype html>
       }
       p {
         margin: 0;
-        opacity: 0.7;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: ${FF15_TOKENS.gold};
+        opacity: 0.85;
       }
       .dev-badge {
         position: fixed;
@@ -231,21 +241,46 @@ export const OPENCODE_ERROR_TEMPLATE = `<!doctype html>
         font-size: var(--vscode-font-size);
       }
       .container {
+        position: relative;
         text-align: center;
-        padding: 20px;
+        max-width: 360px;
+        margin: 16px;
+        padding: 24px;
+        border: 1px solid ${FF15_TOKENS.borderSoft};
+        border-radius: 1rem;
+        background: ${FF15_TOKENS.panel};
+        backdrop-filter: blur(10px);
+        box-shadow: 0 18px 48px -24px rgba(0, 0, 0, 0.9);
+      }
+      .container::before {
+        content: "";
+        position: absolute;
+        inset: 0 1.25rem auto 1.25rem;
+        top: 0;
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          ${FF15_TOKENS.goldSoft} 22%,
+          ${FF15_TOKENS.cyan} 50%,
+          ${FF15_TOKENS.goldSoft} 78%,
+          transparent
+        );
+        opacity: 0.7;
       }
       .icon {
         font-size: 32px;
         margin-bottom: 12px;
-        opacity: 0.5;
+        color: ${FF15_TOKENS.gold};
       }
       p {
         margin: 0 0 8px;
-        opacity: 0.7;
+        color: ${FF15_TOKENS.textMuted};
       }
       code {
         font-family: var(--vscode-editor-font-family);
-        background: var(--vscode-textBlockQuote-background);
+        color: ${FF15_TOKENS.gold};
+        background: ${FF15_TOKENS.goldFaint};
         padding: 2px 6px;
         border-radius: 3px;
       }

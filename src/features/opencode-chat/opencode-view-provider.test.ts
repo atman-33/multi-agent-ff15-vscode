@@ -44,12 +44,10 @@ describe("OpencodeViewProvider", () => {
 		expect(webviewView.webview.html).toContain("Starting opencode server");
 	});
 
-	it("renders the loading wrapper on the themed editor surface", () => {
+	it("renders the loading wrapper on the FF15 surface", () => {
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 
-		expect(webviewView.webview.html).toContain(
-			"background: var(--vscode-editor-background)"
-		);
+		expect(webviewView.webview.html).toContain("background: #070a12");
 		expect(webviewView.webview.html).not.toContain("background: transparent");
 	});
 
@@ -65,13 +63,11 @@ describe("OpencodeViewProvider", () => {
 		);
 	});
 
-	it("renders the iframe wrapper on the themed editor surface", () => {
+	it("renders the iframe wrapper on the FF15 surface", () => {
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 		provider.setServerUrl("http://localhost:1234/base64");
 
-		expect(webviewView.webview.html).toContain(
-			"background: var(--vscode-editor-background)"
-		);
+		expect(webviewView.webview.html).toContain("background: #070a12");
 	});
 
 	it("renders the error template when an error is set", () => {
@@ -86,13 +82,11 @@ describe("OpencodeViewProvider", () => {
 		);
 	});
 
-	it("renders the error wrapper on the themed editor surface", () => {
+	it("renders the error wrapper on the FF15 surface", () => {
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 		provider.setError("boom");
 
-		expect(webviewView.webview.html).toContain(
-			"background: var(--vscode-editor-background)"
-		);
+		expect(webviewView.webview.html).toContain("background: #070a12");
 		expect(webviewView.webview.html).not.toContain("background: transparent");
 	});
 
