@@ -1,4 +1,5 @@
 ---
+name: "Lunafreya"
 description: "Oracle — Mission advisor and executor."
 mode: primary
 ---

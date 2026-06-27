@@ -1,12 +1,6 @@
-import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS,
@@ -14,8 +8,24 @@ import {
 	materializeBundledFf15WorkspaceTemplateFiles,
 } from "./materialize";
 
+const writeTemplateSource = (
+	extensionRoot: string,
+	source: readonly string[],
+	contents: string
+) => {
+	const sourcePath = join(
+		extensionRoot,
+		"src",
+		"resources",
+		"workspace-template",
+		...source
+	);
+	mkdirSync(dirname(sourcePath), { recursive: true });
+	writeFileSync(sourcePath, contents, "utf8");
+};
+
 describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
-	it("copies bundled workspace-template files into matching workspace paths", () => {
+	it("materializes each bundled source into all of its destinations", () => {
 		const extensionRoot = join(
 			tmpdir(),
 			`ff15-extension-${crypto.randomUUID()}`
@@ -26,68 +36,25 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 		);
 		const bundledFiles: Ff15WorkspaceTemplateFileDefinition[] = [
 			{
-				relativePath: [".github", "agents", "noctis.agent.md"],
+				source: ["agents", "noctis.md"],
+				destinations: [
+					[".github", "agents", "noctis.agent.md"],
+					[".opencode", "agents", "noctis.md"],
+				],
 			},
 			{
-				relativePath: [".opencode", "skills", "shared", "SKILL.md"],
+				source: ["skills", "shared", "SKILL.md"],
+				destinations: [[".claude", "skills", "shared", "SKILL.md"]],
 			},
 		];
 
 		try {
-			mkdirSync(
-				join(
-					extensionRoot,
-					"src",
-					"resources",
-					"workspace-template",
-					".github",
-					"agents"
-				),
-				{
-					recursive: true,
-				}
-			);
-			mkdirSync(
-				join(
-					extensionRoot,
-					"src",
-					"resources",
-					"workspace-template",
-					".opencode",
-					"skills",
-					"shared"
-				),
-				{
-					recursive: true,
-				}
-			);
 			mkdirSync(workspaceRoot, { recursive: true });
-			writeFileSync(
-				join(
-					extensionRoot,
-					"src",
-					"resources",
-					"workspace-template",
-					".github",
-					"agents",
-					"noctis.agent.md"
-				),
-				"github-noctis\n",
-				"utf8"
-			);
-			writeFileSync(
-				join(
-					extensionRoot,
-					"src",
-					"resources",
-					"workspace-template",
-					".opencode",
-					"skills",
-					"shared",
-					"SKILL.md"
-				),
-				"opencode-skill\n",
-				"utf8"
+			writeTemplateSource(extensionRoot, ["agents", "noctis.md"], "noctis\n");
+			writeTemplateSource(
+				extensionRoot,
+				["skills", "shared", "SKILL.md"],
+				"skill\n"
 			);
 
 			materializeBundledFf15WorkspaceTemplateFiles({
@@ -96,26 +63,25 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 				workspaceRoot,
 			});
 
-			expect(
-				existsSync(join(workspaceRoot, ".github", "agents", "noctis.agent.md"))
-			).toBe(true);
-			expect(
-				existsSync(
-					join(workspaceRoot, ".opencode", "skills", "shared", "SKILL.md")
-				)
-			).toBe(true);
+			// Single agent source fans out to both tool destinations with identical content.
 			expect(
 				readFileSync(
 					join(workspaceRoot, ".github", "agents", "noctis.agent.md"),
 					"utf8"
 				)
-			).toBe("github-noctis\n");
+			).toBe("noctis\n");
 			expect(
 				readFileSync(
-					join(workspaceRoot, ".opencode", "skills", "shared", "SKILL.md"),
+					join(workspaceRoot, ".opencode", "agents", "noctis.md"),
 					"utf8"
 				)
-			).toBe("opencode-skill\n");
+			).toBe("noctis\n");
+			expect(
+				readFileSync(
+					join(workspaceRoot, ".claude", "skills", "shared", "SKILL.md"),
+					"utf8"
+				)
+			).toBe("skill\n");
 		} finally {
 			rmSync(extensionRoot, { force: true, recursive: true });
 			rmSync(workspaceRoot, { force: true, recursive: true });
@@ -133,37 +99,17 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 		);
 		const bundledFiles: Ff15WorkspaceTemplateFileDefinition[] = [
 			{
-				relativePath: [".github", "agents", "ignis.agent.md"],
+				source: ["agents", "ignis.md"],
+				destinations: [[".github", "agents", "ignis.agent.md"]],
 			},
 		];
 
 		try {
-			mkdirSync(
-				join(
-					extensionRoot,
-					"src",
-					"resources",
-					"workspace-template",
-					".github",
-					"agents"
-				),
-				{
-					recursive: true,
-				}
-			);
 			mkdirSync(join(workspaceRoot, ".github", "agents"), { recursive: true });
-			writeFileSync(
-				join(
-					extensionRoot,
-					"src",
-					"resources",
-					"workspace-template",
-					".github",
-					"agents",
-					"ignis.agent.md"
-				),
-				"fresh-bundled-content\n",
-				"utf8"
+			writeTemplateSource(
+				extensionRoot,
+				["agents", "ignis.md"],
+				"fresh-bundled-content\n"
 			);
 			writeFileSync(
 				join(workspaceRoot, ".github", "agents", "ignis.agent.md"),
@@ -189,16 +135,40 @@ describe("materializeBundledFf15WorkspaceTemplateFiles", () => {
 		}
 	});
 
-	it("includes workspace operation customization skills in the default template list", () => {
-		const bundledPaths = FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS.map(
-			(definition) => definition.relativePath.join("/")
+	it("routes agents to both tool folders and skills to .claude in the default list", () => {
+		const destinationPaths = FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS.flatMap(
+			(definition) =>
+				definition.destinations.map((destination) => destination.join("/"))
 		);
 
-		expect(bundledPaths).toEqual(
+		expect(destinationPaths).toEqual(
 			expect.arrayContaining([
+				".github/agents/noctis.agent.md",
+				".opencode/agents/noctis.md",
 				".claude/skills/ff15-workspace-operation-customization/SKILL.md",
 				".claude/skills/ff15-workspace-operation-customization/scripts/validate-operation-yaml.py",
 			])
 		);
+
+		// Every agent source fans out to exactly the .github and .opencode folders.
+		const agentDefinitions = FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS.filter(
+			(definition) => definition.source[0] === "agents"
+		);
+		for (const definition of agentDefinitions) {
+			const destinationRoots = definition.destinations.map(
+				(destination) => destination[0]
+			);
+			expect(destinationRoots).toEqual([".github", ".opencode"]);
+		}
+
+		// Skills only ever land under .claude.
+		const skillDefinitions = FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS.filter(
+			(definition) => definition.source[0] === "skills"
+		);
+		for (const definition of skillDefinitions) {
+			for (const destination of definition.destinations) {
+				expect(destination[0]).toBe(".claude");
+			}
+		}
 	});
 });
