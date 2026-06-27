@@ -1,5 +1,6 @@
 export interface ProjectProfile {
 	id: string;
+	path: string | null;
 	warnings: string[];
 }
 

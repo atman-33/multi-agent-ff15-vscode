@@ -1,5 +1,7 @@
+import { ExternalLinkIcon, TerminalIcon } from "lucide-react";
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { DevBadge } from "@/components/dev-badge";
+import { IconButton } from "@/components/icon-button";
 import { Ff15Panel } from "@/components/ff15/ff15-panel";
 import { useDevMode } from "@/hooks/use-dev-mode";
 import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
@@ -129,6 +131,28 @@ const Route = () => {
 		vscode.postMessage({
 			command: "ff15-projects-workbench.updateDraft",
 			draft: nextDraft,
+		});
+	};
+
+	const openProjectTerminal = (projectId: string, path: string | null) => {
+		if (!path) {
+			return;
+		}
+		vscode.postMessage({
+			command: "ff15-projects-workbench.openTerminal",
+			path,
+			projectId,
+		});
+	};
+
+	const openProjectInVscode = (projectId: string, path: string | null) => {
+		if (!path) {
+			return;
+		}
+		vscode.postMessage({
+			command: "ff15-projects-workbench.openInVscode",
+			path,
+			projectId,
 		});
 	};
 
@@ -291,6 +315,38 @@ const Route = () => {
 															}
 														}}
 													/>
+												</div>
+												<div className="flex shrink-0 items-center gap-1 self-center">
+													<IconButton
+														aria-label={`Open terminal for ${profile.id}`}
+														disabled={profile.path == null}
+														onClick={() =>
+															openProjectTerminal(profile.id, profile.path)
+														}
+														style={
+															profile.path == null
+																? { cursor: "not-allowed", opacity: 0.4 }
+																: undefined
+														}
+														title="Open terminal"
+													>
+														<TerminalIcon className="h-3.5 w-3.5" />
+													</IconButton>
+													<IconButton
+														aria-label={`Open ${profile.id} in a new VS Code window`}
+														disabled={profile.path == null}
+														onClick={() =>
+															openProjectInVscode(profile.id, profile.path)
+														}
+														style={
+															profile.path == null
+																? { cursor: "not-allowed", opacity: 0.4 }
+																: undefined
+														}
+														title="Open in new VS Code window"
+													>
+														<ExternalLinkIcon className="h-3.5 w-3.5" />
+													</IconButton>
 												</div>
 											</div>
 										);

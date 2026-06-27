@@ -6,7 +6,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	resolveFf15ProjectsContext,
@@ -390,6 +390,10 @@ describe("resolveFf15ProjectsContext", () => {
 				expect.stringContaining("default_checks"),
 			]);
 			expect(snapshot.profiles[1]?.warnings).toEqual([]);
+			// alpha has no openspec_root, so the first repo root resolves the path.
+			expect(snapshot.profiles[0]?.path).toBe(resolve(workspaceRoot, "."));
+			// beta resolves its path from openspec_root.
+			expect(snapshot.profiles[1]?.path).toBe(resolve(workspaceRoot, "beta"));
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}

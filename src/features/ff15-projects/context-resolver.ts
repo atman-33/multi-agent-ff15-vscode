@@ -29,6 +29,7 @@ export interface Ff15ProjectsContextReadySnapshot {
 
 export interface Ff15ProjectsContextProfile {
 	id: string;
+	path: string | null;
 	warnings: string[];
 }
 
@@ -306,6 +307,10 @@ const loadProjectProfiles = (input: {
 			const id = getNonEmptyString(profileRecord.id, `id in ${profilePath}`);
 			return {
 				id,
+				path: getProfileRootPath({
+					harnessOwnerRoot: input.harnessOwnerRoot,
+					profileRecord,
+				}),
 				warnings: getProfileWarnings({
 					harnessOwnerRoot: input.harnessOwnerRoot,
 					profileRecord,
@@ -313,6 +318,39 @@ const loadProjectProfiles = (input: {
 			};
 		})
 		.sort((left, right) => left.id.localeCompare(right.id));
+};
+
+// Resolve the project's root folder for launch actions (terminal / VS Code).
+// Prefer openspec_root, falling back to the first repo root; null when neither
+// is configured. Existence is not checked here; launch handlers validate it.
+const getProfileRootPath = (input: {
+	harnessOwnerRoot: string;
+	profileRecord: Record<string, unknown>;
+}): string | null => {
+	const openspecRoot = getOptionalNonEmptyString(
+		input.profileRecord.openspec_root
+	);
+	if (openspecRoot) {
+		return resolve(input.harnessOwnerRoot, openspecRoot);
+	}
+
+	const repos = Array.isArray(input.profileRecord.repos)
+		? input.profileRecord.repos
+		: [];
+	for (const repo of repos) {
+		if (!repo || typeof repo !== "object" || Array.isArray(repo)) {
+			continue;
+		}
+
+		const repoRoot = getOptionalNonEmptyString(
+			(repo as Record<string, unknown>).root
+		);
+		if (repoRoot) {
+			return resolve(input.harnessOwnerRoot, repoRoot);
+		}
+	}
+
+	return null;
 };
 
 const getProfileWarnings = (input: {

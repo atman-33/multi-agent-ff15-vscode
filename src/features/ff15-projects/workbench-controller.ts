@@ -1,7 +1,7 @@
 import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
-import type { Disposable, Uri, Webview, WebviewPanel } from "vscode";
-import { ViewColumn, window } from "vscode";
+import type { Disposable, Webview, WebviewPanel } from "vscode";
+import { commands, Uri, ViewColumn, window } from "vscode";
 import { getWebviewContent } from "../../lib/webview/get-webview-content";
 import {
 	saveFf15ProjectsContext,
@@ -405,6 +405,57 @@ export const createFf15ProjectsWorkbenchController = (
 		}
 	};
 
+	const resolveLaunchPath = (message: {
+		path?: unknown;
+		projectId?: unknown;
+	}): string | null => {
+		const path = typeof message.path === "string" ? message.path : null;
+		if (!path) {
+			window.showErrorMessage(
+				"This project profile has no resolvable root folder to launch."
+			);
+			return null;
+		}
+
+		if (!existsSync(path)) {
+			window.showErrorMessage(`Project folder does not exist: ${path}`);
+			return null;
+		}
+
+		return path;
+	};
+
+	const openProjectTerminal = (message: {
+		path?: unknown;
+		projectId?: unknown;
+	}) => {
+		const path = resolveLaunchPath(message);
+		if (!path) {
+			return;
+		}
+
+		const name =
+			typeof message.projectId === "string"
+				? message.projectId
+				: "FF15 Project";
+		const terminal = window.createTerminal({ cwd: path, name });
+		terminal.show();
+	};
+
+	const openProjectInVscode = async (message: {
+		path?: unknown;
+		projectId?: unknown;
+	}) => {
+		const path = resolveLaunchPath(message);
+		if (!path) {
+			return;
+		}
+
+		await commands.executeCommand("vscode.openFolder", Uri.file(path), {
+			forceNewWindow: true,
+		});
+	};
+
 	const bindPanelMessages = (targetPanel: WebviewPanel) => {
 		targetPanel.webview.onDidReceiveMessage(async (message) => {
 			switch (message.command) {
@@ -412,6 +463,12 @@ export const createFf15ProjectsWorkbenchController = (
 					if (activeWorkspaceRoot) {
 						await postState(activeWorkspaceRoot, targetPanel);
 					}
+					return;
+				case "ff15-projects-workbench.openTerminal":
+					openProjectTerminal(message);
+					return;
+				case "ff15-projects-workbench.openInVscode":
+					await openProjectInVscode(message);
 					return;
 				case "ff15-projects-workbench.updateDraft":
 					latestDraft = message.draft as Ff15ProjectsContextDraft;

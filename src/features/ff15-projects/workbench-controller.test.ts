@@ -44,8 +44,8 @@ const createReadySnapshot = (overrides: Record<string, unknown> = {}) =>
 			sourceProjectId: "project-a",
 		},
 		profiles: [
-			{ id: "project-a", warnings: [] },
-			{ id: "project-b", warnings: [] },
+			{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			{ id: "project-b", path: "C:/workspace/project-b", warnings: [] },
 		],
 		sourceKind: "ff15",
 		sourcePath: "C:/workspace/.ff15",
@@ -387,9 +387,9 @@ describe("createFf15ProjectsWorkbenchController", () => {
 				sourceProjectId: "project-c",
 			},
 			profiles: [
-				{ id: "project-a", warnings: [] },
-				{ id: "project-b", warnings: [] },
-				{ id: "project-c", warnings: [] },
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+				{ id: "project-b", path: "C:/workspace/project-b", warnings: [] },
+				{ id: "project-c", path: "C:/workspace/project-c", warnings: [] },
 			],
 		});
 		const resolveProjectsContext = vi

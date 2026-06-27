@@ -41,7 +41,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				path: "C:/workspace/openspec",
 				sourceProjectId: "project-a",
 			},
-			profiles: [{ id: "project-a", warnings: [] }],
+			profiles: [
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			],
 			sourceKind: "ff15",
 			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
@@ -97,7 +99,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				path: "C:/workspace/openspec",
 				sourceProjectId: "project-a",
 			},
-			profiles: [{ id: "project-a", warnings: [] }],
+			profiles: [
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			],
 			sourceKind: "ff15",
 			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
@@ -141,7 +145,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				path: "C:/workspace/openspec-a",
 				sourceProjectId: "project-a",
 			},
-			profiles: [{ id: "project-a", warnings: [] }],
+			profiles: [
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			],
 			sourceKind: "ff15",
 			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
@@ -154,7 +160,9 @@ describe("Ff15ProjectsViewProvider", () => {
 				path: "C:/workspace/openspec-b",
 				sourceProjectId: "project-b",
 			},
-			profiles: [{ id: "project-b", warnings: [] }],
+			profiles: [
+				{ id: "project-b", path: "C:/workspace/project-b", warnings: [] },
+			],
 		} as const;
 		let controllerListener: (() => void) | undefined;
 		const resolveProjectsContext = vi
@@ -249,7 +257,7 @@ describe("Ff15ProjectsViewProvider", () => {
 				path: "C:/workspace/openspec",
 				sourceProjectId: "default",
 			},
-			profiles: [{ id: "default", warnings: [] }],
+			profiles: [{ id: "default", path: "C:/workspace", warnings: [] }],
 			sourceKind: "ff15",
 			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: true,
@@ -283,7 +291,7 @@ describe("Ff15ProjectsViewProvider", () => {
 				path: "C:/workspace/openspec",
 				sourceProjectId: "default",
 			},
-			profiles: [{ id: "default", warnings: [] }],
+			profiles: [{ id: "default", path: "C:/workspace", warnings: [] }],
 			sourceKind: "ff15",
 			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
