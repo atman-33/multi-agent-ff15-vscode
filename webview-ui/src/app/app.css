@@ -183,7 +183,7 @@ body {
  * still render on top.
  */
 .ff15-screen--bare {
-	background-color: transparent;
+	background-color: var(--ff15-base-soft);
 }
 
 /* The FF15 screens force a light-on-dark scrollbar regardless of theme. */

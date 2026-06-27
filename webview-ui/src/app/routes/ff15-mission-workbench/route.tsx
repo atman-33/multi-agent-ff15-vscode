@@ -409,7 +409,7 @@ const MissionWorkbenchHeader = ({
 						{terminalActionLabel}
 					</SidebarActionButton>
 					<SidebarActionButton
-						className="h-7 w-auto border border-[color:rgba(248,113,113,0.4)] bg-transparent px-3 text-[11px] text-[color:#fca5a5] hover:bg-[color:rgba(248,113,113,0.12)]"
+						className="h-7 w-auto border border-[color:rgba(248,113,113,0.4)] bg-transparent px-3 text-[11px] text-[color:#fca5a5] hover:border-[color:rgba(248,113,113,0.6)] hover:bg-[color:rgba(248,113,113,0.12)] hover:text-[color:#fca5a5]"
 						onClick={onConfirmDelete}
 					>
 						{pendingDelete ? "Confirm Delete" : "Delete"}

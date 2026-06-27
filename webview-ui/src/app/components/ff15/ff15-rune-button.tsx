@@ -20,7 +20,7 @@ export const Ff15RuneButton = ({
 }: Ff15RuneButtonProps) => (
 	<button
 		className={cn(
-			"ff15-rune-button h-9 px-4 text-xs",
+			"ff15-rune-button h-8 px-3.5 text-[11px]",
 			"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--ff15-gold)]",
 			className
 		)}

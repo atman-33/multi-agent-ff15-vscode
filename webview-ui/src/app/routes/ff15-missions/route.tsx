@@ -2,7 +2,6 @@ import { Ff15Badge, type Ff15BadgeTone } from "@/components/ff15/ff15-badge";
 import { Ff15Panel } from "@/components/ff15/ff15-panel";
 import { Ff15RuneButton } from "@/components/ff15/ff15-rune-button";
 import { Ff15Screen } from "@/components/ff15/ff15-screen";
-import { Ff15SectionHeading } from "@/components/ff15/ff15-section-heading";
 import { cn } from "@/lib/utils";
 import { vscode } from "@/lib/vscode";
 import { PlusIcon } from "lucide-react";
@@ -69,16 +68,9 @@ const Route = () => {
 
 	return (
 		<Ff15Screen background={false}>
-			<div className="mx-auto flex h-full max-w-3xl flex-col gap-4 px-4 py-4">
-				<Ff15SectionHeading
-					aside={
-						<Ff15Badge tone="gold">{snapshot.missions.length} Active</Ff15Badge>
-					}
-					title="Mission Board"
-				/>
-
+			<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-4 py-3">
 				<Ff15RuneButton
-					className="h-10 w-full"
+					className="w-full"
 					onClick={() => {
 						vscode.postMessage({ command: "ff15-missions.create" });
 					}}
