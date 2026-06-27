@@ -39,33 +39,33 @@ const AGENT_THEMES: Record<
 	}
 > = {
 	gladiolus: {
-		accent: "rgba(170, 58, 73, 0.8)",
-		glow: "rgba(170, 58, 73, 0.22)",
-		glowSoft: "rgba(170, 58, 73, 0.46)",
+		accent: "rgba(255, 255, 255, 0.8)",
+		glow: "rgba(255, 255, 255, 0.22)",
+		glowSoft: "rgba(255, 255, 255, 0.46)",
 		surface:
 			"linear-gradient(180deg, rgba(12, 8, 10, 0.98), rgba(7, 6, 8, 0.96) 58%, rgba(18, 9, 12, 0.94))",
 		text: "rgba(248, 214, 220, 0.92)",
 	},
 	ignis: {
-		accent: "rgba(75, 146, 114, 0.82)",
-		glow: "rgba(75, 146, 114, 0.2)",
-		glowSoft: "rgba(75, 146, 114, 0.4)",
+		accent: "rgba(255, 255, 255, 0.82)",
+		glow: "rgba(255, 255, 255, 0.2)",
+		glowSoft: "rgba(255, 255, 255, 0.4)",
 		surface:
 			"linear-gradient(180deg, rgba(7, 11, 9, 0.98), rgba(5, 8, 7, 0.96) 58%, rgba(9, 15, 12, 0.94))",
 		text: "rgba(223, 247, 234, 0.92)",
 	},
 	noctis: {
-		accent: "rgba(143, 156, 224, 0.82)",
-		glow: "rgba(143, 156, 224, 0.2)",
-		glowSoft: "rgba(143, 156, 224, 0.42)",
+		accent: "rgba(255, 255, 255, 0.82)",
+		glow: "rgba(255, 255, 255, 0.2)",
+		glowSoft: "rgba(255, 255, 255, 0.42)",
 		surface:
 			"linear-gradient(180deg, rgba(8, 10, 16, 0.98), rgba(6, 8, 13, 0.96) 58%, rgba(10, 12, 21, 0.94))",
 		text: "rgba(224, 231, 255, 0.94)",
 	},
 	prompto: {
-		accent: "rgba(240, 207, 115, 0.82)",
-		glow: "rgba(240, 207, 115, 0.2)",
-		glowSoft: "rgba(240, 207, 115, 0.42)",
+		accent: "rgba(255, 255, 255, 0.82)",
+		glow: "rgba(255, 255, 255, 0.2)",
+		glowSoft: "rgba(255, 255, 255, 0.42)",
 		surface:
 			"linear-gradient(180deg, rgba(14, 11, 5, 0.98), rgba(9, 8, 4, 0.96) 58%, rgba(17, 14, 8, 0.94))",
 		text: "rgba(255, 243, 196, 0.92)",
