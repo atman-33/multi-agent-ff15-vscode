@@ -55,6 +55,29 @@ export const FF15_WORKSPACE_TEMPLATE_FILE_DEFINITIONS = [
 			],
 		],
 	},
+	{
+		source: ["skills", "ff15-workspace-project-setup", "SKILL.md"],
+		destinations: [
+			[".claude", "skills", "ff15-workspace-project-setup", "SKILL.md"],
+		],
+	},
+	{
+		source: [
+			"skills",
+			"ff15-workspace-project-setup",
+			"scripts",
+			"validate-project-yaml.mjs",
+		],
+		destinations: [
+			[
+				".claude",
+				"skills",
+				"ff15-workspace-project-setup",
+				"scripts",
+				"validate-project-yaml.mjs",
+			],
+		],
+	},
 ] satisfies readonly Ff15WorkspaceTemplateFileDefinition[];
 
 const getWorkspaceTemplateRoot = (extensionRoot: string) =>
