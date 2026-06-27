@@ -35,7 +35,7 @@ describe("Ff15ProjectsViewProvider", () => {
 	it("renders the Projects page and posts resolved projects context", async () => {
 		const resolverSnapshot = {
 			activeProjects: ["project-a"],
-			configVersion: 3,
+			languageName: "en",
 			error: null,
 			openspec: {
 				mode: "project",
@@ -44,7 +44,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			profiles: [{ id: "project-a", warnings: [] }],
 			sourceKind: "ff15",
-			sourcePath: "C:/workspace/.ff15/harness",
+			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
 			status: "ready",
 		} as const;
@@ -92,7 +92,7 @@ describe("Ff15ProjectsViewProvider", () => {
 	it("opens the Projects editor in a central panel from the sidebar action", async () => {
 		const resolverSnapshot = {
 			activeProjects: ["project-a"],
-			configVersion: 3,
+			languageName: "en",
 			error: null,
 			openspec: {
 				mode: "project",
@@ -101,7 +101,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			profiles: [{ id: "project-a", warnings: [] }],
 			sourceKind: "ff15",
-			sourcePath: "C:/workspace/.ff15/harness",
+			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
 			status: "ready",
 		} as const;
@@ -137,7 +137,7 @@ describe("Ff15ProjectsViewProvider", () => {
 	it("refreshes the sidebar snapshot when the Projects editor controller reports a saved change", () => {
 		const initialSnapshot = {
 			activeProjects: ["project-a"],
-			configVersion: 3,
+			languageName: "en",
 			error: null,
 			openspec: {
 				mode: "project",
@@ -146,7 +146,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			profiles: [{ id: "project-a", warnings: [] }],
 			sourceKind: "ff15",
-			sourcePath: "C:/workspace/.ff15/harness",
+			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
 			status: "ready",
 		} as const;
@@ -247,7 +247,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			.mockResolvedValue(undefined);
 		const snapshot = {
 			activeProjects: ["default"],
-			configVersion: 3,
+			languageName: "en",
 			error: null,
 			openspec: {
 				mode: "project",
@@ -256,7 +256,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			profiles: [{ id: "default", warnings: [] }],
 			sourceKind: "ff15",
-			sourcePath: "C:/workspace/.ff15/harness",
+			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: true,
 			status: "ready",
 		} as const;
@@ -282,7 +282,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			.mockResolvedValue(undefined);
 		const snapshot = {
 			activeProjects: ["default"],
-			configVersion: 3,
+			languageName: "en",
 			error: null,
 			openspec: {
 				mode: "project",
@@ -291,7 +291,7 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			profiles: [{ id: "default", warnings: [] }],
 			sourceKind: "ff15",
-			sourcePath: "C:/workspace/.ff15/harness",
+			sourcePath: "C:/workspace/.ff15",
 			bootstrapped: false,
 			status: "ready",
 		} as const;

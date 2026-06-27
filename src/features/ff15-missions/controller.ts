@@ -61,6 +61,7 @@ interface CreateFf15MissionSendControllerDependencies {
 	resolveRuntimeContext?: (input: { workspaceRoot: string }) => {
 		activeProjects: string[];
 		executionRoot: string;
+		languageName: "en" | "ja";
 		openspecRoot: string | null;
 	};
 }
@@ -84,6 +85,7 @@ const shouldReuseOperationWorkflowStep = (
 
 const activateOperationWorkflow = (input: {
 	activeProjects?: string[];
+	languageName?: "en" | "ja";
 	missionId: string;
 	operationRef: string;
 	openspecRoot?: string | null;
@@ -124,6 +126,7 @@ const activateOperationWorkflow = (input: {
 			missionId: input.missionId,
 			openspecRoot: input.openspecRoot,
 			prompt: input.prompt,
+			settings: { languageName: input.languageName },
 			workflow: input.workflow,
 			workspaceRoot: input.workspaceRoot,
 		}),
@@ -171,6 +174,7 @@ const prepareMissionSend = async (
 	}) ?? {
 		activeProjects: [],
 		executionRoot: workspaceRoot,
+		languageName: "en" as const,
 		openspecRoot: null,
 	};
 
@@ -294,6 +298,7 @@ const deliverMissionPrompt = async (input: {
 	runtimeContext: {
 		activeProjects: string[];
 		executionRoot: string;
+		languageName: "en" | "ja";
 		openspecRoot: string | null;
 	};
 	sessionName: string;
@@ -308,6 +313,7 @@ const deliverMissionPrompt = async (input: {
 	const operationWorkflowActivation = input.currentMission?.operationRef
 		? activateOperationWorkflow({
 				activeProjects: input.runtimeContext.activeProjects,
+				languageName: input.runtimeContext.languageName,
 				missionId: input.missionId,
 				openspecRoot: input.runtimeContext.openspecRoot,
 				operationRef: input.currentMission.operationRef,

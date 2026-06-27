@@ -353,6 +353,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 					resolveRuntimeContext: () => ({
 						activeProjects: ["frontend"],
 						executionRoot: workspaceRoot,
+						languageName: "en",
 						openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
 					}),
 				});
@@ -957,6 +958,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				resolveRuntimeContext: () => ({
 					activeProjects: ["frontend", "backend"],
 					executionRoot: workspaceRoot,
+					languageName: "en",
 					openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
 				}),
 			});

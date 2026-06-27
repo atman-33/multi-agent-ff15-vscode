@@ -40,7 +40,6 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	}) => Ff15ProjectsContextSnapshot;
 	private latestSnapshot: Ff15ProjectsContextSnapshot = {
 		activeProjects: [],
-		configVersion: null,
 		error: "Unable to resolve workspace root for Projects view.",
 		openspec: {
 			mode: null,
@@ -48,6 +47,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 			sourceProjectId: null,
 		},
 		profiles: [],
+		languageName: null,
 		sourceKind: null,
 		sourcePath: null,
 		bootstrapped: false,
@@ -130,7 +130,6 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		if (!workspaceRoot) {
 			return {
 				activeProjects: [],
-				configVersion: null,
 				error: "Unable to resolve workspace root for Projects view.",
 				openspec: {
 					mode: null,
@@ -138,6 +137,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 					sourceProjectId: null,
 				},
 				profiles: [],
+				languageName: null,
 				sourceKind: null,
 				sourcePath: null,
 				bootstrapped: false,
@@ -153,7 +153,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		if (snapshot.bootstrapped && !this.bootstrapNotified) {
 			this.bootstrapNotified = true;
 			window.showInformationMessage(
-				"Created default FF15 configuration in .ff15/harness."
+				"Created default FF15 configuration in .ff15."
 			);
 		}
 		this.view?.webview.postMessage({

@@ -590,6 +590,7 @@ export const createFf15OperationRuntimeProbeService = (
 				handoff: input.handoff,
 				missionId: input.mission.id,
 				openspecRoot: runtimeContext.openspecRoot,
+				settings: { languageName: runtimeContext.languageName },
 				workflow: input.workflow,
 				workspaceRoot,
 			}),

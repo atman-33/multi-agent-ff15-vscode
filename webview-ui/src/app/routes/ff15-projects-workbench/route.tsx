@@ -344,15 +344,49 @@ const Route = () => {
 
 					<div className="grid gap-3">
 						<Ff15Panel className="px-4 py-3 text-sm">
+							<div className="ff15-label">Language</div>
+							<div className="mt-2 flex flex-col gap-1 text-xs">
+								<label
+									className="text-[color:var(--ff15-text-muted)] uppercase tracking-[0.12em]"
+									htmlFor="language"
+								>
+									Operation language
+								</label>
+								<Select
+									disabled={inputsDisabled}
+									onValueChange={(value) => {
+										updateDraft({
+											...draft,
+											languageName: value as "en" | "ja",
+										});
+									}}
+									value={draft.languageName}
+								>
+									<SelectTrigger
+										className="w-full border-[color:var(--ff15-border-soft)] bg-[color:rgba(8,10,16,0.6)] text-[color:var(--ff15-text)]"
+										id="language"
+									>
+										<SelectValue placeholder="Select language" />
+									</SelectTrigger>
+									<SelectContent
+										align="start"
+										className="border-[color:var(--ff15-border-soft)] bg-[rgba(8,10,16,0.98)] text-[color:var(--ff15-text)]"
+										position="popper"
+									>
+										<SelectItem value="en">English</SelectItem>
+										<SelectItem value="ja">日本語</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</Ff15Panel>
+
+						<Ff15Panel className="px-4 py-3 text-sm">
 							<div className="ff15-label">Source</div>
 							<div className="mt-2 font-medium text-[color:var(--ff15-text)]">
 								{formatSourceKind(snapshot.sourceKind)}
 							</div>
 							<div className="mt-1 break-all text-[color:var(--ff15-text-muted)] text-xs leading-5">
 								{snapshot.sourcePath ?? "-"}
-							</div>
-							<div className="mt-1 text-[color:var(--ff15-text-muted)] text-xs">
-								Config Version: {snapshot.configVersion ?? "-"}
 							</div>
 						</Ff15Panel>
 

@@ -107,9 +107,10 @@ Changes are autosaved back to the harness config.
 
 Configuration source:
 
-FF15 reads harness configuration only from `.ff15/harness`. If it does not exist,
-FF15 bootstraps a default harness there and shows a notification. Any legacy
-`.agents/harness` directory is ignored.
+FF15 reads harness configuration from `.ff15` (`config/config.yaml` and
+`projects/*.yaml`). If they do not exist, FF15 bootstraps default files there
+and shows a notification. Any legacy `.agents/harness` or `.ff15/harness`
+directory is ignored.
 
 ### Missions
 
@@ -216,7 +217,8 @@ When the extension activates, it materializes workspace helper files so the miss
 
 You will typically see FF15-managed files under:
 
-- `.ff15/harness/` for harness config (bootstrapped with defaults when missing)
+- `.ff15/config/` and `.ff15/projects/` for harness config and project profiles
+  (bootstrapped with defaults when missing)
 - `.ff15/operations/` for bundled operation definitions
 - `.ff15/facets/` for bundled operation facets and prompt references
 - `.ff15/missions/` for canonical mission runtime data and mission-scoped outputs
@@ -225,23 +227,23 @@ You will typically see FF15-managed files under:
 
 Important behavior:
 
-- `.ff15/harness` is the only configuration source; any `.agents/harness` is ignored.
+- `.ff15` is the only configuration source; any `.agents/harness` is ignored.
 - bundled operations are refreshed into `.ff15/operations/`, while unmanaged custom files are preserved,
 - mission state persists per workspace so you can reopen the same mission later.
 
-## Minimal Harness Example
+## Minimal Configuration Example
 
-If FF15 bootstraps a local harness, the default config is effectively shaped like this:
+If FF15 bootstraps local configuration, the default config is effectively shaped like this:
 
 ```yaml
-version: 3
-
 active_projects:
-	- default
+  - default
+
+language: en
 
 openspec:
-	mode: project
-	project_id: default
+  mode: project
+  project_id: default
 ```
 
 The default project profile is effectively shaped like this:

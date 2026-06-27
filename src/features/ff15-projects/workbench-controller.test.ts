@@ -37,7 +37,7 @@ const createPanelDouble = () => {
 const createReadySnapshot = (overrides: Record<string, unknown> = {}) =>
 	({
 		activeProjects: ["project-a"],
-		configVersion: 3,
+		languageName: "en",
 		error: null,
 		openspec: {
 			mode: "project",
@@ -49,7 +49,7 @@ const createReadySnapshot = (overrides: Record<string, unknown> = {}) =>
 			{ id: "project-b", warnings: [] },
 		],
 		sourceKind: "ff15",
-		sourcePath: "C:/workspace/.ff15/harness",
+		sourcePath: "C:/workspace/.ff15",
 		bootstrapped: false,
 		status: "ready",
 		...overrides,

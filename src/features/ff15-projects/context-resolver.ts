@@ -11,16 +11,16 @@ import { parse, parseDocument } from "yaml";
 
 export type Ff15ProjectsContextSourceKind = "ff15";
 export type Ff15ProjectsContextOpenspecMode = "project" | "harness";
-export type Ff15ProjectsContextConfigVersion = number | string | null;
+export type Ff15ProjectsContextLanguageName = "en" | "ja";
 
 export interface Ff15ProjectsContextReadySnapshot {
 	status: "ready";
 	sourceKind: Ff15ProjectsContextSourceKind;
 	sourcePath: string;
 	bootstrapped: boolean;
-	configVersion: Ff15ProjectsContextConfigVersion;
 	activeProjects: string[];
 	profiles: Ff15ProjectsContextProfile[];
+	languageName: Ff15ProjectsContextLanguageName;
 	openspec: {
 		mode: Ff15ProjectsContextOpenspecMode;
 		path: string | null;
@@ -39,9 +39,9 @@ export interface Ff15ProjectsContextErrorSnapshot {
 	sourceKind: Ff15ProjectsContextSourceKind | null;
 	sourcePath: string | null;
 	bootstrapped: boolean;
-	configVersion: null;
 	activeProjects: string[];
 	profiles: [];
+	languageName: null;
 	openspec: {
 		mode: null;
 		path: null;
@@ -56,6 +56,7 @@ export type Ff15ProjectsContextSnapshot =
 
 export interface Ff15ProjectsContextDraft {
 	activeProjects: string[];
+	languageName: Ff15ProjectsContextLanguageName;
 	openspec: {
 		mode: Ff15ProjectsContextOpenspecMode;
 		projectId: string | null;
@@ -63,10 +64,10 @@ export interface Ff15ProjectsContextDraft {
 }
 
 const BOOTSTRAP_CONFIG_CONTENT = [
-	"version: 3",
-	"",
 	"active_projects:",
 	"  - default",
+	"",
+	"language: en",
 	"",
 	"openspec:",
 	"  mode: project",
@@ -125,11 +126,7 @@ export const saveFf15ProjectsContext = (input: {
 		throw harnessSource.error;
 	}
 
-	const configPath = join(
-		harnessSource.harnessRoot,
-		"config",
-		"agent-harness.yaml"
-	);
+	const configPath = join(harnessSource.harnessRoot, "config", "config.yaml");
 	const configDocument = parseDocument(readFileSync(configPath, "utf8"));
 	if (configDocument.errors.length > 0) {
 		throw (
@@ -140,6 +137,7 @@ export const saveFf15ProjectsContext = (input: {
 	const normalizedActiveProjects = normalizeActiveProjects(
 		input.draft.activeProjects
 	);
+	const languageName = getLanguageName(input.draft.languageName);
 	const openspecMode = getOpenspecMode(input.draft.openspec.mode);
 	const openspecProjectId =
 		openspecMode === "project"
@@ -150,6 +148,7 @@ export const saveFf15ProjectsContext = (input: {
 			: input.draft.openspec.projectId;
 
 	configDocument.set("active_projects", normalizedActiveProjects);
+	configDocument.set("language", languageName);
 	configDocument.setIn(["openspec", "mode"], openspecMode);
 	if (openspecProjectId && openspecProjectId.trim().length > 0) {
 		configDocument.setIn(["openspec", "project_id"], openspecProjectId);
@@ -171,10 +170,10 @@ const loadHarnessSnapshot = (input: {
 }): Ff15ProjectsContextSnapshot => {
 	try {
 		const harnessOwnerRoot = getHarnessOwnerRoot(input.harnessRoot);
-		const configPath = join(input.harnessRoot, "config", "agent-harness.yaml");
+		const configPath = join(input.harnessRoot, "config", "config.yaml");
 		const configRecord = parseYamlRecord(configPath);
-		const configVersion = getConfigVersion(configRecord.version);
 		const activeProjects = getStringArray(configRecord.active_projects);
+		const languageName = getLanguageName(configRecord.language);
 		const profiles = loadProjectProfiles({
 			harnessOwnerRoot,
 			harnessRoot: input.harnessRoot,
@@ -197,9 +196,9 @@ const loadHarnessSnapshot = (input: {
 
 			return {
 				activeProjects,
-				configVersion,
 				error: null,
 				profiles,
+				languageName,
 				openspec: {
 					mode: "project",
 					path: openspecRoot
@@ -216,9 +215,9 @@ const loadHarnessSnapshot = (input: {
 
 		return {
 			activeProjects,
-			configVersion,
 			error: null,
 			profiles,
+			languageName,
 			openspec: {
 				mode: "harness",
 				path: join(harnessOwnerRoot, "openspec"),
@@ -239,17 +238,17 @@ const loadHarnessSnapshot = (input: {
 	}
 };
 
-const bootstrapFf15Harness = (ff15HarnessRoot: string) => {
+const bootstrapFf15Harness = (ff15Root: string) => {
 	ensureTextFile(
-		join(ff15HarnessRoot, "config", "agent-harness.yaml"),
+		join(ff15Root, "config", "config.yaml"),
 		BOOTSTRAP_CONFIG_CONTENT
 	);
 	ensureTextFile(
-		join(ff15HarnessRoot, "projects", "default.yaml"),
+		join(ff15Root, "projects", "default.yaml"),
 		BOOTSTRAP_DEFAULT_PROJECT_CONTENT
 	);
 	ensureTextFile(
-		join(ff15HarnessRoot, "projects", "_template.yaml"),
+		join(ff15Root, "projects", "_template.yaml"),
 		BOOTSTRAP_TEMPLATE_PROJECT_CONTENT
 	);
 };
@@ -396,12 +395,16 @@ const getExistingProfileId = (input: {
 	return projectId;
 };
 
-const getConfigVersion = (value: unknown): Ff15ProjectsContextConfigVersion => {
-	if (typeof value === "number" || typeof value === "string") {
+const getLanguageName = (value: unknown): Ff15ProjectsContextLanguageName => {
+	if (value === "en" || value === "ja") {
 		return value;
 	}
 
-	return null;
+	if (value === undefined) {
+		return "en";
+	}
+
+	throw new Error("Expected language to be en or ja.");
 };
 
 const getRecord = (value: unknown, key: string): Record<string, unknown> => {
@@ -454,7 +457,7 @@ const getOpenspecMode = (value: unknown): Ff15ProjectsContextOpenspecMode => {
 };
 
 const getHarnessOwnerRoot = (harnessRoot: string): string =>
-	dirname(dirname(harnessRoot));
+	dirname(harnessRoot);
 
 type Ff15ProjectsHarnessSource =
 	| {
@@ -498,17 +501,18 @@ const createErrorHarnessSource = (
 const resolveHarnessSource = (
 	workspaceRoot: string
 ): Ff15ProjectsHarnessSource => {
-	const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
+	const ff15Root = join(workspaceRoot, ".ff15");
+	const configPath = join(ff15Root, "config", "config.yaml");
 
-	if (isDirectory(ff15HarnessRoot)) {
-		return createReadyHarnessSource(ff15HarnessRoot, "ff15", false);
+	if (existsSync(configPath)) {
+		return createReadyHarnessSource(ff15Root, "ff15", false);
 	}
 
 	try {
-		bootstrapFf15Harness(ff15HarnessRoot);
-		return createReadyHarnessSource(ff15HarnessRoot, "ff15", true);
+		bootstrapFf15Harness(ff15Root);
+		return createReadyHarnessSource(ff15Root, "ff15", true);
 	} catch (error) {
-		return createErrorHarnessSource(error, ff15HarnessRoot, "ff15", true);
+		return createErrorHarnessSource(error, ff15Root, "ff15", true);
 	}
 };
 
@@ -536,9 +540,9 @@ const buildErrorSnapshot = (input: {
 
 	return {
 		activeProjects: [],
-		configVersion: null,
 		error: message,
 		profiles: [],
+		languageName: null,
 		openspec: {
 			mode: null,
 			path: null,

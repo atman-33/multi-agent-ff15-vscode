@@ -70,6 +70,7 @@ const createProjectsContextWatcher = (input: {
 
 const getFallbackDraft = (): Ff15ProjectsContextDraft => ({
 	activeProjects: [],
+	languageName: "en",
 	openspec: {
 		mode: "project",
 		projectId: null,
@@ -86,6 +87,7 @@ const buildDraftFromSnapshot = (
 
 	return {
 		activeProjects: [...snapshot.activeProjects],
+		languageName: snapshot.languageName,
 		openspec: {
 			mode: snapshot.openspec.mode,
 			projectId:
@@ -105,6 +107,7 @@ const areDraftsEqual = (
 	}
 
 	return (
+		left.languageName === right.languageName &&
 		left.openspec.mode === right.openspec.mode &&
 		left.openspec.projectId === right.openspec.projectId &&
 		left.activeProjects.length === right.activeProjects.length &&

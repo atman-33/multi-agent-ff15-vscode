@@ -8,9 +8,9 @@ export type ProjectsSnapshot =
 			status: "ready";
 			sourceKind: "ff15";
 			sourcePath: string;
-			configVersion: number | string | null;
 			activeProjects: string[];
 			profiles: ProjectProfile[];
+			languageName: "en" | "ja";
 			openspec: {
 				mode: "project" | "harness";
 				path: string | null;
@@ -22,9 +22,9 @@ export type ProjectsSnapshot =
 			status: "error";
 			sourceKind: "ff15" | null;
 			sourcePath: string | null;
-			configVersion: null;
 			activeProjects: string[];
 			profiles: [];
+			languageName: null;
 			openspec: {
 				mode: null;
 				path: null;
@@ -35,6 +35,7 @@ export type ProjectsSnapshot =
 
 export interface ProjectsDraft {
 	activeProjects: string[];
+	languageName: "en" | "ja";
 	openspec: {
 		mode: "project" | "harness";
 		projectId: string | null;
@@ -45,7 +46,6 @@ export type SaveState = "conflict" | "error" | "idle" | "saved" | "saving";
 
 export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 	activeProjects: [],
-	configVersion: null,
 	error: "Waiting for Projects context...",
 	openspec: {
 		mode: null,
@@ -53,6 +53,7 @@ export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 		sourceProjectId: null,
 	},
 	profiles: [],
+	languageName: null,
 	sourceKind: null,
 	sourcePath: null,
 	status: "error",
@@ -60,6 +61,7 @@ export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 
 export const EMPTY_DRAFT: ProjectsDraft = {
 	activeProjects: [],
+	languageName: "en",
 	openspec: {
 		mode: "project",
 		projectId: null,
@@ -70,7 +72,7 @@ export const formatSourceKind = (
 	sourceKind: ProjectsSnapshot["sourceKind"]
 ) => {
 	if (sourceKind === "ff15") {
-		return ".ff15/harness";
+		return ".ff15";
 	}
 
 	return "-";
@@ -86,6 +88,7 @@ export const buildDraftFromSnapshot = (
 
 	return {
 		activeProjects: snapshot.activeProjects,
+		languageName: snapshot.languageName,
 		openspec: {
 			mode: snapshot.openspec.mode,
 			projectId:

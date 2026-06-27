@@ -601,6 +601,7 @@ describe("createFf15MissionSendController", () => {
 				resolveRuntimeContext: () => ({
 					activeProjects: ["frontend", "backend"],
 					executionRoot: workspaceRoot,
+					languageName: "en",
 					openspecRoot,
 				}),
 				getWorkspaceRoot: () => workspaceRoot,
