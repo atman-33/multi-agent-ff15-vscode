@@ -138,6 +138,7 @@ const registerFf15Views = (
 		});
 	const ff15OperationRuntimeProbeService =
 		createFf15OperationRuntimeProbeService({
+			extensionRoot: context.extensionUri.fsPath,
 			missionTransport: ff15MissionTransport,
 			missionsStore: ff15MissionsStore,
 			resolveRuntimeContext: ({ workspaceRoot }) =>

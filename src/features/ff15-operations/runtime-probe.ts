@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import {
 	createServer,
 	request,
@@ -34,8 +34,10 @@ import {
 
 export const FF15_WORKSPACE_BRIDGE_DIR_NAME = "bridge";
 export const FF15_BRIDGE_MANIFEST_FILE_NAME = "ff15-bridge-manifest.json";
+export const FF15_BRIDGE_SCRIPT_FILE_NAME = "bridge.mjs";
 
 interface Ff15OperationRuntimeProbeServiceOptions {
+	extensionRoot: string;
 	getNow?: () => string;
 	missionTransport?: Ff15OperationRuntimeMissionTransport;
 	missionsStore: Ff15MissionsStore;
@@ -241,41 +243,8 @@ const getStringBodyValue = (
 const getReportMessage = (body: Record<string, unknown>): string | null =>
 	getStringBodyValue(body, "message") ?? getStringBodyValue(body, "summary");
 
-const createPythonScript = ({
-	bodyExpression,
-	method,
-	pathExpression,
-	parameters,
-}: {
-	bodyExpression?: string;
-	method: "GET" | "POST";
-	pathExpression: string;
-	parameters: string;
-}) => `#!/usr/bin/env python3
-import json
-import os
-import sys
-import urllib.request
-
-manifest_path = os.path.join(os.path.dirname(__file__), "${FF15_BRIDGE_MANIFEST_FILE_NAME}")
-with open(manifest_path, "r") as f:
-    manifest = json.load(f)
-
-${parameters}
-headers = {"Authorization": f"Bearer {manifest['token']}"}
-uri = f"{manifest['baseUrl']}${pathExpression}"
-${
-	bodyExpression
-		? `headers["Content-Type"] = "application/json"
-body = json.dumps(${bodyExpression}).encode("utf-8")
-req = urllib.request.Request(uri, data=body, headers=headers, method="${method}")`
-		: `req = urllib.request.Request(uri, headers=headers, method="${method}")`
-}
-with urllib.request.urlopen(req) as resp:
-    print(resp.read().decode("utf-8"))
-`;
-
 const writeBridgeAssets = (
+	extensionRoot: string,
 	workspaceRoot: string,
 	manifest: Ff15BridgeManifest
 ) => {
@@ -287,58 +256,17 @@ const writeBridgeAssets = (
 		`${JSON.stringify(manifest, null, 2)}\n`,
 		"utf8"
 	);
-	const getMissionPath = join(bridgeDir, "get-mission.py");
-	writeFileSync(
-		getMissionPath,
-		createPythonScript({
-			method: "GET",
-			parameters: "mission_id = sys.argv[1]",
-			pathExpression: "/missions/{mission_id}",
-		}),
-		"utf8"
-	);
-	chmodSync(getMissionPath, 0o755);
 
-	const getWorkflowPath = join(bridgeDir, "get-workflow.py");
-	writeFileSync(
-		getWorkflowPath,
-		createPythonScript({
-			method: "GET",
-			parameters: "mission_id = sys.argv[1]",
-			pathExpression: "/workflows/{mission_id}",
-		}),
-		"utf8"
+	copyFileSync(
+		join(
+			extensionRoot,
+			"src",
+			"resources",
+			"bridge",
+			FF15_BRIDGE_SCRIPT_FILE_NAME
+		),
+		join(bridgeDir, FF15_BRIDGE_SCRIPT_FILE_NAME)
 	);
-	chmodSync(getWorkflowPath, 0o755);
-
-	const submitTaskPath = join(bridgeDir, "submit-task.py");
-	writeFileSync(
-		submitTaskPath,
-		createPythonScript({
-			bodyExpression: '{"step": step, "task": task}',
-			method: "POST",
-			parameters:
-				"mission_id = sys.argv[1]\ntask = sys.argv[2]\nstep = sys.argv[3] if len(sys.argv) > 3 else ''",
-			pathExpression: "/tasks/{mission_id}",
-		}),
-		"utf8"
-	);
-	chmodSync(submitTaskPath, 0o755);
-
-	const submitReportPath = join(bridgeDir, "submit-report.py");
-	writeFileSync(
-		submitReportPath,
-		createPythonScript({
-			bodyExpression:
-				'{"taskId": task_id, "next": next_step, "message": message}',
-			method: "POST",
-			parameters:
-				"mission_id = sys.argv[1]\ntask_id = sys.argv[2]\nnext_step = sys.argv[3]\nmessage = sys.argv[4]",
-			pathExpression: "/reports/{mission_id}",
-		}),
-		"utf8"
-	);
-	chmodSync(submitReportPath, 0o755);
 };
 
 const invokeRuntime = async ({
@@ -947,6 +875,7 @@ export const createFf15OperationRuntimeProbeService = (
 
 		runtime.baseUrl = `http://127.0.0.1:${address.port}`;
 		writeBridgeAssets(
+			options.extensionRoot,
 			workspaceRoot,
 			createBridgeManifest(runtime.baseUrl, runtime.token)
 		);

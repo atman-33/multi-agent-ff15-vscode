@@ -301,12 +301,12 @@ describe("ff15 operation definition", () => {
 			expect(prompt).toContain("Include the accepted plan.");
 			expect(prompt).toContain("<step-completion-contract>");
 			expect(prompt).toContain(
-				join(
+				`node ${join(
 					workspaceRoot,
 					FF15_WORKSPACE_RUNTIME_DIR_NAME,
 					"bridge",
-					"submit-report.py"
-				)
+					"bridge.mjs"
+				)} submit-report`
 			);
 			expect(prompt).toContain("task-spec-planning");
 			expect(prompt).toContain('<user-request from="user" to="noctis">');

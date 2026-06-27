@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parse } from "yaml";
-import { env } from "vscode";
 import {
 	createEmptyFf15MissionWorkflowState,
 	getWorkspaceMissionOutputFilePath,
@@ -304,6 +303,13 @@ const buildToolingContextLines = (input: {
 			FF15_WORKSPACE_RUNTIME_DIR_NAME,
 			"bridge"
 		)}`,
+		`bridge_command: node ${join(
+			input.workspaceRoot,
+			FF15_WORKSPACE_RUNTIME_DIR_NAME,
+			"bridge",
+			"bridge.mjs"
+		)} <command> [args]`,
+		"bridge_commands: get-mission <mission_id> | get-workflow <mission_id> | submit-task <mission_id> <task> [step] | submit-report <mission_id> <task_id> <next> <message>",
 	];
 };
 
@@ -694,21 +700,18 @@ const buildStepCompletionContract = (input: {
 		return null;
 	}
 
-	const submitReportPath = join(
+	const bridgeScriptPath = join(
 		input.workspaceRoot,
 		FF15_WORKSPACE_RUNTIME_DIR_NAME,
 		"bridge",
-		"submit-report.py"
+		"bridge.mjs"
 	);
 	const taskId = getOperationStepTaskId({
 		stepName: input.activation.stepName,
 		workflow: input.workflow,
 	});
 
-	const isUnixLike = process.platform !== "win32" || env.remoteName === "wsl";
-	const commandLine = isUnixLike
-		? `${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`
-		: `python ${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`;
+	const commandLine = `node ${bridgeScriptPath} submit-report ${input.missionId} ${taskId} <next> "<message>"`;
 
 	return buildTextSection(
 		"step-completion-contract",

@@ -702,12 +702,12 @@ describe("createFf15MissionSendController", () => {
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: expect.stringContaining(
-						join(
+						`node ${join(
 							workspaceRoot,
 							FF15_WORKSPACE_RUNTIME_DIR_NAME,
 							"bridge",
-							"submit-report.py"
-						)
+							"bridge.mjs"
+						)} submit-report`
 					),
 				})
 			);

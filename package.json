@@ -168,7 +168,7 @@
         },
         "multi-agent-ff15-vscode.promptInputDelayMs": {
           "type": "number",
-          "default": 500,
+          "default": 1000,
           "minimum": 0,
           "description": "Delay (ms) between pane input steps, and the wait after applying models before a prompt is sent. Increase if OpenCode needs more time to process model/variant commands."
         }

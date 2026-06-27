@@ -38,7 +38,7 @@ Ignis, Gladiolus, and Prompto each run in **task-scoped sessions** — a fresh s
 
 For operation-backed missions, follow the runtime contract injected into the current step prompt.
 
-- Treat any `.ff15/bridge/*.ps1` command in the active prompt as canonical.
+- Treat any `node .ff15/bridge/bridge.mjs <command>` invocation in the active prompt as canonical.
 - Use the injected completion command exactly as written when the step requires a report.
 - Do not assume browser-app shell scripts such as `scripts/send_task.sh` or `scripts/send_message.sh` exist in this VS Code workspace.
 
