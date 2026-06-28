@@ -154,14 +154,72 @@ const launchRemoteWslTerminal = ({
 
 const isRemoteWsl = (): boolean => env.remoteName === "wsl";
 
+export const WINDOWS_TERMINAL_LAUNCH_FAILURE_MESSAGE =
+	"Failed to launch Windows Terminal";
+
+// Open Windows Terminal directly at the project directory (`wt -d <cwd>`).
+const launchWindowsTerminalWindow = (cwd: string): Promise<void> =>
+	launchExternalTerminal(
+		{
+			args: ["-d", cwd],
+			cwd,
+			executable: "wt.exe",
+		},
+		WINDOWS_TERMINAL_LAUNCH_FAILURE_MESSAGE
+	);
+
+// Fallback when Windows Terminal is not installed: a standalone PowerShell window.
+const launchPowerShellWindow = (cwd: string): Promise<void> =>
+	launchExternalTerminal(
+		{
+			cwd,
+			executable: "powershell.exe",
+		},
+		"Failed to launch external terminal"
+	);
+
+// Open a standalone terminal window at the given project directory. Prefers a
+// real external OS window (Windows Terminal, falling back to PowerShell); for
+// Remote - WSL it bridges to a host window, and on local macOS/Linux it falls
+// back to the integrated terminal since there is no portable external launcher.
+export const launchExternalProjectTerminal = async ({
+	cwd,
+	name,
+}: {
+	cwd: string;
+	name: string;
+}): Promise<void> => {
+	if (isRemoteWsl()) {
+		await launchRemoteWslTerminal({
+			args: ["-l"],
+			cwd,
+			executable: "bash",
+			name,
+		});
+		return;
+	}
+
+	if (process.platform === "win32") {
+		try {
+			await launchWindowsTerminalWindow(cwd);
+		} catch {
+			await launchPowerShellWindow(cwd);
+		}
+		return;
+	}
+
+	const terminal = window.createTerminal({ cwd, name });
+	terminal.show();
+};
+
 export const launchZellijTerminal = ({
 	args,
 	cwd,
 	executable,
 	name,
 }: LaunchTerminalInput): Promise<void> | void => {
-	if (process.platform === "win32") {
-		return launchExternalWindowsTerminal({
+	if (isRemoteWsl()) {
+		return launchRemoteWslTerminal({
 			args,
 			cwd,
 			executable,
@@ -169,8 +227,8 @@ export const launchZellijTerminal = ({
 		});
 	}
 
-	if (isRemoteWsl()) {
-		return launchRemoteWslTerminal({
+	if (process.platform === "win32") {
+		return launchExternalWindowsTerminal({
 			args,
 			cwd,
 			executable,

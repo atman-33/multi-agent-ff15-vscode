@@ -3,6 +3,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * The webview follows the active VSCode color theme. `body` reads the VSCode
+ * theme variables directly, and the design tokens in `:root` below map onto
+ * those same VSCode variables. This keeps both token-based components
+ * (bg-background, text-foreground, …) and components that read
+ * var(--vscode-*) directly in sync with whatever theme the user has selected.
+ */
 body {
 	font-family: var(--vscode-font-family);
 	font-weight: var(--vscode-font-weight);
@@ -31,6 +38,10 @@ body {
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-success: var(--success);
+	--color-success-foreground: var(--success-foreground);
+	--color-warning: var(--warning);
+	--color-warning-foreground: var(--warning-foreground);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -49,78 +60,68 @@ body {
 	--color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Design tokens mapped onto the active VSCode theme variables. */
 :root {
-	--radius: 0.625rem;
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.646 0.222 41.116);
-	--chart-2: oklch(0.6 0.118 184.704);
-	--chart-3: oklch(0.398 0.07 227.392);
-	--chart-4: oklch(0.828 0.189 84.429);
-	--chart-5: oklch(0.769 0.188 70.08);
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.488 0.243 264.376);
-	--chart-2: oklch(0.696 0.17 162.48);
-	--chart-3: oklch(0.769 0.188 70.08);
-	--chart-4: oklch(0.627 0.265 303.9);
-	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
+	--radius: 0.5rem;
+	--background: var(--vscode-editor-background);
+	--foreground: var(--vscode-foreground);
+	--card: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--card-foreground: var(--vscode-foreground);
+	--popover: var(--vscode-dropdown-background, var(--vscode-editor-background));
+	--popover-foreground: var(--vscode-foreground);
+	--primary: var(--vscode-button-background);
+	--primary-foreground: var(--vscode-button-foreground);
+	--secondary: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	--secondary-foreground: var(--vscode-foreground);
+	--muted: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	--muted-foreground: var(--vscode-descriptionForeground);
+	--accent: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	--accent-foreground: var(--vscode-foreground);
+	--destructive: var(--vscode-errorForeground);
+	--border: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	--input: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	--ring: var(--vscode-focusBorder);
+	--success: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+	--success-foreground: var(--vscode-button-foreground);
+	--warning: var(--vscode-warningForeground);
+	--warning-foreground: var(--vscode-editor-background);
+	--chart-1: var(--vscode-charts-blue);
+	--chart-2: var(--vscode-charts-green);
+	--chart-3: var(--vscode-charts-yellow);
+	--chart-4: var(--vscode-charts-purple);
+	--chart-5: var(--vscode-charts-red);
+	--sidebar: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	--sidebar-foreground: var(--vscode-foreground);
+	--sidebar-primary: var(--vscode-button-background);
+	--sidebar-primary-foreground: var(--vscode-button-foreground);
+	--sidebar-accent: color-mix(
+		in srgb,
+		var(--vscode-foreground) 8%,
+		transparent
+	);
+	--sidebar-accent-foreground: var(--vscode-foreground);
+	--sidebar-border: color-mix(
+		in srgb,
+		var(--vscode-foreground) 12%,
+		transparent
+	);
+	--sidebar-ring: var(--vscode-focusBorder);
 }
 
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
+	}
+	/*
+	 * Establish a full-height chain so route shells using `h-full` resolve to
+	 * the viewport height instead of their content height. Without this, views
+	 * with little content (e.g. the workbench loading spinner) collapse and the
+	 * full-bleed FF15 background only covers the content area.
+	 */
+	html,
+	body,
+	#root {
+		height: 100%;
 	}
 	body {
 		@apply bg-background text-foreground;
@@ -128,4 +129,222 @@ body {
 	button:not(:disabled) {
 		cursor: pointer;
 	}
+
+	/* Custom scrollbar — ported from multi-agent-ff15/web/app/app.css. */
+	::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: var(--border);
+		border-radius: 9999px;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+	}
+}
+
+/*
+ * FF15 mission screens — a self-contained dark theme.
+ *
+ * Unlike the rest of the webview (which follows the active VSCode color
+ * theme), the mission screens commit to a fixed Final Fantasy XV "command
+ * menu" aesthetic: a near-black navy base, gold/blue accents, translucent
+ * blurred panels, and hairline rules. Everything is scoped under
+ * `.ff15-screen` so other routes keep their theme-adaptive styling.
+ */
+.ff15-screen {
+	--ff15-base: #070a12;
+	--ff15-base-soft: #0b0f1a;
+	--ff15-panel: rgba(10, 13, 20, 0.72);
+	--ff15-panel-strong: rgba(8, 10, 16, 0.86);
+	--ff15-border: rgba(232, 193, 112, 0.22);
+	--ff15-border-soft: rgba(224, 231, 255, 0.1);
+	--ff15-gold: #e8c170;
+	--ff15-gold-soft: rgba(232, 193, 112, 0.55);
+	--ff15-gold-faint: rgba(232, 193, 112, 0.12);
+	--ff15-blue: #8f9ce0;
+	--ff15-cyan: #7dd3fc;
+	--ff15-text: rgba(231, 235, 248, 0.94);
+	--ff15-text-muted: rgba(206, 214, 236, 0.62);
+
+	position: relative;
+	color: var(--ff15-text);
+	background-color: var(--ff15-base);
+}
+
+/*
+ * Sidebar variant (no background photo). Drops the fixed navy fill so the view
+ * inherits the active VSCode sidebar/editor background and sits flush next to
+ * the plain projects/settings views. The translucent panels and gold accents
+ * still render on top.
+ */
+.ff15-screen--bare {
+	background-color: var(--ff15-base-soft);
+}
+
+/* The FF15 screens force a light-on-dark scrollbar regardless of theme. */
+.ff15-screen ::-webkit-scrollbar-thumb {
+	background: var(--ff15-gold-soft);
+}
+.ff15-screen ::-webkit-scrollbar-thumb:hover {
+	background: var(--ff15-gold);
+}
+
+/* Translucent blurred card with a gold hairline along the top edge. */
+.ff15-panel {
+	position: relative;
+	border: 1px solid var(--ff15-border-soft);
+	border-radius: 1rem;
+	background: var(--ff15-panel);
+	backdrop-filter: blur(10px);
+	box-shadow:
+		0 18px 48px -24px rgba(0, 0, 0, 0.9),
+		inset 0 1px 0 rgba(232, 193, 112, 0.08);
+}
+.ff15-panel::before {
+	content: "";
+	position: absolute;
+	inset: 0 1.25rem auto 1.25rem;
+	top: 0;
+	height: 1px;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		var(--ff15-gold-soft) 22%,
+		var(--ff15-cyan) 50%,
+		var(--ff15-gold-soft) 78%,
+		transparent
+	);
+	opacity: 0.7;
+}
+
+/* Uppercase gold section label. */
+.ff15-label {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--ff15-gold);
+}
+
+/* FF15 menu rule: a gold→cyan→gold gradient line with a center diamond. */
+.ff15-divider {
+	position: relative;
+	height: 1px;
+	border: none;
+	margin: 0;
+	background: linear-gradient(
+		90deg,
+		transparent,
+		var(--ff15-gold-soft) 30%,
+		var(--ff15-gold-soft) 70%,
+		transparent
+	);
+	opacity: 0.6;
+}
+.ff15-divider::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 6px;
+	height: 6px;
+	transform: translate(-50%, -50%) rotate(45deg);
+	background: var(--ff15-gold);
+	box-shadow: 0 0 8px 1px var(--ff15-gold-soft);
+}
+
+/* Gold "rune" primary action button. */
+.ff15-rune-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	border: 1px solid var(--ff15-gold-soft);
+	border-radius: 0.625rem;
+	background: linear-gradient(
+		180deg,
+		rgba(232, 193, 112, 0.14),
+		rgba(232, 193, 112, 0.05)
+	);
+	color: var(--ff15-gold);
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	transition:
+		background 0.18s ease,
+		box-shadow 0.18s ease,
+		border-color 0.18s ease;
+}
+.ff15-rune-button:hover:not(:disabled) {
+	border-color: var(--ff15-gold);
+	background: linear-gradient(
+		180deg,
+		rgba(232, 193, 112, 0.24),
+		rgba(232, 193, 112, 0.09)
+	);
+	box-shadow: 0 0 18px -2px var(--ff15-gold-soft);
+}
+.ff15-rune-button:disabled {
+	opacity: 0.45;
+	pointer-events: none;
+}
+
+/* Markdown styling — ported from multi-agent-ff15/web/app/app.css. */
+.markdown-body {
+	@apply text-sm leading-relaxed;
+}
+.markdown-body h1 {
+	@apply mt-6 mb-3 font-bold text-2xl text-foreground;
+}
+.markdown-body h2 {
+	@apply mt-5 mb-2 border-border border-b pb-1 font-semibold text-xl text-foreground;
+}
+.markdown-body h3 {
+	@apply mt-4 mb-2 font-semibold text-base text-foreground;
+}
+.markdown-body p {
+	@apply my-2 text-foreground/90 leading-relaxed;
+	overflow-wrap: anywhere;
+}
+.markdown-body ul {
+	@apply my-2 list-disc pl-6;
+}
+.markdown-body ol {
+	@apply my-2 list-decimal pl-6;
+}
+.markdown-body li {
+	@apply my-1;
+	overflow-wrap: anywhere;
+}
+.markdown-body code {
+	@apply rounded bg-muted/80 px-1.5 py-0.5 font-mono text-primary text-xs;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+.markdown-body pre {
+	@apply my-4 overflow-x-auto rounded-lg border border-border/50 bg-muted/60 p-4;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+.markdown-body pre code {
+	@apply bg-transparent p-0 text-foreground/90;
+	white-space: inherit;
+	word-break: inherit;
+}
+.markdown-body blockquote {
+	@apply my-4 rounded-r-lg border-primary/40 border-l-4 bg-primary/5 py-1 pl-4 text-muted-foreground italic;
+}
+.markdown-body a {
+	@apply text-primary underline underline-offset-2 transition-colors hover:text-primary/80;
+}
+.markdown-body strong {
+	@apply font-semibold text-foreground;
+}
+.markdown-body em {
+	@apply text-foreground/80 italic;
 }

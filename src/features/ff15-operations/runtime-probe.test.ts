@@ -16,6 +16,8 @@ import {
 	getWorkspaceMissionOutputFilePath,
 	FF15_WORKSPACE_RUNTIME_DIR_NAME,
 } from "../ff15-missions/state";
+
+const toShellSafePath = (p: string): string => p.replace(/\\/g, "/");
 import {
 	createFf15OperationRuntimeProbeService,
 	FF15_BRIDGE_MANIFEST_FILE_NAME,
@@ -214,6 +216,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-30T09:01:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -344,6 +347,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 					});
 
 				const service = createFf15OperationRuntimeProbeService({
+					extensionRoot: process.cwd(),
 					getNow: () => "2026-06-04T10:01:00.000Z",
 					missionsStore: store,
 					missionTransport: {
@@ -353,6 +357,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 					resolveRuntimeContext: () => ({
 						activeProjects: ["frontend"],
 						executionRoot: workspaceRoot,
+						languageName: "en",
 						openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
 					}),
 				});
@@ -475,6 +480,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-30T08:01:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -513,7 +519,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						paneId: "terminal_1",
-						prompt: expect.stringContaining(outputPath),
+						prompt: expect.stringContaining(toShellSafePath(outputPath)),
 						sessionName: "ff15-session",
 					})
 				);
@@ -612,6 +618,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-30T08:31:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -655,7 +662,9 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						paneId: "terminal_1",
-						prompt: expect.stringContaining(secondAttemptOutputPath),
+						prompt: expect.stringContaining(
+							toShellSafePath(secondAttemptOutputPath)
+						),
 						sessionName: "ff15-session",
 					})
 				);
@@ -724,6 +733,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-30T08:11:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -838,6 +848,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-30T08:21:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -948,6 +959,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-28T10:01:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -957,6 +969,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				resolveRuntimeContext: () => ({
 					activeProjects: ["frontend", "backend"],
 					executionRoot: workspaceRoot,
+					languageName: "en",
 					openspecRoot: join(workspaceRoot, "selected-project", "openspec"),
 				}),
 			});
@@ -1045,12 +1058,14 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining("submit-report.py"),
+						prompt: expect.stringContaining("bridge.mjs&quot; submit-report"),
 					})
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
-						prompt: expect.stringContaining(`execution_root: ${workspaceRoot}`),
+						prompt: expect.stringContaining(
+							`execution_root: ${toShellSafePath(workspaceRoot)}`
+						),
 					})
 				);
 				expect(sendPrompt).toHaveBeenCalledWith(
@@ -1063,7 +1078,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				expect(sendPrompt).toHaveBeenCalledWith(
 					expect.objectContaining({
 						prompt: expect.stringContaining(
-							`openspec_root: ${join(workspaceRoot, "selected-project", "openspec")}`
+							`openspec_root: ${toShellSafePath(join(workspaceRoot, "selected-project", "openspec"))}`
 						),
 					})
 				);
@@ -1140,6 +1155,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			const sendPrompt = vi.fn().mockResolvedValue(undefined);
 
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-28T10:01:00.000Z",
 				missionsStore: store,
 				missionTransport: {
@@ -1225,6 +1241,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			});
 
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-28T09:01:00.000Z",
 				missionsStore: store,
 			});
@@ -1237,13 +1254,14 @@ describe("createFf15OperationRuntimeProbeService", () => {
 					FF15_WORKSPACE_RUNTIME_DIR_NAME,
 					FF15_WORKSPACE_BRIDGE_DIR_NAME
 				);
-				const reportScript = readFileSync(
-					join(bridgeDir, "submit-report.py"),
+				const bridgeScript = readFileSync(
+					join(bridgeDir, "bridge.mjs"),
 					"utf8"
 				);
-				expect(reportScript).toContain("task_id = sys.argv[2]");
-				expect(reportScript).toContain("next_step = sys.argv[3]");
-				expect(reportScript).toContain("message = sys.argv[4]");
+				expect(bridgeScript).toContain('"submit-report"');
+				expect(bridgeScript).toContain(
+					"{ message: args[3], next: args[2], taskId: args[1] }"
+				);
 
 				const manifest = JSON.parse(
 					readFileSync(join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME), "utf8")
@@ -1321,6 +1339,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			});
 
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-28T09:11:00.000Z",
 				missionsStore: store,
 			});
@@ -1396,6 +1415,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			});
 
 			const service = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-27T15:01:00.000Z",
 				missionsStore: store,
 			});
@@ -1410,10 +1430,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 				);
 				const manifestPath = join(bridgeDir, FF15_BRIDGE_MANIFEST_FILE_NAME);
 
-				expect(existsSync(join(bridgeDir, "get-mission.py"))).toBe(true);
-				expect(existsSync(join(bridgeDir, "get-workflow.py"))).toBe(true);
-				expect(existsSync(join(bridgeDir, "submit-task.py"))).toBe(true);
-				expect(existsSync(join(bridgeDir, "submit-report.py"))).toBe(true);
+				expect(existsSync(join(bridgeDir, "bridge.mjs"))).toBe(true);
 
 				const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
 					baseUrl: string;
@@ -1545,6 +1562,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			});
 
 			const initialService = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-28T11:01:00.000Z",
 				missionsStore: store,
 			});
@@ -1565,6 +1583,7 @@ describe("createFf15OperationRuntimeProbeService", () => {
 			);
 
 			const recoveredService = createFf15OperationRuntimeProbeService({
+				extensionRoot: process.cwd(),
 				getNow: () => "2026-05-28T11:02:00.000Z",
 				missionsStore: store,
 			});

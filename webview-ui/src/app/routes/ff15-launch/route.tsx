@@ -1,3 +1,4 @@
+import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
@@ -27,17 +28,21 @@ const Route = () => {
 	}, []);
 
 	return (
-		<div className="px-3 py-1.5">
-			<SidebarActionButton
-				disabled={state === "launching"}
-				onClick={() => {
-					setState("launching");
-					vscode.postMessage({ command: "ff15-launch.start" });
-				}}
-			>
-				{state === "launching" ? LAUNCHING_ACTION_LABEL : PRIMARY_ACTION_LABEL}
-			</SidebarActionButton>
-		</div>
+		<Ff15Screen background={false}>
+			<div className="px-3 py-1.5">
+				<SidebarActionButton
+					disabled={state === "launching"}
+					onClick={() => {
+						setState("launching");
+						vscode.postMessage({ command: "ff15-launch.start" });
+					}}
+				>
+					{state === "launching"
+						? LAUNCHING_ACTION_LABEL
+						: PRIMARY_ACTION_LABEL}
+				</SidebarActionButton>
+			</div>
+		</Ff15Screen>
 	);
 };
 

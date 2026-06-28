@@ -15,24 +15,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { getWebviewAssetUri } from "@/lib/webview-asset";
+import { CheckIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 
 type PartyRosterAgentId = "noctis" | "ignis" | "gladiolus" | "prompto";
-
-declare global {
-	interface Window {
-		__FF15_WEBVIEW_ASSET_BASE__?: string;
-	}
-}
-
-const getWebviewAssetUri = (path: string) => {
-	const assetBase =
-		typeof window === "undefined"
-			? undefined
-			: window.__FF15_WEBVIEW_ASSET_BASE__;
-
-	return assetBase ? new URL(path, assetBase).toString() : `/${path}`;
-};
 
 const AGENT_PORTRAITS: Record<PartyRosterAgentId, string> = {
 	gladiolus: getWebviewAssetUri("images/gladiolus.png"),
@@ -48,40 +35,35 @@ const AGENT_THEMES: Record<
 		glow: string;
 		glowSoft: string;
 		surface: string;
-		text: string;
 	}
 > = {
 	gladiolus: {
-		accent: "rgba(170, 58, 73, 0.8)",
-		glow: "rgba(170, 58, 73, 0.22)",
-		glowSoft: "rgba(170, 58, 73, 0.46)",
+		accent: "rgba(255, 255, 255, 0.8)",
+		glow: "rgba(255, 255, 255, 0.22)",
+		glowSoft: "rgba(255, 255, 255, 0.46)",
 		surface:
 			"linear-gradient(180deg, rgba(12, 8, 10, 0.98), rgba(7, 6, 8, 0.96) 58%, rgba(18, 9, 12, 0.94))",
-		text: "rgba(248, 214, 220, 0.92)",
 	},
 	ignis: {
-		accent: "rgba(75, 146, 114, 0.82)",
-		glow: "rgba(75, 146, 114, 0.2)",
-		glowSoft: "rgba(75, 146, 114, 0.4)",
+		accent: "rgba(255, 255, 255, 0.82)",
+		glow: "rgba(255, 255, 255, 0.2)",
+		glowSoft: "rgba(255, 255, 255, 0.4)",
 		surface:
 			"linear-gradient(180deg, rgba(7, 11, 9, 0.98), rgba(5, 8, 7, 0.96) 58%, rgba(9, 15, 12, 0.94))",
-		text: "rgba(223, 247, 234, 0.92)",
 	},
 	noctis: {
-		accent: "rgba(143, 156, 224, 0.82)",
-		glow: "rgba(143, 156, 224, 0.2)",
-		glowSoft: "rgba(143, 156, 224, 0.42)",
+		accent: "rgba(255, 255, 255, 0.82)",
+		glow: "rgba(255, 255, 255, 0.2)",
+		glowSoft: "rgba(255, 255, 255, 0.42)",
 		surface:
 			"linear-gradient(180deg, rgba(8, 10, 16, 0.98), rgba(6, 8, 13, 0.96) 58%, rgba(10, 12, 21, 0.94))",
-		text: "rgba(224, 231, 255, 0.94)",
 	},
 	prompto: {
-		accent: "rgba(240, 207, 115, 0.82)",
-		glow: "rgba(240, 207, 115, 0.2)",
-		glowSoft: "rgba(240, 207, 115, 0.42)",
+		accent: "rgba(255, 255, 255, 0.82)",
+		glow: "rgba(255, 255, 255, 0.2)",
+		glowSoft: "rgba(255, 255, 255, 0.42)",
 		surface:
 			"linear-gradient(180deg, rgba(14, 11, 5, 0.98), rgba(9, 8, 4, 0.96) 58%, rgba(17, 14, 8, 0.94))",
-		text: "rgba(255, 243, 196, 0.92)",
 	},
 };
 
@@ -186,7 +168,6 @@ interface BulkModelPresetPanelProps {
 	bulkModelSelectionSupported: boolean;
 	modelCatalog: OpenCodeModelDefinition[];
 	onApplyBulkModel: (input: BulkModelSelection) => void;
-	provider: ProviderState | null;
 }
 
 const normalizeBulkModelSelection = (
@@ -378,7 +359,6 @@ const BulkModelPresetPanel = ({
 	bulkModelSelectionSupported,
 	modelCatalog,
 	onApplyBulkModel,
-	provider,
 }: BulkModelPresetPanelProps) => {
 	const [bulkDraft, setBulkDraft] = useState<BulkModelSelection | null>(() =>
 		normalizeBulkModelSelection(bulkModelSelection, modelCatalog)
@@ -406,9 +386,6 @@ const BulkModelPresetPanel = ({
 		bulkEffortDisabled = false;
 	}
 	const applyDisabled = !bulkSelectionEnabled;
-	const bulkSelectionStatusMessage = bulkLiveApplyEnabled
-		? "Apply again any time to re-sync the current preset across the party."
-		: "Apply to Party saves this preset now and live-switches everyone after Launch Terminal.";
 
 	const handleBulkModelChange = (modelId: string) => {
 		const model = modelCatalog.find((entry) => entry.id === modelId);
@@ -436,35 +413,12 @@ const BulkModelPresetPanel = ({
 	};
 
 	return (
-		<div className="mb-3 rounded-xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_10%,transparent)] bg-black/20 px-3 py-3">
-			<div className="flex flex-wrap items-start justify-between gap-2">
-				<div>
-					<div className="font-semibold text-[10px] text-[color:var(--vscode-foreground)] uppercase tracking-[0.18em]">
-						Bulk Model Setup
-					</div>
-					<div className="mt-1 text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
-						Save one provider-specific preset, apply it across the full party,
-						and reuse it on the next mission.
-					</div>
-					{bulkSelectionStatusMessage ? (
-						<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.7))] leading-4">
-							{bulkSelectionStatusMessage}
-						</div>
-					) : null}
-					{bulkLiveApplyReason && !bulkLiveApplyEnabled ? (
-						<div className="mt-1 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
-							{bulkLiveApplyReason}
-						</div>
-					) : null}
-				</div>
-				<span className="rounded-full border border-[color:color-mix(in_srgb,var(--vscode-foreground)_14%,transparent)] px-2 py-0.5 font-medium text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] uppercase tracking-[0.12em]">
-					{provider?.id === "opencode"
-						? "OpenCode Preset"
-						: "GitHub Copilot Preset"}
-				</span>
+		<div>
+			<div className="ff15-label mb-1.5 text-[10px] tracking-[0.18em]">
+				Model Presets
 			</div>
-			<div className="mt-3 flex flex-wrap items-end gap-2">
-				<div className="min-w-[12rem] flex-1">
+			<div className="flex items-end gap-1.5">
+				<div className="min-w-0 flex-1">
 					<Select
 						disabled={!bulkSelectionEnabled}
 						onValueChange={handleBulkModelChange}
@@ -500,7 +454,7 @@ const BulkModelPresetPanel = ({
 						</SelectContent>
 					</Select>
 				</div>
-				<div className="min-w-[9rem] flex-1">
+				<div className="min-w-0 flex-1">
 					<Select
 						disabled={bulkEffortDisabled}
 						onValueChange={handleBulkEffortChange}
@@ -537,7 +491,8 @@ const BulkModelPresetPanel = ({
 					</Select>
 				</div>
 				<SidebarActionButton
-					className="h-8 px-3 text-[11px]"
+					aria-label="Apply preset to party"
+					className="h-8 w-8 shrink-0 px-0"
 					disabled={applyDisabled}
 					onClick={() => {
 						if (!bulkDraft) {
@@ -546,10 +501,16 @@ const BulkModelPresetPanel = ({
 
 						onApplyBulkModel(bulkDraft);
 					}}
+					title="Apply preset to party"
 				>
-					Apply to Party
+					<CheckIcon className="h-4 w-4" />
 				</SidebarActionButton>
 			</div>
+			{bulkLiveApplyReason && !bulkLiveApplyEnabled ? (
+				<div className="mt-2 text-[9px] text-[color:var(--vscode-errorForeground,#f87171)] leading-4">
+					{bulkLiveApplyReason}
+				</div>
+			) : null}
 		</div>
 	);
 };
@@ -587,24 +548,21 @@ export const PartyRosterPanel = ({
 		continueAction.unavailableReason !== modelAction.unavailableReason;
 
 	return (
-		<div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--vscode-foreground)_12%,transparent)] bg-[linear-gradient(145deg,color-mix(in_srgb,var(--vscode-editor-background)_72%,transparent),color-mix(in_srgb,var(--vscode-button-background,#0e7490)_12%,transparent))] px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.16)]">
-			<BulkModelPresetPanel
-				bulkLiveApplyEnabled={bulkLiveApplyEnabled}
-				bulkLiveApplyReason={bulkLiveApplyReason}
-				bulkModelSelection={bulkModelSelection}
-				bulkModelSelectionSupported={bulkModelSelectionSupported}
-				modelCatalog={modelCatalog}
-				onApplyBulkModel={onApplyBulkModel}
-				provider={provider}
-			/>
+		<div className="ff15-panel px-3 py-2.5">
+			<div className="mb-3 border-[color:var(--ff15-border-soft)] border-b pb-3">
+				<BulkModelPresetPanel
+					bulkLiveApplyEnabled={bulkLiveApplyEnabled}
+					bulkLiveApplyReason={bulkLiveApplyReason}
+					bulkModelSelection={bulkModelSelection}
+					bulkModelSelectionSupported={bulkModelSelectionSupported}
+					modelCatalog={modelCatalog}
+					onApplyBulkModel={onApplyBulkModel}
+				/>
+			</div>
 			<div className="mb-2 flex flex-wrap items-end justify-between gap-2">
 				<div>
-					<div className="font-semibold text-[color:var(--vscode-foreground)] text-xs uppercase tracking-[0.18em]">
+					<div className="ff15-label text-xs tracking-[0.18em]">
 						Party Roster
-					</div>
-					<div className="mt-0.5 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.64))] leading-4">
-						Right-click a card to continue. Bulk presets sit above, and
-						per-agent overrides stay on each card.
 					</div>
 					{modelCatalogStatusMessage ? (
 						<div className="mt-1 text-[9px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.72))] leading-4">
@@ -645,9 +603,9 @@ export const PartyRosterPanel = ({
 										"min-w-0",
 										"rounded-xl",
 										"border border-transparent",
-										"px-3 py-3",
+										"px-3 py-2.5",
 										"transition-transform",
-										"hover:-translate-y-0.5",
+										"hover:scale-[1.02]",
 										"shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
 									)}
 									style={{
@@ -656,45 +614,19 @@ export const PartyRosterPanel = ({
 									}}
 								>
 									<div className="flex min-w-0 items-center gap-3.5">
-										<div className="relative flex h-16 w-10 shrink-0 items-end justify-center">
-											<span
-												aria-hidden="true"
-												className="pointer-events-none absolute rounded-full"
-												style={{
-													background: `radial-gradient(circle, ${agent.available ? theme.glowSoft : theme.glow} 0%, ${theme.glow} 62%, rgba(0,0,0,0) 100%)`,
-													bottom: 0,
-													height: "2rem",
-													left: "50%",
-													opacity: agent.available ? 1 : 0.72,
-													transform: "translateX(-50%)",
-													width: "2rem",
-												}}
-											/>
-											{agent.available ? (
-												<span
-													aria-hidden="true"
-													className="pointer-events-none absolute inset-x-1 bottom-1 h-8 rounded-full"
-													style={{
-														background: theme.glow,
-														filter: "blur(16px)",
-													}}
-												/>
-											) : null}
+										<div className="relative flex h-12 w-12 shrink-0 items-end justify-center">
 											<img
 												alt={agent.displayName}
-												className="relative z-10 h-full w-full object-contain object-bottom"
-												height={64}
+												className="relative z-10 h-12 w-auto max-w-full object-contain object-bottom"
+												height={48}
 												src={AGENT_PORTRAITS[agent.agentId]}
 												style={{ filter: portraitFilter }}
-												width={40}
+												width={48}
 											/>
 										</div>
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2">
-												<div
-													className="truncate font-bold text-sm uppercase tracking-wider"
-													style={{ color: theme.text }}
-												>
+												<div className="truncate font-bold text-sm uppercase tracking-wider">
 													{agent.displayName}
 												</div>
 												<div
@@ -709,7 +641,7 @@ export const PartyRosterPanel = ({
 													{AGENT_ROLE_LABELS[agent.agentId]}
 												</div>
 											</div>
-											<div className="mt-1 w-full max-w-[17rem]">
+											<div className="mt-1 w-full">
 												<AgentModelPicker
 													agent={agent}
 													disabled={false}

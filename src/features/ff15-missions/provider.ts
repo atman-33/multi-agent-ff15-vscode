@@ -14,6 +14,9 @@ import type { Ff15MissionWorkbenchController } from "./workbench-controller";
 const FF15_MISSIONS_PAGE_ID = "ff15-missions";
 
 interface Ff15MissionSendController {
+	onDidChangeMissionSnapshot: (
+		listener: (snapshot: Ff15MissionsStoreSnapshot) => void
+	) => Disposable;
 	submitPrompt: (input: {
 		missionId: string;
 		prompt: string;
@@ -30,6 +33,7 @@ interface Ff15MissionSessionController {
 }
 
 interface Ff15MissionsViewProviderControllers {
+	devMode?: boolean;
 	missionSendController?: Ff15MissionSendController;
 	missionSessionController?: Ff15MissionSessionController;
 	missionWorkbenchController?: Ff15MissionWorkbenchController;
@@ -39,8 +43,10 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 	static readonly viewId = FF15_MISSIONS_VIEW_ID;
 
 	private readonly extensionUri: Uri;
+	private readonly devMode: boolean;
 	private readonly missionsStore: Ff15MissionsStore;
 	private readonly missionSendController: Ff15MissionSendController;
+	private readonly missionSendSubscription: Disposable;
 	private readonly missionSessionController: Ff15MissionSessionController;
 	private readonly missionSessionSubscription: Disposable;
 	private readonly missionWorkbenchController: Ff15MissionWorkbenchController;
@@ -52,8 +58,14 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 		controllers: Ff15MissionsViewProviderControllers = {}
 	) {
 		this.extensionUri = extensionUri;
+		this.devMode = controllers.devMode ?? false;
 		this.missionsStore = missionsStore;
 		this.missionSendController = controllers.missionSendController ?? {
+			onDidChangeMissionSnapshot: () => ({
+				dispose: () => {
+					return;
+				},
+			}),
 			submitPrompt: () => Promise.resolve(missionsStore.getSnapshot()),
 		};
 		this.missionSessionController = controllers.missionSessionController ?? {
@@ -74,6 +86,10 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 			};
 		this.missionSessionSubscription =
 			this.missionSessionController.onDidChangeMissionSnapshot((snapshot) => {
+				this.postSnapshot(snapshot);
+			});
+		this.missionSendSubscription =
+			this.missionSendController.onDidChangeMissionSnapshot((snapshot) => {
 				this.postSnapshot(snapshot);
 			});
 	}
@@ -125,12 +141,10 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 						return;
 					}
 
-					this.postSnapshot(
-						await this.missionSendController.submitPrompt({
-							missionId: message.missionId,
-							prompt: message.prompt,
-						})
-					);
+					await this.missionSendController.submitPrompt({
+						missionId: message.missionId,
+						prompt: message.prompt,
+					});
 					return;
 				}
 				case "ff15-missions.select": {
@@ -164,6 +178,7 @@ export class Ff15MissionsViewProvider implements WebviewViewProvider {
 	private postSnapshot(snapshot: Ff15MissionsStoreSnapshot) {
 		this.view?.webview.postMessage({
 			command: "ff15-missions.state",
+			devMode: this.devMode,
 			snapshot,
 		});
 	}

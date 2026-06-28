@@ -12,7 +12,8 @@
       "webview-ui/src/**/*.ts",
       "webview-ui/src/**/*.tsx",
       "!node_modules/**/*",
-      "!webview-ui/src/components/ui/**/*.tsx"
+      "!webview-ui/src/app/components/ui/**/*.tsx",
+      "!src/resources/workspace-template/**/*"
     ],
     "ignoreUnknown": false
   },
@@ -46,7 +47,8 @@
       "correctness": {
         "noUnusedFunctionParameters": "off",
         "noUnusedVariables": "off",
-        "noUnusedPrivateClassMembers": "off"
+        "noUnusedPrivateClassMembers": "off",
+        "useExhaustiveDependencies": "off"
       },
       "nursery": {
         "noEmptySource": "off"

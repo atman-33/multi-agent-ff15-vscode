@@ -1,3 +1,4 @@
+import { window } from "vscode";
 import type {
 	CancellationToken,
 	Disposable,
@@ -39,19 +40,20 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	}) => Ff15ProjectsContextSnapshot;
 	private latestSnapshot: Ff15ProjectsContextSnapshot = {
 		activeProjects: [],
-		configVersion: null,
 		error: "Unable to resolve workspace root for Projects view.",
 		openspec: {
-			mode: null,
 			path: null,
 			sourceProjectId: null,
 		},
 		profiles: [],
+		languageName: null,
 		sourceKind: null,
 		sourcePath: null,
+		bootstrapped: false,
 		status: "error",
 	};
 	private view?: WebviewView;
+	private bootstrapNotified = false;
 
 	constructor(
 		extensionUri: Uri,
@@ -127,16 +129,16 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		if (!workspaceRoot) {
 			return {
 				activeProjects: [],
-				configVersion: null,
 				error: "Unable to resolve workspace root for Projects view.",
 				openspec: {
-					mode: null,
 					path: null,
 					sourceProjectId: null,
 				},
 				profiles: [],
+				languageName: null,
 				sourceKind: null,
 				sourcePath: null,
+				bootstrapped: false,
 				status: "error",
 			};
 		}
@@ -146,6 +148,12 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 
 	private postSnapshot(snapshot: Ff15ProjectsContextSnapshot) {
 		this.latestSnapshot = snapshot;
+		if (snapshot.bootstrapped && !this.bootstrapNotified) {
+			this.bootstrapNotified = true;
+			window.showInformationMessage(
+				"Created default FF15 configuration in .ff15."
+			);
+		}
 		this.view?.webview.postMessage({
 			command: "ff15-projects.state",
 			devMode: this.devMode,

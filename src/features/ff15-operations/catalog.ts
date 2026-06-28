@@ -18,6 +18,8 @@ export const FF15_MANAGED_OPERATIONS_MANIFEST_FILE_NAME =
 
 export interface Ff15BundledOperationDefinition {
 	fileName: string;
+	/** Agent that owns the operation's initial step (mirrors the YAML `initial_step`). */
+	initialStepAgent: string;
 	name: string;
 	requiredAgents: string[];
 	ref: string;
@@ -36,25 +38,29 @@ interface ManagedOperationsManifest {
 
 export const FF15_BUNDLED_OPERATION_DEFINITIONS = [
 	{
-		fileName: "github-issue-openspec-dev.yaml",
-		name: "github-issue-openspec-dev",
+		fileName: "github-issue-to-openspec-dev.yaml",
+		initialStepAgent: "noctis",
+		name: "github-issue-to-openspec-dev",
 		requiredAgents: ["noctis", "gladiolus", "ignis", "prompto"],
-		ref: "builtin:github-issue-openspec-dev",
+		ref: "builtin:github-issue-to-openspec-dev",
 	},
 	{
 		fileName: "idea-to-openspec-dev.yaml",
+		initialStepAgent: "noctis",
 		name: "idea-to-openspec-dev",
 		requiredAgents: ["noctis", "gladiolus", "ignis", "prompto"],
 		ref: "builtin:idea-to-openspec-dev",
 	},
 	{
 		fileName: "idea-to-prd-and-issues.yaml",
+		initialStepAgent: "noctis",
 		name: "idea-to-prd-and-issues",
 		requiredAgents: ["noctis"],
 		ref: "builtin:idea-to-prd-and-issues",
 	},
 	{
 		fileName: "shiritori-smoke-test.yaml",
+		initialStepAgent: "noctis",
 		name: "shiritori-smoke-test",
 		requiredAgents: ["noctis", "ignis", "gladiolus", "prompto"],
 		ref: "builtin:shiritori-smoke-test",
@@ -182,6 +188,7 @@ const classifyBundledOperation = (
 
 	return {
 		fileName: operation.fileName,
+		initialStepAgent: operation.initialStepAgent,
 		name: operation.name,
 		ref: operation.ref,
 		supported,

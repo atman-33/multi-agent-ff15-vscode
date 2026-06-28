@@ -1,4 +1,7 @@
+import { DevBadge } from "@/components/dev-badge";
+import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
 
@@ -6,6 +9,7 @@ type LaunchState = "error" | "idle" | "launched" | "launching";
 
 const Route = () => {
 	const [launchState, setLaunchState] = useState<LaunchState>("idle");
+	const devMode = useDevMode("ff15-settings.devMode");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -24,25 +28,28 @@ const Route = () => {
 	}, []);
 
 	return (
-		<div className="flex flex-col gap-2 px-3 py-1.5">
-			<SidebarActionButton
-				disabled={launchState === "launching"}
-				onClick={() => {
-					setLaunchState("launching");
-					vscode.postMessage({ command: "ff15-launch.start" });
-				}}
-			>
-				{launchState === "launching" ? "Launching FF15..." : "Launch FF15"}
-			</SidebarActionButton>
+		<Ff15Screen background={false}>
+			<div className="flex flex-col gap-2 px-3 py-1.5">
+				{devMode ? <DevBadge /> : null}
+				<SidebarActionButton
+					disabled={launchState === "launching"}
+					onClick={() => {
+						setLaunchState("launching");
+						vscode.postMessage({ command: "ff15-launch.start" });
+					}}
+				>
+					{launchState === "launching" ? "Launching FF15..." : "Launch FF15"}
+				</SidebarActionButton>
 
-			<SidebarActionButton
-				onClick={() => {
-					vscode.postMessage({ command: "ff15-settings.open" });
-				}}
-			>
-				Open FF15 Settings
-			</SidebarActionButton>
-		</div>
+				<SidebarActionButton
+					onClick={() => {
+						vscode.postMessage({ command: "ff15-settings.open" });
+					}}
+				>
+					Open FF15 Settings
+				</SidebarActionButton>
+			</div>
+		</Ff15Screen>
 	);
 };
 

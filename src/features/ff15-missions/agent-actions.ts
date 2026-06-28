@@ -270,6 +270,73 @@ export const createFf15MissionAgentActionController = (
 			});
 		},
 
+		/**
+		 * Re-pushes each agent's currently configured (roster-displayed) model and
+		 * variant/effort to its live pane so OpenCode matches what the mission UI
+		 * shows. Best-effort: never throws, never sets lastError, and does not patch
+		 * providerState (the displayed selection is already the source of truth).
+		 */
+		async applyConfiguredAgentModels(input: { missionId: string }) {
+			const mission = getBulkActionMission(input.missionId);
+			if (!mission) {
+				return;
+			}
+
+			const adapter = resolveFf15MissionProviderAdapter(mission.providerId);
+			if (!adapter.capabilities.modelSelection) {
+				return;
+			}
+
+			const resolvedCatalog = await getResolvedCatalog(mission);
+			const missionModelCatalog = adapter.getModelCatalog(
+				resolvedCatalog.modelCatalog
+			);
+			if (missionModelCatalog.length === 0) {
+				return;
+			}
+
+			const providerAgentModels = adapter.getMissionAgentModels({
+				catalog: missionModelCatalog,
+				providerState: mission.providerState,
+			});
+			if (!providerAgentModels) {
+				return;
+			}
+
+			const agentPanes = await reconcileBulkAgentPanes(mission);
+
+			const deliveries = FF15_AGENT_IDS.flatMap((agentId) => {
+				const paneId = agentPanes[agentId];
+				if (!paneId) {
+					return [];
+				}
+
+				const selection = providerAgentModels[agentId];
+				const model = resolveFf15OpenCodeModelDefinition(
+					selection.modelId,
+					missionModelCatalog
+				);
+				if (!model) {
+					return [];
+				}
+
+				const effort =
+					model.efforts.length > 0
+						? (selection.effort ?? model.efforts[0].value)
+						: null;
+
+				return [
+					options.missionTransport.sendPaneInputSequence({
+						steps: adapter.buildModelInputSequence({ effort, model }),
+						paneId,
+						sessionName: mission.sessionName,
+					}),
+				];
+			});
+
+			await Promise.allSettled(deliveries);
+		},
+
 		async continueAgent(input: { agentId: Ff15AgentId; missionId: string }) {
 			const context = await resolveAgentPaneActionContext(
 				options.missionTransport,

@@ -10,6 +10,8 @@ import {
 	MISSING_WORKSPACE_MESSAGE,
 	MISSING_ZELLIJ_MESSAGE,
 } from "./controller";
+
+const toShellSafePath = (p: string): string => p.replace(/\\/g, "/");
 import {
 	createEmptyFf15MissionAgentPanes,
 	type Ff15MissionsStoreSnapshot,
@@ -160,9 +162,9 @@ const seedRichWorkspaceOperation = (workspaceRoot: string) => {
 		"utf8"
 	);
 	writeFileSync(
-		join(operationsDir, "github-issue-openspec-dev.yaml"),
+		join(operationsDir, "github-issue-to-openspec-dev.yaml"),
 		[
-			"name: github-issue-openspec-dev",
+			"name: github-issue-to-openspec-dev",
 			"description: >",
 			"  Drive spec planning for an incoming GitHub issue.",
 			"initial_step: spec-planning",
@@ -261,6 +263,51 @@ describe("createFf15MissionSendController", () => {
 		expect(ensureCommandAvailable).toHaveBeenCalledWith("zellij");
 		expect(opencodeClient.ensureDependenciesAvailable).toHaveBeenCalledTimes(1);
 		expect(githubClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+	});
+
+	it("notifies listeners when the mission snapshot changes after a prompt is submitted", async () => {
+		const { storage } = createStorage();
+		const workspaceRoot = "C:/repo";
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-03T00:15:00.000Z",
+		});
+		await missionsStore.createMission({ providerId: "opencode" });
+		await selectMissionOperation(missionsStore);
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable: vi.fn().mockResolvedValue(undefined),
+			getLaunchClient: () => createLaunchClient(),
+			getWorkspaceRoot: () => workspaceRoot,
+			missionTransport: {
+				ensureMissionSession: vi.fn().mockResolvedValue({
+					agentPanes: createAgentPanes("terminal_7"),
+					paneId: "terminal_7",
+				}),
+				sendPrompt: vi.fn().mockResolvedValue(undefined),
+			},
+			missionsStore,
+		});
+
+		const listener = vi.fn();
+		controller.onDidChangeMissionSnapshot(listener);
+
+		await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenCalledWith(
+			expect.objectContaining({
+				missions: expect.arrayContaining([
+					expect.objectContaining({
+						id: "mission-1",
+						title: "Investigate the regression",
+					}),
+				]),
+			})
+		);
 	});
 
 	it("launches or attaches the mission session and marks the mission active after the first prompt is delivered", async () => {
@@ -552,6 +599,45 @@ describe("createFf15MissionSendController", () => {
 		expect(missionTransport.sendPrompt).not.toHaveBeenCalled();
 	});
 
+	it("skips dependency checks when the mission terminal is already ready", async () => {
+		const { storage } = createStorage();
+		const missionsStore = createWorkspaceStateFf15MissionsStore(storage, {
+			createId: () => "mission-1",
+			getNow: () => "2026-06-03T00:15:00.000Z",
+		});
+		await missionsStore.createMission({ providerId: "opencode" });
+		await selectMissionOperation(missionsStore);
+
+		const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);
+		const launchClient = createLaunchClient();
+		const missionTransport = {
+			ensureMissionSession: vi.fn().mockResolvedValue({
+				agentPanes: createAgentPanes("terminal_7"),
+				paneId: "terminal_7",
+			}),
+			sendPrompt: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const controller = createFf15MissionSendController({
+			ensureCommandAvailable,
+			getLaunchClient: () => launchClient,
+			getWorkspaceRoot: () => "C:/repo",
+			isMissionTerminalReady: () => true,
+			missionTransport,
+			missionsStore,
+		});
+
+		await controller.submitPrompt({
+			missionId: "mission-1",
+			prompt: "Investigate the regression",
+		});
+
+		expect(ensureCommandAvailable).not.toHaveBeenCalled();
+		expect(launchClient.ensureDependenciesAvailable).not.toHaveBeenCalled();
+		expect(missionTransport.ensureMissionSession).toHaveBeenCalledTimes(1);
+		expect(missionTransport.sendPrompt).toHaveBeenCalledTimes(1);
+	});
+
 	it("activates operation workflow state and sends an operation-aware prompt for the first operation-backed send", async () => {
 		const workspaceRoot = mkdtempSync(join(tmpdir(), "ff15-missions-"));
 		const openspecRoot = join(workspaceRoot, "selected-project", "openspec");
@@ -570,7 +656,7 @@ describe("createFf15MissionSendController", () => {
 			await missionsStore.createMission();
 			await selectMissionOperation(missionsStore);
 			await missionsStore.updateMission("mission-1", {
-				operationRef: "builtin:github-issue-openspec-dev",
+				operationRef: "builtin:github-issue-to-openspec-dev",
 				workflow: {
 					activeTask: null,
 					currentStep: null,
@@ -601,6 +687,7 @@ describe("createFf15MissionSendController", () => {
 				resolveRuntimeContext: () => ({
 					activeProjects: ["frontend", "backend"],
 					executionRoot: workspaceRoot,
+					languageName: "en",
 					openspecRoot,
 				}),
 				getWorkspaceRoot: () => workspaceRoot,
@@ -622,7 +709,7 @@ describe("createFf15MissionSendController", () => {
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: expect.stringContaining(
-						"operation: github-issue-openspec-dev"
+						"operation: github-issue-to-openspec-dev"
 					),
 				})
 			);
@@ -633,29 +720,21 @@ describe("createFf15MissionSendController", () => {
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining("<job>"),
-				})
-			);
-			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
-				expect.objectContaining({
-					prompt: expect.stringContaining(
-						"Plan the current issue into a spec-ready brief."
-					),
-				})
-			);
-			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
-				expect.objectContaining({
 					prompt: expect.stringContaining("<step-completion-contract>"),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining(`execution_root: ${workspaceRoot}`),
+					prompt: expect.stringContaining(
+						`execution_root: ${toShellSafePath(workspaceRoot)}`
+					),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					prompt: expect.stringContaining(`openspec_root: ${openspecRoot}`),
+					prompt: expect.stringContaining(
+						`openspec_root: ${toShellSafePath(openspecRoot)}`
+					),
 				})
 			);
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
@@ -668,12 +747,14 @@ describe("createFf15MissionSendController", () => {
 			expect(missionTransport.sendPrompt).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: expect.stringContaining(
-						join(
-							workspaceRoot,
-							FF15_WORKSPACE_RUNTIME_DIR_NAME,
-							"bridge",
-							"submit-report.py"
-						)
+						`node &quot;${toShellSafePath(
+							join(
+								workspaceRoot,
+								FF15_WORKSPACE_RUNTIME_DIR_NAME,
+								"bridge",
+								"bridge.mjs"
+							)
+						)}&quot; submit-report`
 					),
 				})
 			);
@@ -691,7 +772,7 @@ describe("createFf15MissionSendController", () => {
 			);
 			expect(missionsStore.getMissionRecord("mission-1")).toEqual(
 				expect.objectContaining({
-					operationRef: "builtin:github-issue-openspec-dev",
+					operationRef: "builtin:github-issue-to-openspec-dev",
 					workflow: expect.objectContaining({
 						activeTask: "Spec Planning",
 						currentStep: "spec-planning",
@@ -726,7 +807,7 @@ describe("createFf15MissionSendController", () => {
 				await selectMissionOperation(
 					missionsStore,
 					"mission-1",
-					"builtin:github-issue-openspec-dev"
+					"builtin:github-issue-to-openspec-dev"
 				);
 
 				const ensureCommandAvailable = vi.fn().mockResolvedValue(undefined);

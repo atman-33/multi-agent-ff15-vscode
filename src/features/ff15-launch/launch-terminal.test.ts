@@ -169,3 +169,99 @@ describe("launchZellijTerminal", () => {
 		expect(createTerminalMock).not.toHaveBeenCalled();
 	});
 });
+
+describe("launchExternalProjectTerminal", () => {
+	const originalPlatform = process.platform;
+
+	const setPlatform = (platform: NodeJS.Platform) => {
+		Object.defineProperty(process, "platform", { value: platform });
+	};
+
+	afterEach(() => {
+		Object.defineProperty(process, "platform", { value: originalPlatform });
+	});
+
+	const queueExits = (codes: number[]) => {
+		let call = 0;
+		spawnMock.mockImplementation(() => {
+			const helper = new EventEmitter();
+			const code = codes[call] ?? 0;
+			call += 1;
+			queueMicrotask(() => helper.emit("exit", code));
+			return helper;
+		});
+	};
+
+	it("prefers Windows Terminal at the project directory on Windows", async () => {
+		setPlatform("win32");
+		queueExits([0]);
+
+		const { launchExternalProjectTerminal } = await loadModule();
+
+		await launchExternalProjectTerminal({
+			cwd: "C:/project root",
+			name: "alpha",
+		});
+
+		expect(spawnMock).toHaveBeenCalledTimes(1);
+		expect(spawnMock.mock.calls[0]?.[1]?.[3]).toContain(
+			"Start-Process -FilePath 'wt.exe' -ArgumentList @('-d', 'C:/project root')"
+		);
+		expect(createTerminalMock).not.toHaveBeenCalled();
+	});
+
+	it("falls back to a PowerShell window when Windows Terminal is unavailable", async () => {
+		setPlatform("win32");
+		queueExits([1, 0]);
+
+		const { launchExternalProjectTerminal } = await loadModule();
+
+		await launchExternalProjectTerminal({
+			cwd: "C:/project root",
+			name: "alpha",
+		});
+
+		expect(spawnMock).toHaveBeenCalledTimes(2);
+		expect(spawnMock.mock.calls[1]?.[1]?.[3]).toContain(
+			"Start-Process -FilePath 'powershell.exe' -WorkingDirectory 'C:/project root'"
+		);
+		expect(createTerminalMock).not.toHaveBeenCalled();
+	});
+
+	it("bridges to a host WSL window for Remote - WSL launches", async () => {
+		setPlatform("linux");
+		remoteNameState.current = "wsl";
+		process.env.WSL_DISTRO_NAME = "Ubuntu-24.04";
+		queueExits([0]);
+
+		const { launchExternalProjectTerminal } = await loadModule();
+
+		await launchExternalProjectTerminal({
+			cwd: "/home/atman/repo",
+			name: "alpha",
+		});
+
+		expect(spawnMock.mock.calls[0]?.[1]?.[3]).toContain(
+			"Start-Process -FilePath 'wsl.exe' -ArgumentList @('-d', 'Ubuntu-24.04', '--cd', '/home/atman/repo', 'bash', '-l')"
+		);
+		expect(createTerminalMock).not.toHaveBeenCalled();
+	});
+
+	it("uses the integrated terminal on local macOS/Linux", async () => {
+		setPlatform("darwin");
+		createTerminalMock.mockReturnValue({ show: vi.fn() });
+
+		const { launchExternalProjectTerminal } = await loadModule();
+
+		await launchExternalProjectTerminal({
+			cwd: "/Users/atman/repo",
+			name: "alpha",
+		});
+
+		expect(spawnMock).not.toHaveBeenCalled();
+		expect(createTerminalMock).toHaveBeenCalledWith({
+			cwd: "/Users/atman/repo",
+			name: "alpha",
+		});
+	});
+});

@@ -1,8 +1,9 @@
 import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
-import type { Disposable, Uri, Webview, WebviewPanel } from "vscode";
-import { ViewColumn, window } from "vscode";
+import type { Disposable, Webview, WebviewPanel } from "vscode";
+import { commands, Uri, ViewColumn, window } from "vscode";
 import { getWebviewContent } from "../../lib/webview/get-webview-content";
+import { launchExternalProjectTerminal } from "../ff15-launch/launch-terminal";
 import {
 	saveFf15ProjectsContext,
 	type Ff15ProjectsContextDraft,
@@ -19,7 +20,12 @@ export interface Ff15ProjectsWorkbenchController {
 
 interface CreateFf15ProjectsWorkbenchControllerOptions {
 	createWebviewPanel?: typeof window.createWebviewPanel;
+	devMode?: boolean;
 	extensionUri: Uri;
+	launchProjectTerminal?: (input: {
+		cwd: string;
+		name: string;
+	}) => Promise<void> | void;
 	renderWebviewContent?: (
 		webview: Webview,
 		extensionUri: Uri,
@@ -70,8 +76,8 @@ const createProjectsContextWatcher = (input: {
 
 const getFallbackDraft = (): Ff15ProjectsContextDraft => ({
 	activeProjects: [],
+	languageName: "en",
 	openspec: {
-		mode: "project",
 		projectId: null,
 	},
 });
@@ -86,12 +92,9 @@ const buildDraftFromSnapshot = (
 
 	return {
 		activeProjects: [...snapshot.activeProjects],
+		languageName: snapshot.languageName,
 		openspec: {
-			mode: snapshot.openspec.mode,
-			projectId:
-				snapshot.openspec.mode === "project"
-					? snapshot.openspec.sourceProjectId
-					: (previousDraft?.openspec.projectId ?? null),
+			projectId: snapshot.openspec.sourceProjectId,
 		},
 	};
 };
@@ -105,7 +108,7 @@ const areDraftsEqual = (
 	}
 
 	return (
-		left.openspec.mode === right.openspec.mode &&
+		left.languageName === right.languageName &&
 		left.openspec.projectId === right.openspec.projectId &&
 		left.activeProjects.length === right.activeProjects.length &&
 		left.activeProjects.every(
@@ -119,6 +122,8 @@ export const createFf15ProjectsWorkbenchController = (
 ): Ff15ProjectsWorkbenchController => {
 	const createWebviewPanel =
 		options.createWebviewPanel ?? window.createWebviewPanel;
+	const launchProjectTerminal =
+		options.launchProjectTerminal ?? launchExternalProjectTerminal;
 	const renderWebviewContent =
 		options.renderWebviewContent ?? getWebviewContent;
 	const saveProjectsContext =
@@ -204,6 +209,7 @@ export const createFf15ProjectsWorkbenchController = (
 		applyAcceptedSnapshot(snapshot, draftOverride);
 		await targetPanel.webview.postMessage({
 			command: "ff15-projects-workbench.state",
+			devMode: options.devMode ?? false,
 			snapshot,
 		});
 	};
@@ -291,6 +297,7 @@ export const createFf15ProjectsWorkbenchController = (
 		syncContextWatcher(snapshot, targetPanel);
 		await targetPanel.webview.postMessage({
 			command: "ff15-projects-workbench.state",
+			devMode: options.devMode ?? false,
 			snapshot,
 		});
 	};
@@ -362,6 +369,7 @@ export const createFf15ProjectsWorkbenchController = (
 		if (lastAcceptedSnapshot) {
 			await targetPanel.webview.postMessage({
 				command: "ff15-projects-workbench.state",
+				devMode: options.devMode ?? false,
 				snapshot: lastAcceptedSnapshot,
 			});
 		}
@@ -404,6 +412,64 @@ export const createFf15ProjectsWorkbenchController = (
 		}
 	};
 
+	const resolveLaunchPath = (message: {
+		path?: unknown;
+		projectId?: unknown;
+	}): string | null => {
+		const path = typeof message.path === "string" ? message.path : null;
+		if (!path) {
+			window.showErrorMessage(
+				"This project profile has no resolvable root folder to launch."
+			);
+			return null;
+		}
+
+		if (!existsSync(path)) {
+			window.showErrorMessage(`Project folder does not exist: ${path}`);
+			return null;
+		}
+
+		return path;
+	};
+
+	const openProjectTerminal = async (message: {
+		path?: unknown;
+		projectId?: unknown;
+	}) => {
+		const path = resolveLaunchPath(message);
+		if (!path) {
+			return;
+		}
+
+		const name =
+			typeof message.projectId === "string"
+				? message.projectId
+				: "FF15 Project";
+		try {
+			await launchProjectTerminal({ cwd: path, name });
+		} catch (error) {
+			window.showErrorMessage(
+				error instanceof Error
+					? error.message
+					: "Failed to open a terminal for the project."
+			);
+		}
+	};
+
+	const openProjectInVscode = async (message: {
+		path?: unknown;
+		projectId?: unknown;
+	}) => {
+		const path = resolveLaunchPath(message);
+		if (!path) {
+			return;
+		}
+
+		await commands.executeCommand("vscode.openFolder", Uri.file(path), {
+			forceNewWindow: true,
+		});
+	};
+
 	const bindPanelMessages = (targetPanel: WebviewPanel) => {
 		targetPanel.webview.onDidReceiveMessage(async (message) => {
 			switch (message.command) {
@@ -411,6 +477,12 @@ export const createFf15ProjectsWorkbenchController = (
 					if (activeWorkspaceRoot) {
 						await postState(activeWorkspaceRoot, targetPanel);
 					}
+					return;
+				case "ff15-projects-workbench.openTerminal":
+					await openProjectTerminal(message);
+					return;
+				case "ff15-projects-workbench.openInVscode":
+					await openProjectInVscode(message);
 					return;
 				case "ff15-projects-workbench.updateDraft":
 					latestDraft = message.draft as Ff15ProjectsContextDraft;

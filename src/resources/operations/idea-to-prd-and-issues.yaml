@@ -7,10 +7,18 @@ initial_step: clarify-requirements
 steps:
   - name: clarify-requirements
     agent: noctis
-    job:
-      file: ../facets/jobs/planner.md
     instruction:
-      file: ../facets/instructions/prd-clarify-requirements.md
+      inline: |
+        # Clarify Requirements
+
+        Read the grill-with-docs skill at `{{ facet_skill("grill-with-docs") }}` and follow it to pin down the request with User before any drafting. Do not implement.
+
+        1. Investigate the codebase first and answer from existing code, docs, tests, or patterns instead of asking when you can. Ask focused questions one at a time only for points that block drafting the PRD, and offer your recommended default for each unresolved choice.
+        2. Walk down each unresolved branch until the PRD scope, success criteria, constraints, issue structure, and requested language are stable.
+        3. Record the following in `requirements-brief.md`, written in the language requested by User or `{{ setting("language", "name") }}` if none is specified:
+           - `PRD Key`: a stable kebab-case key that uniquely identifies this request. It is embedded in downstream issue bodies and used to decide create versus update on reruns.
+           - Problem, success criteria, constraints, in-scope items, out-of-scope items, and the requested language.
+        4. Output the artifact once the next step can draft the PRD without more interviews. End as cancelled only if User wants to stop here.
     output_contracts:
       report:
         - name: requirements-brief.md
@@ -24,10 +32,17 @@ steps:
 
   - name: draft-prd
     agent: noctis
-    job:
-      file: ../facets/jobs/planner.md
     instruction:
-      file: ../facets/instructions/prd-draft.md
+      inline: |
+        # Draft PRD
+
+        Read the to-prd skill at `{{ facet_skill("to-prd") }}` and follow its PRD structure. In this step draft `prd-draft.md` only; do not publish or update the GitHub issue yet.
+
+        1. Read `{{ output("clarify-requirements", "latest", "requirements-brief.md") }}` and treat all settled points as the source of truth without asking again.
+        2. Explore the repository to pressure-test the solution and sketch the major modules, interfaces, and boundaries, preferring deep modules behind stable interfaces. Ask focused follow-ups only if a critical design branch is still unresolved.
+        3. Include both the GitHub issue title and a complete issue body in `prd-draft.md`, with these sections in order: `Problem Statement`, `Solution`, `User Stories`, `Implementation Decisions`, `Testing Decisions`, `Out of Scope`, `Further Notes`. Make `User Stories` extensive; keep decisions concrete but without file paths or code snippets.
+        4. At the start of `## GitHub Issue Body`, include `<!-- prd-key: <same PRD Key> -->` so downstream steps can re-identify the parent issue.
+        5. Write `prd-draft.md` and the issue title and body in the language requested by User, or `{{ setting("language", "name") }}` if none was requested.
     output_contracts:
       report:
         - name: prd-draft.md
@@ -41,19 +56,14 @@ steps:
 
   - name: publish-parent-issue
     agent: noctis
-    job:
-      file: ../facets/jobs/planner.md
     instruction:
       inline: |
-        # Publish Parent Issue — Instructions
+        # Publish Parent Issue
 
-        1. Read `{{ output("clarify-requirements", "latest", "requirements-brief.md") }}` and `{{ output("draft-prd", "latest", "prd-draft.md") }}`.
-        2. Treat the GitHub issue title and body included in `prd-draft.md` as the source of truth for the parent PRD issue.
-        3. Using `PRD Key`, search open issues for one that contains `<!-- prd-key: <PRD Key> -->`. If exactly one is found, update it; if none is found, create it. If multiple are found, treat the step as blocked for safety.
-        4. Whether creating or updating, leave the final GitHub issue title and body matching `prd-draft.md`.
-        5. Write the body of `parent-prd-issue.md` in the language specified by User, or in `{{ setting("language", "name") }}` if no explicit language was requested.
-        6. After completion, record `prd_key`, `issue_number`, `issue_url`, `issue_title`, and `issue_action` in `parent-prd-issue.md`.
-        7. If creating or updating the GitHub issue fails, stop and state the reason together with the recommended next action.
+        1. Read `{{ output("clarify-requirements", "latest", "requirements-brief.md") }}` and `{{ output("draft-prd", "latest", "prd-draft.md") }}`. Treat the issue title and body in `prd-draft.md` as the source of truth.
+        2. Using `PRD Key`, search open issues for one containing `<!-- prd-key: <PRD Key> -->`. If exactly one is found, update it; if none is found, create it; if multiple are found, treat the step as blocked.
+        3. Leave the final issue title and body matching `prd-draft.md`, then record `prd_key`, `issue_number`, `issue_url`, `issue_title`, and `issue_action` in `parent-prd-issue.md`, written in the requested language or `{{ setting("language", "name") }}`.
+        4. If creating or updating the issue fails, stop and state the reason and recommended next action.
     output_contracts:
       report:
         - name: parent-prd-issue.md
@@ -67,17 +77,14 @@ steps:
 
   - name: approve-parent-prd
     agent: noctis
-    job:
-      file: ../facets/jobs/planner.md
     instruction:
       inline: |
-        # Approve Parent PRD — Instructions
+        # Approve Parent PRD
 
         1. Read `{{ output("draft-prd", "latest", "prd-draft.md") }}` and `{{ output("publish-parent-issue", "latest", "parent-prd-issue.md") }}`.
-        2. Show User the key points of the PRD draft together with the parent issue URL and explicitly confirm that both the content and the issue result look correct.
+        2. Show User the key points of the PRD draft together with the parent issue URL, and confirm both the content and the issue result look correct.
         3. If User requests changes, summarize the requested revisions so the next `draft-prd` step can incorporate them.
-        4. Move to child issue expansion only when User explicitly approves.
-        5. If User wants to stop here, proceed to abort.
+        4. Move to child issue expansion only when User explicitly approves. If User wants to stop here, abort.
     rules:
       - condition: User approved the parent PRD issue
         next: expand-to-child-issues
@@ -88,10 +95,16 @@ steps:
 
   - name: expand-to-child-issues
     agent: noctis
-    job:
-      file: ../facets/jobs/planner.md
     instruction:
-      file: ../facets/instructions/prd-expand-child-issues.md
+      inline: |
+        # Expand To Child Issues
+
+        Read the to-issues skill at `{{ facet_skill("to-issues") }}` and follow it to break the approved PRD into tracer-bullet vertical slices.
+
+        1. Read `{{ output("draft-prd", "latest", "prd-draft.md") }}` and `{{ output("publish-parent-issue", "latest", "parent-prd-issue.md") }}`. Use `issue_number` as the parent issue; do not ask User for it again.
+        2. Break the PRD into thin vertical slices, each delivering a complete end-to-end path and small enough for one focused pass. Mark each as `HITL` or `AFK`, preferring `AFK`, and present the numbered breakdown (`Title`, `Type`, `Blocked by`, `User stories covered`) for User to approve. Iterate until approved.
+        3. After approval, create the child issues in dependency order with sections `Parent PRD`, `What to build`, `Acceptance criteria`, `Blocked by`, `User stories addressed`. Set the parent relationship and blocked-by relationships on GitHub, not just in body text.
+        4. Write the proposals, issue titles and bodies, and `child-issues.md` in the requested language or `{{ setting("language", "name") }}`, then summarize the created issues, dependencies, parent issue number, and relationships actually set.
     output_contracts:
       report:
         - name: child-issues.md
@@ -105,14 +118,12 @@ steps:
 
   - name: cancelled
     agent: noctis
-    job:
-      file: ../facets/jobs/planner.md
     instruction:
       inline: |
-        # Cancelled — Instructions
+        # Cancelled
 
         1. End this workflow because User chose to stop before PRD drafting.
-        2. If there is a cancellation reason, summarize it briefly and add a short note about any prerequisite needed to resume later.
+        2. If a cancellation reason was given, summarize it briefly and note any prerequisite needed to resume later.
     rules:
       - condition: Cancellation acknowledged
         next: ABORT

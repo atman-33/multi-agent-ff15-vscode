@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { parse } from "yaml";
-import { env } from "vscode";
 import {
 	createEmptyFf15MissionWorkflowState,
 	getWorkspaceMissionOutputFilePath,
@@ -13,6 +12,8 @@ import {
 	FF15_BUNDLED_OPERATION_DEFINITIONS,
 	FF15_WORKSPACE_OPERATIONS_DIR_NAME,
 } from "./catalog";
+
+const toShellSafePath = (p: string): string => p.replace(/\\/g, "/");
 
 interface ParsedOperationContentSource {
 	file?: unknown;
@@ -32,12 +33,9 @@ interface ParsedOperationOutputContract {
 interface ParsedOperationStep {
 	agent?: unknown;
 	instruction?: unknown;
-	job?: unknown;
 	name?: unknown;
 	output_contracts?: unknown;
-	policies?: unknown;
 	rules?: unknown;
-	skills?: unknown;
 }
 
 interface ParsedOperationDefinition {
@@ -47,15 +45,14 @@ interface ParsedOperationDefinition {
 }
 
 const STEP_TASK_TOKEN_PATTERN = /[-_]+/u;
-const LINE_SPLIT_PATTERN = /\r?\n/u;
-const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---/u;
-const FILE_EXTENSION_PATTERN = /\.[^.]+$/u;
 const XML_ESCAPE_PATTERN = /["&'<>]/gu;
 const OUTPUT_PLACEHOLDER_PATTERN =
 	/\{\{\s*output\("([^"]+)",\s*"([^"]+)",\s*"([^"]+)"\)\s*\}\}/gu;
 const SETTING_PLACEHOLDER_PATTERN =
 	/\{\{\s*setting\("([^"]+)",\s*"([^"]+)"\)\s*\}\}/gu;
 const ROOT_PLACEHOLDER_PATTERN = /\{\{\s*root\("([^"]+)"\)\s*\}\}/gu;
+const FACET_SKILL_PLACEHOLDER_PATTERN =
+	/\{\{\s*facet_skill\("([^"]+)"\)\s*\}\}/gu;
 const XML_ESCAPES: Record<string, string> = {
 	'"': "&quot;",
 	"&": "&amp;",
@@ -86,12 +83,9 @@ export interface Ff15MissionOperationOutputContract {
 export interface Ff15MissionOperationStep {
 	agent: string | null;
 	instruction: string | null;
-	job: string | null;
 	name: string;
 	outputContracts: Ff15MissionOperationOutputContract[];
-	policies: string[];
 	rules: Ff15MissionOperationRule[];
-	skills: string[];
 }
 
 export interface Ff15MissionOperationDefinition {
@@ -159,32 +153,6 @@ const readOperationAsset = (
 	return readFileSync(assetPath, "utf8").trim();
 };
 
-const resolveOperationAssetReference = (
-	operationPath: string,
-	source: unknown
-): string | null => {
-	const sourceRecord = getRecord(source as ParsedOperationContentSource);
-	const fileRef = getString(sourceRecord?.file);
-	if (!fileRef) {
-		return null;
-	}
-
-	const assetPath = resolveOperationAssetPath(operationPath, fileRef);
-	return existsSync(assetPath) ? assetPath : null;
-};
-
-const readPolicies = (operationPath: string, source: unknown): string[] =>
-	getArray(source)
-		.map((policySource) => readOperationAsset(operationPath, policySource))
-		.filter((policy): policy is string => policy != null && policy.length > 0);
-
-const readSkills = (operationPath: string, source: unknown): string[] =>
-	getArray(source)
-		.map((skillSource) =>
-			resolveOperationAssetReference(operationPath, skillSource)
-		)
-		.filter((skillPath): skillPath is string => skillPath != null);
-
 const readRules = (source: unknown): Ff15MissionOperationRule[] =>
 	getArray(source)
 		.map((ruleValue) => {
@@ -251,15 +219,12 @@ const readOperationStep = (
 	return {
 		agent: getString(stepRecord?.agent),
 		instruction: readOperationAsset(operationPath, stepRecord?.instruction),
-		job: readOperationAsset(operationPath, stepRecord?.job),
 		name,
 		outputContracts: readOutputContracts(
 			operationPath,
 			stepRecord?.output_contracts
 		),
-		policies: readPolicies(operationPath, stepRecord?.policies),
 		rules: readRules(stepRecord?.rules),
-		skills: readSkills(operationPath, stepRecord?.skills),
 	};
 };
 
@@ -324,7 +289,7 @@ const buildToolingContextLines = (input: {
 	const openspecRoot =
 		typeof input.openspecRoot === "string" &&
 		input.openspecRoot.trim().length > 0
-			? input.openspecRoot
+			? toShellSafePath(input.openspecRoot)
 			: null;
 
 	return [
@@ -335,50 +300,19 @@ const buildToolingContextLines = (input: {
 					...activeProjects.map((activeProject) => `  - ${activeProject}`),
 				]),
 		...(openspecRoot ? [`openspec_root: ${openspecRoot}`] : []),
-		`bridge_scripts_dir: ${join(
-			input.workspaceRoot,
-			FF15_WORKSPACE_RUNTIME_DIR_NAME,
-			"bridge"
+		`bridge_scripts_dir: ${toShellSafePath(
+			join(input.workspaceRoot, FF15_WORKSPACE_RUNTIME_DIR_NAME, "bridge")
 		)}`,
+		`bridge_command: node "${toShellSafePath(
+			join(
+				input.workspaceRoot,
+				FF15_WORKSPACE_RUNTIME_DIR_NAME,
+				"bridge",
+				"bridge.mjs"
+			)
+		)}" <command> [args]`,
+		"bridge_commands: get-mission <mission_id> | get-workflow <mission_id> | submit-task <mission_id> <task> [step] | submit-report <mission_id> <task_id> <next> <message>",
 	];
-};
-
-const readFrontmatterValue = (
-	source: string,
-	fieldName: string
-): string | null => {
-	const match = FRONTMATTER_PATTERN.exec(source);
-	if (!match) {
-		return null;
-	}
-
-	for (const line of match[1].split(LINE_SPLIT_PATTERN)) {
-		const separatorIndex = line.indexOf(":");
-		if (separatorIndex <= 0) {
-			continue;
-		}
-
-		const key = line.slice(0, separatorIndex).trim();
-		if (key !== fieldName) {
-			continue;
-		}
-
-		const value = line.slice(separatorIndex + 1).trim();
-		return value.replace(/^['"]|['"]$/gu, "");
-	}
-
-	return null;
-};
-
-const readSkillMetadata = (skillPath: string) => {
-	const source = readFileSync(skillPath, "utf8");
-	const fileName = basename(skillPath).replace(FILE_EXTENSION_PATTERN, "");
-
-	return {
-		description: readFrontmatterValue(source, "description"),
-		name: readFrontmatterValue(source, "name") ?? fileName,
-		path: skillPath,
-	};
 };
 
 const getOperationStepTaskPrefix = (stepName: string) => `task-${stepName}`;
@@ -433,27 +367,6 @@ export const getOperationStepTaskId = (input: {
 	return `${taskIdPrefix}-${highestRecordedAttempt + 1}`;
 };
 
-const buildReferenceFilesSection = (skillPaths: string[]): string | null => {
-	const referenceFiles = skillPaths
-		.map((skillPath) => {
-			const metadata = readSkillMetadata(skillPath);
-			return wrapXmlSection(
-				"reference-file",
-				[
-					buildTextSection("name", metadata.name),
-					buildTextSection("path", metadata.path),
-					buildTextSection("description", metadata.description),
-				]
-					.filter((section): section is string => section != null)
-					.join("\n\n")
-			);
-		})
-		.filter((section): section is string => section != null)
-		.join("\n\n");
-
-	return wrapXmlSection("reference-files", referenceFiles);
-};
-
 const buildOutputContractSections = (
 	activation: Ff15MissionOperationActivation,
 	outputContracts: Ff15MissionOperationOutputContract[],
@@ -461,16 +374,18 @@ const buildOutputContractSections = (
 ): string[] =>
 	outputContracts
 		.map((outputContract) => {
-			const outputPath = getWorkspaceMissionOutputFilePath({
-				fileName: outputContract.name,
-				missionId: context.missionId,
-				stepName: activation.stepName,
-				taskId: getOperationStepTaskId({
+			const outputPath = toShellSafePath(
+				getWorkspaceMissionOutputFilePath({
+					fileName: outputContract.name,
+					missionId: context.missionId,
 					stepName: activation.stepName,
-					workflow: context.workflow,
-				}),
-				workspaceRoot: context.workspaceRoot,
-			});
+					taskId: getOperationStepTaskId({
+						stepName: activation.stepName,
+						workflow: context.workflow,
+					}),
+					workspaceRoot: context.workspaceRoot,
+				})
+			);
 
 			return buildTextSection(
 				"output-contract",
@@ -553,7 +468,7 @@ const resolveOutputPlaceholderPath = (input: {
 		);
 	}
 
-	return outputPath;
+	return toShellSafePath(outputPath);
 };
 
 const resolveCompletedTaskId = (input: {
@@ -628,10 +543,31 @@ const resolveRootPlaceholderValue = (
 	workspaceRoot: string
 ): string => {
 	if (scope === "app_root" || scope === "execution_root") {
-		return workspaceRoot;
+		return toShellSafePath(workspaceRoot);
 	}
 
 	throw new Error(`Unsupported root placeholder scope "${scope}".`);
+};
+
+const resolveFacetSkillPlaceholderValue = (
+	skillName: string,
+	workspaceRoot: string
+): string => {
+	const skillPath = join(
+		workspaceRoot,
+		FF15_WORKSPACE_RUNTIME_DIR_NAME,
+		"facets",
+		"skills",
+		skillName,
+		"SKILL.md"
+	);
+	if (!existsSync(skillPath)) {
+		throw new Error(
+			`Could not resolve facet_skill placeholder for "${skillName}". Missing file at ${skillPath}.`
+		);
+	}
+
+	return toShellSafePath(skillPath);
 };
 
 const resolveInstructionPlaceholders = (input: {
@@ -661,10 +597,16 @@ const resolveInstructionPlaceholders = (input: {
 			resolveSettingPlaceholderValue(key, mode, input.context.settings)
 	);
 
-	const resolved = settingResolved.replace(
+	const rootResolved = settingResolved.replace(
 		ROOT_PLACEHOLDER_PATTERN,
 		(_match, scope: string) =>
 			resolveRootPlaceholderValue(scope, input.context.workspaceRoot)
+	);
+
+	const resolved = rootResolved.replace(
+		FACET_SKILL_PLACEHOLDER_PATTERN,
+		(_match, skillName: string) =>
+			resolveFacetSkillPlaceholderValue(skillName, input.context.workspaceRoot)
 	);
 
 	if (resolved.includes("{{ output(")) {
@@ -685,6 +627,12 @@ const resolveInstructionPlaceholders = (input: {
 		);
 	}
 
+	if (resolved.includes("{{ facet_skill(")) {
+		throw new Error(
+			'Invalid facet_skill placeholder syntax. Use {{ facet_skill("name") }}.'
+		);
+	}
+
 	return resolved;
 };
 
@@ -694,15 +642,6 @@ const buildOperationStepSections = (
 ): string[] =>
 	[
 		buildTextSection(
-			"job",
-			resolveInstructionPlaceholders({
-				content: activation.step?.job ?? null,
-				context,
-				definition: activation.definition,
-			})
-		),
-		buildReferenceFilesSection(activation.step?.skills ?? []),
-		buildTextSection(
 			"instruction",
 			resolveInstructionPlaceholders({
 				content: activation.step?.instruction ?? null,
@@ -710,18 +649,6 @@ const buildOperationStepSections = (
 				definition: activation.definition,
 			})
 		),
-		...(activation.step?.policies ?? [])
-			.map((policy) =>
-				buildTextSection(
-					"policy",
-					resolveInstructionPlaceholders({
-						content: policy,
-						context,
-						definition: activation.definition,
-					})
-				)
-			)
-			.filter((section): section is string => section != null),
 		...buildOutputContractSections(
 			activation,
 			activation.step?.outputContracts ?? [],
@@ -777,21 +704,20 @@ const buildStepCompletionContract = (input: {
 		return null;
 	}
 
-	const submitReportPath = join(
-		input.workspaceRoot,
-		FF15_WORKSPACE_RUNTIME_DIR_NAME,
-		"bridge",
-		"submit-report.py"
+	const bridgeScriptPath = toShellSafePath(
+		join(
+			input.workspaceRoot,
+			FF15_WORKSPACE_RUNTIME_DIR_NAME,
+			"bridge",
+			"bridge.mjs"
+		)
 	);
 	const taskId = getOperationStepTaskId({
 		stepName: input.activation.stepName,
 		workflow: input.workflow,
 	});
 
-	const isUnixLike = process.platform !== "win32" || env.remoteName === "wsl";
-	const commandLine = isUnixLike
-		? `${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`
-		: `python ${submitReportPath} ${input.missionId} ${taskId} <next> "<message>"`;
+	const commandLine = `node "${bridgeScriptPath}" submit-report ${input.missionId} ${taskId} <next> "<message>"`;
 
 	return buildTextSection(
 		"step-completion-contract",
@@ -907,7 +833,7 @@ export const buildOperationAwarePrompt = (input: {
 			"operation-prompt",
 			[
 				buildPlainSection("workspace-context", [
-					`execution_root: ${input.workspaceRoot}`,
+					`execution_root: ${toShellSafePath(input.workspaceRoot)}`,
 				]),
 				buildPlainSection(
 					"tooling-context",
@@ -963,7 +889,7 @@ export const buildWorkerOperationAwarePrompt = (input: {
 			"operation-prompt",
 			[
 				buildPlainSection("workspace-context", [
-					`execution_root: ${input.workspaceRoot}`,
+					`execution_root: ${toShellSafePath(input.workspaceRoot)}`,
 				]),
 				buildPlainSection(
 					"tooling-context",

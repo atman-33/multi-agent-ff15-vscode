@@ -9,19 +9,18 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { parse, parseDocument } from "yaml";
 
-export type Ff15ProjectsContextSourceKind = "agents" | "ff15";
-export type Ff15ProjectsContextOpenspecMode = "project" | "harness";
-export type Ff15ProjectsContextConfigVersion = number | string | null;
+export type Ff15ProjectsContextSourceKind = "ff15";
+export type Ff15ProjectsContextLanguageName = "en" | "ja";
 
 export interface Ff15ProjectsContextReadySnapshot {
 	status: "ready";
 	sourceKind: Ff15ProjectsContextSourceKind;
 	sourcePath: string;
-	configVersion: Ff15ProjectsContextConfigVersion;
+	bootstrapped: boolean;
 	activeProjects: string[];
 	profiles: Ff15ProjectsContextProfile[];
+	languageName: Ff15ProjectsContextLanguageName;
 	openspec: {
-		mode: Ff15ProjectsContextOpenspecMode;
 		path: string | null;
 		sourceProjectId: string | null;
 	};
@@ -30,6 +29,7 @@ export interface Ff15ProjectsContextReadySnapshot {
 
 export interface Ff15ProjectsContextProfile {
 	id: string;
+	path: string | null;
 	warnings: string[];
 }
 
@@ -37,11 +37,11 @@ export interface Ff15ProjectsContextErrorSnapshot {
 	status: "error";
 	sourceKind: Ff15ProjectsContextSourceKind | null;
 	sourcePath: string | null;
-	configVersion: null;
+	bootstrapped: boolean;
 	activeProjects: string[];
 	profiles: [];
+	languageName: null;
 	openspec: {
-		mode: null;
 		path: null;
 		sourceProjectId: null;
 	};
@@ -54,20 +54,19 @@ export type Ff15ProjectsContextSnapshot =
 
 export interface Ff15ProjectsContextDraft {
 	activeProjects: string[];
+	languageName: Ff15ProjectsContextLanguageName;
 	openspec: {
-		mode: Ff15ProjectsContextOpenspecMode;
 		projectId: string | null;
 	};
 }
 
 const BOOTSTRAP_CONFIG_CONTENT = [
-	"version: 3",
-	"",
 	"active_projects:",
 	"  - default",
 	"",
+	"language: en",
+	"",
 	"openspec:",
-	"  mode: project",
 	"  project_id: default",
 	"",
 ].join("\n");
@@ -103,12 +102,14 @@ export const resolveFf15ProjectsContext = (input: {
 			error: harnessSource.error,
 			sourceKind: harnessSource.sourceKind,
 			sourcePath: harnessSource.harnessRoot,
+			bootstrapped: harnessSource.bootstrapped,
 		});
 	}
 
 	return loadHarnessSnapshot({
 		harnessRoot: harnessSource.harnessRoot,
-		sourceKind: harnessSource.sourceKind as Ff15ProjectsContextSourceKind,
+		sourceKind: harnessSource.sourceKind,
+		bootstrapped: harnessSource.bootstrapped,
 	});
 };
 
@@ -121,11 +122,7 @@ export const saveFf15ProjectsContext = (input: {
 		throw harnessSource.error;
 	}
 
-	const configPath = join(
-		harnessSource.harnessRoot,
-		"config",
-		"agent-harness.yaml"
-	);
+	const configPath = join(harnessSource.harnessRoot, "config", "config.yaml");
 	const configDocument = parseDocument(readFileSync(configPath, "utf8"));
 	if (configDocument.errors.length > 0) {
 		throw (
@@ -136,51 +133,61 @@ export const saveFf15ProjectsContext = (input: {
 	const normalizedActiveProjects = normalizeActiveProjects(
 		input.draft.activeProjects
 	);
-	const openspecMode = getOpenspecMode(input.draft.openspec.mode);
-	const openspecProjectId =
-		openspecMode === "project"
-			? getExistingProfileId({
-					harnessRoot: harnessSource.harnessRoot,
-					projectId: input.draft.openspec.projectId,
-				})
-			: input.draft.openspec.projectId;
+	const languageName = getLanguageName(input.draft.languageName);
+	const openspecProjectId = resolveOpenspecProjectId({
+		harnessRoot: harnessSource.harnessRoot,
+		projectId: input.draft.openspec.projectId,
+		activeProjects: normalizedActiveProjects,
+	});
 
 	configDocument.set("active_projects", normalizedActiveProjects);
-	configDocument.setIn(["openspec", "mode"], openspecMode);
-	if (openspecProjectId && openspecProjectId.trim().length > 0) {
+	configDocument.set("language", languageName);
+	// Drop the legacy `openspec.mode` key; resolution is now driven by project_id.
+	configDocument.deleteIn(["openspec", "mode"]);
+	if (openspecProjectId) {
 		configDocument.setIn(["openspec", "project_id"], openspecProjectId);
+	} else {
+		configDocument.deleteIn(["openspec", "project_id"]);
 	}
 
 	writeFileSync(configPath, configDocument.toString(), "utf8");
 
 	return loadHarnessSnapshot({
 		harnessRoot: harnessSource.harnessRoot,
-		sourceKind: harnessSource.sourceKind as Ff15ProjectsContextSourceKind,
+		sourceKind: harnessSource.sourceKind,
+		bootstrapped: harnessSource.bootstrapped,
 	});
 };
 
 const loadHarnessSnapshot = (input: {
 	harnessRoot: string;
 	sourceKind: Ff15ProjectsContextSourceKind;
+	bootstrapped: boolean;
 }): Ff15ProjectsContextSnapshot => {
 	try {
 		const harnessOwnerRoot = getHarnessOwnerRoot(input.harnessRoot);
-		const configPath = join(input.harnessRoot, "config", "agent-harness.yaml");
+		const configPath = join(input.harnessRoot, "config", "config.yaml");
 		const configRecord = parseYamlRecord(configPath);
-		const configVersion = getConfigVersion(configRecord.version);
 		const activeProjects = getStringArray(configRecord.active_projects);
+		const languageName = getLanguageName(configRecord.language);
 		const profiles = loadProjectProfiles({
 			harnessOwnerRoot,
 			harnessRoot: input.harnessRoot,
 		});
-		const openspecRecord = getRecord(configRecord.openspec, "openspec");
-		const openspecMode = getOpenspecMode(openspecRecord.mode);
+		const openspecRecord = getOptionalRecord(configRecord.openspec, "openspec");
+		// Legacy compatibility: an explicit `mode: harness` forces the working
+		// directory even if a stale `project_id` lingers in the config.
+		const legacyHarnessMode = openspecRecord.mode === "harness";
+		const openspecProjectId = legacyHarnessMode
+			? null
+			: getOptionalNonEmptyString(openspecRecord.project_id);
+		const openspecProjectExists = openspecProjectId
+			? existsSync(
+					join(input.harnessRoot, "projects", `${openspecProjectId}.yaml`)
+				)
+			: false;
 
-		if (openspecMode === "project") {
-			const openspecProjectId = getNonEmptyString(
-				openspecRecord.project_id,
-				"openspec.project_id"
-			);
+		if (openspecProjectId && openspecProjectExists) {
 			const openspecProjectRecord = parseProjectProfileRecord({
 				harnessRoot: input.harnessRoot,
 				projectId: openspecProjectId,
@@ -191,11 +198,10 @@ const loadHarnessSnapshot = (input: {
 
 			return {
 				activeProjects,
-				configVersion,
 				error: null,
 				profiles,
+				languageName,
 				openspec: {
-					mode: "project",
 					path: openspecRoot
 						? resolve(harnessOwnerRoot, openspecRoot, "openspec")
 						: null,
@@ -203,22 +209,23 @@ const loadHarnessSnapshot = (input: {
 				},
 				sourceKind: input.sourceKind,
 				sourcePath: input.harnessRoot,
+				bootstrapped: input.bootstrapped,
 				status: "ready",
 			};
 		}
 
 		return {
 			activeProjects,
-			configVersion,
 			error: null,
 			profiles,
+			languageName,
 			openspec: {
-				mode: "harness",
 				path: join(harnessOwnerRoot, "openspec"),
 				sourceProjectId: null,
 			},
 			sourceKind: input.sourceKind,
 			sourcePath: input.harnessRoot,
+			bootstrapped: input.bootstrapped,
 			status: "ready",
 		};
 	} catch (error) {
@@ -226,21 +233,22 @@ const loadHarnessSnapshot = (input: {
 			error,
 			sourceKind: input.sourceKind,
 			sourcePath: input.harnessRoot,
+			bootstrapped: input.bootstrapped,
 		});
 	}
 };
 
-const bootstrapFf15Harness = (ff15HarnessRoot: string) => {
+const bootstrapFf15Harness = (ff15Root: string) => {
 	ensureTextFile(
-		join(ff15HarnessRoot, "config", "agent-harness.yaml"),
+		join(ff15Root, "config", "config.yaml"),
 		BOOTSTRAP_CONFIG_CONTENT
 	);
 	ensureTextFile(
-		join(ff15HarnessRoot, "projects", "default.yaml"),
+		join(ff15Root, "projects", "default.yaml"),
 		BOOTSTRAP_DEFAULT_PROJECT_CONTENT
 	);
 	ensureTextFile(
-		join(ff15HarnessRoot, "projects", "_template.yaml"),
+		join(ff15Root, "projects", "_template.yaml"),
 		BOOTSTRAP_TEMPLATE_PROJECT_CONTENT
 	);
 };
@@ -299,6 +307,10 @@ const loadProjectProfiles = (input: {
 			const id = getNonEmptyString(profileRecord.id, `id in ${profilePath}`);
 			return {
 				id,
+				path: getProfileRootPath({
+					harnessOwnerRoot: input.harnessOwnerRoot,
+					profileRecord,
+				}),
 				warnings: getProfileWarnings({
 					harnessOwnerRoot: input.harnessOwnerRoot,
 					profileRecord,
@@ -306,6 +318,39 @@ const loadProjectProfiles = (input: {
 			};
 		})
 		.sort((left, right) => left.id.localeCompare(right.id));
+};
+
+// Resolve the project's root folder for launch actions (terminal / VS Code).
+// Prefer openspec_root, falling back to the first repo root; null when neither
+// is configured. Existence is not checked here; launch handlers validate it.
+const getProfileRootPath = (input: {
+	harnessOwnerRoot: string;
+	profileRecord: Record<string, unknown>;
+}): string | null => {
+	const openspecRoot = getOptionalNonEmptyString(
+		input.profileRecord.openspec_root
+	);
+	if (openspecRoot) {
+		return resolve(input.harnessOwnerRoot, openspecRoot);
+	}
+
+	const repos = Array.isArray(input.profileRecord.repos)
+		? input.profileRecord.repos
+		: [];
+	for (const repo of repos) {
+		if (!repo || typeof repo !== "object" || Array.isArray(repo)) {
+			continue;
+		}
+
+		const repoRoot = getOptionalNonEmptyString(
+			(repo as Record<string, unknown>).root
+		);
+		if (repoRoot) {
+			return resolve(input.harnessOwnerRoot, repoRoot);
+		}
+	}
+
+	return null;
 };
 
 const getProfileWarnings = (input: {
@@ -375,28 +420,41 @@ const getProfileRepoWarnings = (input: {
 	return { hasDefaultChecks, repoWarnings: warnings };
 };
 
-const getExistingProfileId = (input: {
+const resolveOpenspecProjectId = (input: {
 	harnessRoot: string;
 	projectId: string | null;
-}) => {
-	const projectId = getNonEmptyString(input.projectId, "openspec.project_id");
-	parseProjectProfileRecord({
-		harnessRoot: input.harnessRoot,
-		projectId,
-	});
-	return projectId;
+	activeProjects: string[];
+}): string | null => {
+	const projectId = getOptionalNonEmptyString(input.projectId);
+	if (!(projectId && input.activeProjects.includes(projectId))) {
+		return null;
+	}
+
+	const profilePath = join(input.harnessRoot, "projects", `${projectId}.yaml`);
+	return existsSync(profilePath) ? projectId : null;
 };
 
-const getConfigVersion = (value: unknown): Ff15ProjectsContextConfigVersion => {
-	if (typeof value === "number" || typeof value === "string") {
+const getLanguageName = (value: unknown): Ff15ProjectsContextLanguageName => {
+	if (value === "en" || value === "ja") {
 		return value;
 	}
 
-	return null;
+	if (value === undefined) {
+		return "en";
+	}
+
+	throw new Error("Expected language to be en or ja.");
 };
 
-const getRecord = (value: unknown, key: string): Record<string, unknown> => {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
+const getOptionalRecord = (
+	value: unknown,
+	key: string
+): Record<string, unknown> => {
+	if (value === undefined || value === null) {
+		return {};
+	}
+
+	if (typeof value !== "object" || Array.isArray(value)) {
 		throw new Error(`Expected ${key} to be a mapping object.`);
 	}
 
@@ -436,69 +494,63 @@ const getOptionalNonEmptyString = (value: unknown) => {
 	return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
-const getOpenspecMode = (value: unknown): Ff15ProjectsContextOpenspecMode => {
-	if (value === "project" || value === "harness") {
-		return value;
-	}
-
-	throw new Error("Expected openspec.mode to be project or harness.");
-};
-
 const getHarnessOwnerRoot = (harnessRoot: string): string =>
-	dirname(dirname(harnessRoot));
+	dirname(harnessRoot);
 
 type Ff15ProjectsHarnessSource =
 	| {
 			harnessRoot: string;
 			sourceKind: Ff15ProjectsContextSourceKind;
+			bootstrapped: boolean;
 			status: "ready";
 	  }
 	| {
 			error: unknown;
 			harnessRoot: string;
 			sourceKind: Ff15ProjectsContextSourceKind;
+			bootstrapped: boolean;
 			status: "error";
 	  };
 
 const createReadyHarnessSource = (
 	harnessRoot: string,
-	sourceKind: Ff15ProjectsContextSourceKind
+	sourceKind: Ff15ProjectsContextSourceKind,
+	bootstrapped: boolean
 ): Ff15ProjectsHarnessSource => ({
 	harnessRoot,
 	sourceKind,
+	bootstrapped,
 	status: "ready",
 });
 
 const createErrorHarnessSource = (
 	error: unknown,
 	harnessRoot: string,
-	sourceKind: Ff15ProjectsContextSourceKind
+	sourceKind: Ff15ProjectsContextSourceKind,
+	bootstrapped: boolean
 ): Ff15ProjectsHarnessSource => ({
 	error,
 	harnessRoot,
 	sourceKind,
+	bootstrapped,
 	status: "error",
 });
 
 const resolveHarnessSource = (
 	workspaceRoot: string
 ): Ff15ProjectsHarnessSource => {
-	const agentsHarnessRoot = join(workspaceRoot, ".agents", "harness");
-	const ff15HarnessRoot = join(workspaceRoot, ".ff15", "harness");
+	const ff15Root = join(workspaceRoot, ".ff15");
+	const configPath = join(ff15Root, "config", "config.yaml");
 
-	if (isDirectory(agentsHarnessRoot)) {
-		return createReadyHarnessSource(agentsHarnessRoot, "agents");
-	}
-
-	if (isDirectory(ff15HarnessRoot)) {
-		return createReadyHarnessSource(ff15HarnessRoot, "ff15");
+	if (existsSync(configPath)) {
+		return createReadyHarnessSource(ff15Root, "ff15", false);
 	}
 
 	try {
-		bootstrapFf15Harness(ff15HarnessRoot);
-		return createReadyHarnessSource(ff15HarnessRoot, "ff15");
+		bootstrapFf15Harness(ff15Root);
+		return createReadyHarnessSource(ff15Root, "ff15", true);
 	} catch (error) {
-		return createErrorHarnessSource(error, ff15HarnessRoot, "ff15");
+		return createErrorHarnessSource(error, ff15Root, "ff15", true);
 	}
 };
 
@@ -514,6 +566,7 @@ const buildErrorSnapshot = (input: {
 	error: unknown;
 	sourceKind: Ff15ProjectsContextSourceKind | null;
 	sourcePath: string | null;
+	bootstrapped: boolean;
 }): Ff15ProjectsContextErrorSnapshot => {
 	const detail =
 		input.error instanceof Error
@@ -525,16 +578,16 @@ const buildErrorSnapshot = (input: {
 
 	return {
 		activeProjects: [],
-		configVersion: null,
 		error: message,
 		profiles: [],
+		languageName: null,
 		openspec: {
-			mode: null,
 			path: null,
 			sourceProjectId: null,
 		},
 		sourceKind: input.sourceKind,
 		sourcePath: input.sourcePath,
+		bootstrapped: input.bootstrapped,
 		status: "error",
 	};
 };

@@ -1,18 +1,18 @@
 export interface ProjectProfile {
 	id: string;
+	path: string | null;
 	warnings: string[];
 }
 
 export type ProjectsSnapshot =
 	| {
 			status: "ready";
-			sourceKind: "agents" | "ff15";
+			sourceKind: "ff15";
 			sourcePath: string;
-			configVersion: number | string | null;
 			activeProjects: string[];
 			profiles: ProjectProfile[];
+			languageName: "en" | "ja";
 			openspec: {
-				mode: "project" | "harness";
 				path: string | null;
 				sourceProjectId: string | null;
 			};
@@ -20,13 +20,12 @@ export type ProjectsSnapshot =
 	  }
 	| {
 			status: "error";
-			sourceKind: "agents" | "ff15" | null;
+			sourceKind: "ff15" | null;
 			sourcePath: string | null;
-			configVersion: null;
 			activeProjects: string[];
 			profiles: [];
+			languageName: null;
 			openspec: {
-				mode: null;
 				path: null;
 				sourceProjectId: null;
 			};
@@ -35,8 +34,8 @@ export type ProjectsSnapshot =
 
 export interface ProjectsDraft {
 	activeProjects: string[];
+	languageName: "en" | "ja";
 	openspec: {
-		mode: "project" | "harness";
 		projectId: string | null;
 	};
 }
@@ -45,14 +44,13 @@ export type SaveState = "conflict" | "error" | "idle" | "saved" | "saving";
 
 export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 	activeProjects: [],
-	configVersion: null,
 	error: "Waiting for Projects context...",
 	openspec: {
-		mode: null,
 		path: null,
 		sourceProjectId: null,
 	},
 	profiles: [],
+	languageName: null,
 	sourceKind: null,
 	sourcePath: null,
 	status: "error",
@@ -60,8 +58,8 @@ export const EMPTY_SNAPSHOT: ProjectsSnapshot = {
 
 export const EMPTY_DRAFT: ProjectsDraft = {
 	activeProjects: [],
+	languageName: "en",
 	openspec: {
-		mode: "project",
 		projectId: null,
 	},
 };
@@ -69,12 +67,8 @@ export const EMPTY_DRAFT: ProjectsDraft = {
 export const formatSourceKind = (
 	sourceKind: ProjectsSnapshot["sourceKind"]
 ) => {
-	if (sourceKind === "agents") {
-		return ".agents/harness";
-	}
-
 	if (sourceKind === "ff15") {
-		return ".ff15/harness";
+		return ".ff15";
 	}
 
 	return "-";
@@ -90,27 +84,26 @@ export const buildDraftFromSnapshot = (
 
 	return {
 		activeProjects: snapshot.activeProjects,
+		languageName: snapshot.languageName,
 		openspec: {
-			mode: snapshot.openspec.mode,
-			projectId:
-				snapshot.openspec.mode === "project"
-					? snapshot.openspec.sourceProjectId
-					: previousDraft.openspec.projectId,
+			projectId: snapshot.openspec.sourceProjectId,
 		},
 	};
 };
 
+// FF15 palette tones so the status line stays readable on the dark mission
+// backdrop regardless of the active VSCode theme.
 export const getSaveStateColor = (state: SaveState) => {
 	switch (state) {
 		case "error":
-			return "text-[color:var(--vscode-errorForeground,#f87171)]";
+			return "text-[color:#fca5a5]";
 		case "conflict":
-			return "text-[color:var(--vscode-warningForeground,#fbbf24)]";
+			return "text-[color:#fcd34d]";
 		case "saved":
-			return "text-[color:var(--vscode-testing-iconPassed,#4ade80)]";
+			return "text-[color:#6ee7b7]";
 		case "saving":
-			return "text-[color:var(--vscode-textLink-foreground,#60a5fa)]";
+			return "text-[color:var(--ff15-cyan)]";
 		default:
-			return "text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.75))]";
+			return "text-[color:var(--ff15-text-muted)]";
 	}
 };

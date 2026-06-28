@@ -6,16 +6,18 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 		const runtimeContext = resolveFf15ProjectRuntimeContext({
 			resolveProjectsContext: vi.fn().mockReturnValue({
 				activeProjects: ["project-a"],
-				configVersion: 3,
+				languageName: "en",
 				error: null,
 				openspec: {
-					mode: "project",
 					path: "C:/workspace/selected-project/openspec",
 					sourceProjectId: "project-a",
 				},
-				profiles: [{ id: "project-a", warnings: [] }],
-				sourceKind: "agents",
-				sourcePath: "C:/workspace/.agents/harness",
+				profiles: [
+					{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+				],
+				sourceKind: "ff15",
+				sourcePath: "C:/workspace/.ff15",
+				bootstrapped: false,
 				status: "ready",
 			}),
 			workspaceRoot: "C:/workspace",
@@ -25,6 +27,7 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 			expect.objectContaining({
 				activeProjects: ["project-a"],
 				executionRoot: "C:/workspace",
+				languageName: "en",
 				openspecRoot: "C:/workspace/selected-project/openspec",
 			})
 		);
@@ -34,16 +37,16 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 		const runtimeContext = resolveFf15ProjectRuntimeContext({
 			resolveProjectsContext: vi.fn().mockReturnValue({
 				activeProjects: ["default"],
-				configVersion: 3,
+				languageName: "en",
 				error: null,
 				openspec: {
-					mode: "harness",
 					path: "C:/workspace/openspec",
 					sourceProjectId: null,
 				},
-				profiles: [{ id: "default", warnings: [] }],
+				profiles: [{ id: "default", path: "C:/workspace", warnings: [] }],
 				sourceKind: "ff15",
-				sourcePath: "C:/workspace/.ff15/harness",
+				sourcePath: "C:/workspace/.ff15",
+				bootstrapped: false,
 				status: "ready",
 			}),
 			workspaceRoot: "C:/workspace",
@@ -53,6 +56,7 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 			expect.objectContaining({
 				activeProjects: ["default"],
 				executionRoot: "C:/workspace",
+				languageName: "en",
 				openspecRoot: "C:/workspace/openspec",
 			})
 		);
@@ -62,16 +66,16 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 		const runtimeContext = resolveFf15ProjectRuntimeContext({
 			resolveProjectsContext: vi.fn().mockReturnValue({
 				activeProjects: [],
-				configVersion: null,
+				languageName: null,
 				error: "Missing profile.",
 				openspec: {
-					mode: null,
 					path: null,
 					sourceProjectId: null,
 				},
 				profiles: [],
 				sourceKind: null,
 				sourcePath: null,
+				bootstrapped: false,
 				status: "error",
 			}),
 			workspaceRoot: "C:/workspace",
@@ -79,6 +83,7 @@ describe("resolveFf15ProjectRuntimeContext", () => {
 
 		expect(runtimeContext.executionRoot).toBe("C:/workspace");
 		expect(runtimeContext.activeProjects).toEqual([]);
+		expect(runtimeContext.languageName).toBe("en");
 		expect(runtimeContext.openspecRoot).toBeNull();
 		expect(runtimeContext.projectsSnapshot.status).toBe("error");
 	});

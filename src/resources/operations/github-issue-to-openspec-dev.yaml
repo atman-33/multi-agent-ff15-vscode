@@ -1,0 +1,130 @@
+name: github-issue-to-openspec-dev
+description: >
+  GitHub issue driven OpenSpec delivery operation.
+  Noctis turns a GitHub issue into OpenSpec change artifacts, Gladiolus implements with TDD, Ignis reviews and prepares manual verification, and Prompto archives the change and opens the PR.
+initial_step: spec
+
+steps:
+  - name: spec
+    agent: noctis
+    instruction:
+      inline: |
+        # Issue-to-Spec Planning
+
+        Read the openspec-propose skill at `{{ facet_skill("openspec-propose") }}` and follow it to create the OpenSpec change artifacts from the GitHub issue.
+
+        1. Read the GitHub issue URL provided by User and organize the issue goal, acceptance criteria, constraints, and related links. If parent issue information is given, inspect it and integrate its scope.
+        2. Inspect the codebase to ground the plan, and only ask User about points that block creating coherent OpenSpec artifacts.
+        3. Decide a stable kebab-case change name from the issue, create and switch to a `feature/<issue-number>-<change-name>` branch, then create the OpenSpec change under `openspec/changes/<change-name>/` inside `openspec_root` from `<tooling-context>`.
+        4. Write the generated artifacts in `{{ setting("language", "name") }}`.
+        5. Record `change_name` and `change_path` in `spec-plan.md`. Proceed without waiting unless User explicitly asked to review the artifacts before implementation.
+    output_contracts:
+      report:
+        - name: spec-plan.md
+          format:
+            file: ../facets/output-contracts/spec-plan.md
+    rules:
+      - condition: OpenSpec artifacts created
+        next: implement
+      - condition: Cannot proceed with planning safely
+        next: planning-blocked
+
+  - name: planning-blocked
+    agent: noctis
+    instruction:
+      inline: |
+        # Planning Blocked
+
+        1. Explain clearly why spec planning could not proceed safely.
+        2. Summarize the missing prerequisite, unresolved risk, or blocked dependency, and state the next action needed from User or the environment.
+    rules:
+      - condition: Blocker explained
+        next: ABORT
+
+  - name: implement
+    agent: gladiolus
+    instruction:
+      inline: |
+        # Implement With TDD
+
+        Read the openspec-apply-change skill at `{{ facet_skill("openspec-apply-change") }}` and the tdd skill at `{{ facet_skill("tdd") }}` and follow them to implement the change.
+
+        1. Read `{{ output("spec", "latest", "spec-plan.md") }}` and use `change_name` / `change_path` to resolve the OpenSpec change. If it cannot be resolved, report the step as blocked.
+        2. Implement the change artifacts with openspec-apply-change and a strict red-green-refactor loop in thin vertical slices.
+        3. Update each task entry as soon as its slice is actually complete. Stop and explain if you hit a design problem or artifact inconsistency.
+    rules:
+      - condition: Implementation complete and relevant tests pass
+        next: review
+      - condition: Cannot proceed with implementation
+        next: ABORT
+
+  - name: review
+    agent: ignis
+    instruction:
+      inline: |
+        # Review Against Change Artifacts
+
+        Read the openspec-verify-change skill at `{{ facet_skill("openspec-verify-change") }}` and follow it to verify the implementation. Do not modify code.
+
+        1. Read `{{ output("spec", "latest", "spec-plan.md") }}` and resolve `change_name` / `change_path` as the verification target. If it cannot be resolved, report the step as blocked.
+        2. Verify the implementation against the change artifacts, and run the project's tests and lint to confirm they pass.
+        3. Treat incorrect behavior, missing requirements, broken tests, or unsafe design mismatches as blocking. Record findings in `code-review.md` in `{{ setting("language", "name") }}` with concrete `file:line` evidence.
+    output_contracts:
+      report:
+        - name: code-review.md
+          format:
+            file: ../facets/output-contracts/code-review.md
+    rules:
+      - condition: Approved — no blocking issues
+        next: manual-verification
+      - condition: Blocking or critical issues found
+        next: implement
+      - condition: Review cannot proceed
+        next: ABORT
+
+  - name: manual-verification
+    agent: ignis
+    instruction:
+      inline: |
+        # Manual Verification
+
+        Create a manual verification guide that User can follow locally, then have User run it.
+
+        1. Create exactly one user-facing document at the output-contract path. Determine the scope from the implementation diff, `{{ output("spec", "latest", "spec-plan.md") }}`, and remaining findings in `{{ output("review", "latest", "code-review.md") }}`.
+        2. Cover at least a happy path, an edge or failure path, and one operational check. Give each item concrete steps, an observable expected result, and an evidence field. Write the body in `{{ setting("language", "name") }}`.
+        3. Ask User to run the checks and confirm the result. If User reports problems, summarize the symptoms and reproduction notes and return to the implement step. Otherwise hand off to archiving.
+    output_contracts:
+      report:
+        - name: manual-verification.md
+          format:
+            file: ../facets/output-contracts/manual-verification.md
+    rules:
+      - condition: User verified with no problems
+        next: archive
+      - condition: User reported problems during verification
+        next: implement
+      - condition: Cannot create the document
+        next: ABORT
+
+  - name: archive
+    agent: prompto
+    instruction:
+      inline: |
+        # Archive And Open PR
+
+        Read the openspec-archive-change skill at `{{ facet_skill("openspec-archive-change") }}` and follow it to finalize delivery.
+
+        1. Read `{{ output("spec", "latest", "spec-plan.md") }}`, `{{ output("review", "latest", "code-review.md") }}`, and `{{ output("manual-verification", "latest", "manual-verification.md") }}`. Resolve `change_name` / `change_path`; if neither resolves, report the step as blocked.
+        2. Sync approved delta specs into the main specs, then archive the change with openspec-archive-change. Stop as blocked if the archive target already exists or the result cannot be verified.
+        3. Commit the workflow changes on the feature branch, publish it, and create or update a PR to the default branch. Reference the originating issue in the PR body. The PR title and body must be written in `{{ setting("language", "name") }}`.
+        4. Record the manual verification verdict, archive path, spec sync status, commit SHA, PR title, and PR URL in `delivery-closeout.md`.
+    output_contracts:
+      report:
+        - name: delivery-closeout.md
+          format:
+            file: ../facets/output-contracts/delivery-closeout.md
+    rules:
+      - condition: Delivery finalized and closeout report recorded
+        next: COMPLETE
+      - condition: Could not finalize delivery safely
+        next: ABORT

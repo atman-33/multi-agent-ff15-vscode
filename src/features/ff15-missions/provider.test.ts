@@ -21,10 +21,17 @@ describe("Ff15MissionsViewProvider", () => {
 				missions: unknown[];
 		  }) => void)
 		| undefined;
+	let missionSendSnapshotListener:
+		| ((snapshot: {
+				activeMissionId: string | null;
+				missions: unknown[];
+		  }) => void)
+		| undefined;
 
 	beforeEach(() => {
 		messageHandler = undefined;
 		missionSnapshotListener = undefined;
+		missionSendSnapshotListener = undefined;
 	});
 
 	it("renders the FF15 missions page and posts the initial mission snapshot", () => {
@@ -58,6 +65,7 @@ describe("Ff15MissionsViewProvider", () => {
 		expect(missionsStore.getSnapshot).toHaveBeenCalledTimes(1);
 		expect(webviewView.webview.postMessage).toHaveBeenCalledWith({
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: {
 				activeMissionId: null,
 				missions: [],
@@ -171,14 +179,17 @@ describe("Ff15MissionsViewProvider", () => {
 		);
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: createdSnapshot,
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(3, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: selectedSnapshot,
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(4, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: deletedSnapshot,
 		});
 	});
@@ -238,6 +249,7 @@ describe("Ff15MissionsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(1, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: initialSnapshot,
 		});
 
@@ -245,6 +257,7 @@ describe("Ff15MissionsViewProvider", () => {
 
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: deletedSnapshot,
 		});
 	});
@@ -284,7 +297,14 @@ describe("Ff15MissionsViewProvider", () => {
 			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
 		};
 		const missionSendController = {
-			submitPrompt: vi.fn().mockResolvedValue(sentSnapshot),
+			onDidChangeMissionSnapshot: vi.fn((listener) => {
+				missionSendSnapshotListener = listener;
+				return { dispose: vi.fn() };
+			}),
+			submitPrompt: vi.fn().mockImplementation(() => {
+				missionSendSnapshotListener?.(sentSnapshot);
+				return Promise.resolve(sentSnapshot);
+			}),
 		};
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
@@ -320,6 +340,7 @@ describe("Ff15MissionsViewProvider", () => {
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: sentSnapshot,
 		});
 	});
@@ -360,7 +381,14 @@ describe("Ff15MissionsViewProvider", () => {
 			getSnapshot: vi.fn().mockReturnValue(emptySnapshot),
 		};
 		const missionSendController = {
-			submitPrompt: vi.fn().mockResolvedValue(retriedSnapshot),
+			onDidChangeMissionSnapshot: vi.fn((listener) => {
+				missionSendSnapshotListener = listener;
+				return { dispose: vi.fn() };
+			}),
+			submitPrompt: vi.fn().mockImplementation(() => {
+				missionSendSnapshotListener?.(retriedSnapshot);
+				return Promise.resolve(retriedSnapshot);
+			}),
 		};
 		const provider = new Ff15MissionsViewProvider(
 			{} as never,
@@ -396,6 +424,7 @@ describe("Ff15MissionsViewProvider", () => {
 		});
 		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
 			command: "ff15-missions.state",
+			devMode: false,
 			snapshot: retriedSnapshot,
 		});
 	});

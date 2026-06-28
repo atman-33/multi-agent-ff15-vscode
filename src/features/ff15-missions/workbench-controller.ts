@@ -38,6 +38,8 @@ export interface Ff15MissionWorkbenchController {
 
 export interface Ff15MissionWorkbenchCatalogEntry {
 	fileName: string;
+	/** Agent that owns the operation's initial step; drives the composer's Send label. */
+	initialStepAgent: string;
 	name: string;
 	ref: string;
 	supported: boolean;
@@ -69,6 +71,9 @@ interface Ff15MissionAgentActionController {
 	applyBulkModelSelection?: (input: {
 		missionId: string;
 		selection: Ff15MissionAgentModelSelection;
+	}) => Promise<unknown>;
+	applyConfiguredAgentModels?: (input: {
+		missionId: string;
 	}) => Promise<unknown>;
 	changeAgentModel: (input: {
 		agentId: Ff15AgentId;
@@ -141,7 +146,10 @@ interface WorkbenchState {
 
 interface CreateFf15MissionWorkbenchControllerOptions {
 	createWebviewPanel?: typeof window.createWebviewPanel;
+	devMode?: boolean;
 	extensionUri: Uri;
+	getApplyModelsBeforeSend?: () => boolean;
+	getPromptInputDelayMs?: () => number;
 	loadOperationsCatalog: (
 		workspaceRoot: string | null
 	) => Promise<Ff15MissionWorkbenchCatalog> | Ff15MissionWorkbenchCatalog;
@@ -301,6 +309,9 @@ export const createFf15MissionWorkbenchController = (
 		options.createWebviewPanel ?? window.createWebviewPanel;
 	const renderWebviewContent =
 		options.renderWebviewContent ?? getWebviewContent;
+	const getApplyModelsBeforeSend =
+		options.getApplyModelsBeforeSend ?? (() => true);
+	const getPromptInputDelayMs = options.getPromptInputDelayMs ?? (() => 500);
 	const openCodeModelCatalog = [
 		...(options.modelCatalog ?? FF15_OPENCODE_MODEL_CATALOG),
 	];
@@ -374,6 +385,7 @@ export const createFf15MissionWorkbenchController = (
 		panel.title = state.mission?.title ?? "Mission Workbench";
 		await panel.webview.postMessage({
 			command: "ff15-mission-workbench.state",
+			devMode: options.devMode ?? false,
 			state,
 		});
 	};
@@ -411,6 +423,45 @@ export const createFf15MissionWorkbenchController = (
 		await postState(missionId, panel);
 	};
 
+	const wait = (durationMs: number) =>
+		new Promise<void>((resolve) => {
+			setTimeout(resolve, durationMs);
+		});
+
+	/**
+	 * Before delivering a prompt, re-push each agent's roster-configured model and
+	 * variant/effort to its live pane so OpenCode reflects what the mission UI
+	 * shows, then wait so the model commands settle before the prompt arrives.
+	 * Best-effort: skipped when disabled, when the terminal is not ready, or when
+	 * the controller is unavailable; failures never block the send.
+	 */
+	const applyConfiguredAgentModelsBeforeSend = async (missionId: string) => {
+		if (!getApplyModelsBeforeSend()) {
+			return;
+		}
+
+		const applyConfiguredAgentModels =
+			options.missionAgentActionController?.applyConfiguredAgentModels;
+		if (!applyConfiguredAgentModels) {
+			return;
+		}
+
+		const terminalReady =
+			options.missionSessionController.isMissionTerminalReady?.(missionId) ??
+			false;
+		if (!terminalReady) {
+			return;
+		}
+
+		try {
+			await applyConfiguredAgentModels({ missionId });
+		} catch {
+			// Best-effort: never block the send when model application fails.
+		}
+
+		await wait(getPromptInputDelayMs());
+	};
+
 	const handlePromptMessage = async (
 		missionId: string,
 		panel: WebviewPanel,
@@ -424,6 +475,8 @@ export const createFf15MissionWorkbenchController = (
 		if (prompt.length === 0) {
 			return;
 		}
+
+		await applyConfiguredAgentModelsBeforeSend(missionId);
 
 		await options.missionSendController.submitPrompt({
 			missionId,

@@ -19,6 +19,7 @@ export class Ff15SettingsViewProvider implements WebviewViewProvider {
 	static readonly viewId = FF15_SETTINGS_VIEW_ID;
 
 	private readonly extensionUri: Uri;
+	private readonly devMode: boolean;
 	private readonly launchController: ReturnType<
 		typeof createVsCodeFf15LaunchController
 	>;
@@ -27,6 +28,7 @@ export class Ff15SettingsViewProvider implements WebviewViewProvider {
 
 	constructor(
 		extensionUri: Uri,
+		devMode = false,
 		openSettingsCommand: () => Promise<unknown> = () =>
 			commands.executeCommand(FF15_OPEN_SETTINGS_COMMAND_ID),
 		launchController: ReturnType<
@@ -34,6 +36,7 @@ export class Ff15SettingsViewProvider implements WebviewViewProvider {
 		> = createVsCodeFf15LaunchController(extensionUri)
 	) {
 		this.extensionUri = extensionUri;
+		this.devMode = devMode;
 		this.launchController = launchController;
 		this.openSettingsCommand = openSettingsCommand;
 	}
@@ -55,6 +58,8 @@ export class Ff15SettingsViewProvider implements WebviewViewProvider {
 			this.extensionUri,
 			FF15_SETTINGS_PAGE_ID
 		);
+
+		this.postDevMode();
 
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			switch (message.command) {
@@ -91,6 +96,13 @@ export class Ff15SettingsViewProvider implements WebviewViewProvider {
 		this.view?.webview.postMessage({
 			command: "ff15-launch.status",
 			...payload,
+		});
+	}
+
+	private postDevMode() {
+		this.view?.webview.postMessage({
+			command: "ff15-settings.devMode",
+			devMode: this.devMode,
 		});
 	}
 }

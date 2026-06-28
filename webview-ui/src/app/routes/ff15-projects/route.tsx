@@ -1,5 +1,7 @@
 import { DevBadge } from "@/components/dev-badge";
+import { Ff15Screen } from "@/components/ff15/ff15-screen";
 import { SidebarActionButton } from "@/components/sidebar-action-button";
+import { useDevMode } from "@/hooks/use-dev-mode";
 import { vscode } from "@/lib/vscode";
 import { useEffect, useState } from "react";
 import {
@@ -10,7 +12,7 @@ import {
 
 const Route = () => {
 	const [snapshot, setSnapshot] = useState<ProjectsSnapshot>(EMPTY_SNAPSHOT);
-	const [devMode, setDevMode] = useState(false);
+	const devMode = useDevMode("ff15-projects.state");
 
 	useEffect(() => {
 		const listener = (event: MessageEvent) => {
@@ -20,7 +22,6 @@ const Route = () => {
 			}
 
 			setSnapshot(payload.snapshot ?? EMPTY_SNAPSHOT);
-			setDevMode(payload.devMode ?? false);
 		};
 
 		window.addEventListener("message", listener);
@@ -33,9 +34,6 @@ const Route = () => {
 
 	const availableProfiles =
 		snapshot.status === "ready" ? snapshot.profiles : [];
-	const warningProfiles = availableProfiles.filter(
-		(profile) => profile.warnings.length > 0
-	);
 	const sourceSummary = formatSourceKind(snapshot.sourceKind);
 	let activeProjectsSummary = "-";
 	if (snapshot.activeProjects.length > 0) {
@@ -45,70 +43,54 @@ const Route = () => {
 	}
 
 	let openSpecSummary = "-";
-	if (snapshot.openspec.mode === "project") {
-		openSpecSummary = `project: ${snapshot.openspec.sourceProjectId ?? "-"}`;
-	} else if (snapshot.openspec.mode === "harness") {
-		openSpecSummary = "harness";
+	if (snapshot.status === "ready") {
+		openSpecSummary = snapshot.openspec.sourceProjectId
+			? `project: ${snapshot.openspec.sourceProjectId}`
+			: "workspace";
 	}
 
 	return (
-		<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-2">
-			{devMode ? <DevBadge /> : null}
-			<SidebarActionButton
-				onClick={() => {
-					vscode.postMessage({ command: "ff15-projects.open-editor" });
-				}}
-			>
-				Open Projects Editor
-			</SidebarActionButton>
+		<Ff15Screen background={false}>
+			<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-2">
+				{devMode ? <DevBadge /> : null}
+				<SidebarActionButton
+					onClick={() => {
+						vscode.postMessage({ command: "ff15-projects.open-editor" });
+					}}
+				>
+					Open Projects Editor
+				</SidebarActionButton>
 
-			<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-3 px-1 text-[color:var(--vscode-foreground)] text-sm">
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-					Source
-				</div>
-				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
-					{sourceSummary}
+				<div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-1 text-[color:var(--ff15-text)] text-sm">
+					<div className="text-[color:var(--ff15-text-muted)] text-xs">
+						Source
+					</div>
+					<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+						{sourceSummary}
+					</div>
+
+					<div className="text-[color:var(--ff15-text-muted)] text-xs">
+						Active
+					</div>
+					<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+						{activeProjectsSummary}
+					</div>
+
+					<div className="text-[color:var(--ff15-text-muted)] text-xs">
+						OpenSpec
+					</div>
+					<div className="min-w-0 break-all font-medium text-[13px] leading-5">
+						{openSpecSummary}
+					</div>
 				</div>
 
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-					Active
-				</div>
-				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
-					{activeProjectsSummary}
-				</div>
-
-				<div className="text-[10px] text-[color:var(--vscode-descriptionForeground,rgba(255,255,255,0.65))] uppercase tracking-[0.14em]">
-					OpenSpec
-				</div>
-				<div className="min-w-0 break-all font-medium text-[13px] leading-5">
-					{openSpecSummary}
-				</div>
-			</div>
-
-			<div className="grid gap-2">
-				{warningProfiles.length > 0 ? (
-					<div className="rounded-lg border border-[color:var(--vscode-warningForeground,#fbbf24)]/35 bg-[color:var(--vscode-warningForeground,#fbbf24)]/10 px-3 py-2 text-sm">
-						<div className="text-[10px] text-[color:var(--vscode-warningForeground,#fbbf24)] uppercase tracking-[0.14em]">
-							Warnings
-						</div>
-						<div className="mt-2 grid gap-2 text-[11px] text-[color:var(--vscode-warningForeground,#fbbf24)]">
-							{warningProfiles.map((profile) => (
-								<div key={profile.id}>
-									<span className="font-semibold">{profile.id}:</span>{" "}
-									{profile.warnings.join(" ")}
-								</div>
-							))}
-						</div>
+				{snapshot.status === "error" ? (
+					<div className="rounded-md border border-[color:rgba(248,113,113,0.4)] bg-[color:rgba(248,113,113,0.12)] px-3 py-2 text-[color:#fca5a5] text-sm leading-6">
+						{snapshot.error}
 					</div>
 				) : null}
 			</div>
-
-			{snapshot.status === "error" ? (
-				<div className="rounded-lg border border-[color:var(--vscode-errorForeground,#f87171)]/35 bg-[color:var(--vscode-errorForeground,#f87171)]/12 px-3 py-2 text-[color:var(--vscode-errorForeground,#f87171)] text-sm leading-6">
-					{snapshot.error}
-				</div>
-			) : null}
-		</div>
+		</Ff15Screen>
 	);
 };
 

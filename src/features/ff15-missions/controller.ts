@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Disposable } from "vscode";
 import type {
 	Ff15LaunchClient,
 	Ff15PaneLaunchPlanEntry,
@@ -61,6 +62,7 @@ interface CreateFf15MissionSendControllerDependencies {
 	resolveRuntimeContext?: (input: { workspaceRoot: string }) => {
 		activeProjects: string[];
 		executionRoot: string;
+		languageName: "en" | "ja";
 		openspecRoot: string | null;
 	};
 }
@@ -84,6 +86,7 @@ const shouldReuseOperationWorkflowStep = (
 
 const activateOperationWorkflow = (input: {
 	activeProjects?: string[];
+	languageName?: "en" | "ja";
 	missionId: string;
 	operationRef: string;
 	openspecRoot?: string | null;
@@ -124,6 +127,7 @@ const activateOperationWorkflow = (input: {
 			missionId: input.missionId,
 			openspecRoot: input.openspecRoot,
 			prompt: input.prompt,
+			settings: { languageName: input.languageName },
 			workflow: input.workflow,
 			workspaceRoot: input.workspaceRoot,
 		}),
@@ -171,6 +175,7 @@ const prepareMissionSend = async (
 	}) ?? {
 		activeProjects: [],
 		executionRoot: workspaceRoot,
+		languageName: "en" as const,
 		openspecRoot: null,
 	};
 
@@ -184,16 +189,24 @@ const prepareMissionSend = async (
 		workspaceRoot: runtimeContext.executionRoot,
 	});
 
-	try {
-		await dependencies.ensureCommandAvailable("zellij");
-	} catch {
-		return {
-			result: await dependencies.missionsStore.updateMission(input.missionId, {
-				lastError: MISSING_ZELLIJ_MESSAGE,
-				status: "error",
-				workspaceRoot: runtimeContext.executionRoot,
-			}),
-		};
+	const terminalReady =
+		dependencies.isMissionTerminalReady?.(input.missionId) ?? false;
+
+	if (!terminalReady) {
+		try {
+			await dependencies.ensureCommandAvailable("zellij");
+		} catch {
+			return {
+				result: await dependencies.missionsStore.updateMission(
+					input.missionId,
+					{
+						lastError: MISSING_ZELLIJ_MESSAGE,
+						status: "error",
+						workspaceRoot: runtimeContext.executionRoot,
+					}
+				),
+			};
+		}
 	}
 
 	if (!currentMission) {
@@ -204,16 +217,21 @@ const prepareMissionSend = async (
 
 	const launchClient = dependencies.getLaunchClient(currentMission);
 
-	try {
-		await launchClient.ensureDependenciesAvailable();
-	} catch {
-		return {
-			result: await dependencies.missionsStore.updateMission(input.missionId, {
-				lastError: launchClient.getMissingDependencyMessage(),
-				status: "error",
-				workspaceRoot: runtimeContext.executionRoot,
-			}),
-		};
+	if (!terminalReady) {
+		try {
+			await launchClient.ensureDependenciesAvailable();
+		} catch {
+			return {
+				result: await dependencies.missionsStore.updateMission(
+					input.missionId,
+					{
+						lastError: launchClient.getMissingDependencyMessage(),
+						status: "error",
+						workspaceRoot: runtimeContext.executionRoot,
+					}
+				),
+			};
+		}
 	}
 
 	const paneLaunchPlanEntry = getNoctisPaneLaunchPlanEntry(launchClient);
@@ -294,6 +312,7 @@ const deliverMissionPrompt = async (input: {
 	runtimeContext: {
 		activeProjects: string[];
 		executionRoot: string;
+		languageName: "en" | "ja";
 		openspecRoot: string | null;
 	};
 	sessionName: string;
@@ -308,6 +327,7 @@ const deliverMissionPrompt = async (input: {
 	const operationWorkflowActivation = input.currentMission?.operationRef
 		? activateOperationWorkflow({
 				activeProjects: input.runtimeContext.activeProjects,
+				languageName: input.runtimeContext.languageName,
 				missionId: input.missionId,
 				openspecRoot: input.runtimeContext.openspecRoot,
 				operationRef: input.currentMission.operationRef,
@@ -402,68 +422,99 @@ export const deriveMissionSessionName = (
 
 export const createFf15MissionSendController = (
 	dependencies: CreateFf15MissionSendControllerDependencies
-) => ({
-	async submitPrompt(input: { missionId: string; prompt: string }) {
-		const prompt = input.prompt.trim();
-		if (prompt.length === 0) {
-			return dependencies.missionsStore.getSnapshot();
+) => {
+	const missionSnapshotListeners = new Set<
+		(snapshot: ReturnType<Ff15MissionsStore["getSnapshot"]>) => void
+	>();
+
+	const notifyMissionSnapshotChanged = (
+		snapshot: ReturnType<Ff15MissionsStore["getSnapshot"]>
+	) => {
+		for (const listener of missionSnapshotListeners) {
+			listener(snapshot);
 		}
+	};
 
-		const currentMission = dependencies.missionsStore.getMissionRecord(
-			input.missionId
-		);
-		const operationSelectionError = await requireOperationSelection({
-			mission: currentMission,
-			missionId: input.missionId,
-			missionsStore: dependencies.missionsStore,
-		});
-		if (operationSelectionError) {
-			return operationSelectionError;
-		}
+	return {
+		onDidChangeMissionSnapshot: (
+			listener: (snapshot: ReturnType<Ff15MissionsStore["getSnapshot"]>) => void
+		): Disposable => {
+			missionSnapshotListeners.add(listener);
+			return {
+				dispose: () => {
+					missionSnapshotListeners.delete(listener);
+				},
+			};
+		},
+		async submitPrompt(input: { missionId: string; prompt: string }) {
+			const prompt = input.prompt.trim();
+			if (prompt.length === 0) {
+				const snapshot = dependencies.missionsStore.getSnapshot();
+				notifyMissionSnapshotChanged(snapshot);
+				return snapshot;
+			}
 
-		const terminalReadyError = await requireMissionTerminalReady({
-			isMissionTerminalReady: dependencies.isMissionTerminalReady,
-			missionId: input.missionId,
-			missionsStore: dependencies.missionsStore,
-		});
-		if (terminalReadyError) {
-			return terminalReadyError;
-		}
-
-		const currentWorkflow =
-			currentMission?.workflow ?? createEmptyFf15MissionWorkflowState();
-
-		const preparedSend = await prepareMissionSend(
-			dependencies,
-			{
+			const currentMission = dependencies.missionsStore.getMissionRecord(
+				input.missionId
+			);
+			const operationSelectionError = await requireOperationSelection({
+				mission: currentMission,
 				missionId: input.missionId,
-				workspaceRoot: dependencies.getWorkspaceRoot(),
-			},
-			currentMission
-		);
-		if ("result" in preparedSend) {
-			return preparedSend.result;
-		}
+				missionsStore: dependencies.missionsStore,
+			});
+			if (operationSelectionError) {
+				notifyMissionSnapshotChanged(operationSelectionError);
+				return operationSelectionError;
+			}
 
-		const {
-			launchClient,
-			paneLaunchPlanEntry,
-			runtimeContext,
-			sessionName,
-			workspaceRoot,
-		} = preparedSend;
+			const terminalReadyError = await requireMissionTerminalReady({
+				isMissionTerminalReady: dependencies.isMissionTerminalReady,
+				missionId: input.missionId,
+				missionsStore: dependencies.missionsStore,
+			});
+			if (terminalReadyError) {
+				notifyMissionSnapshotChanged(terminalReadyError);
+				return terminalReadyError;
+			}
 
-		return deliverMissionPrompt({
-			currentMission,
-			currentWorkflow,
-			dependencies,
-			launchClient,
-			missionId: input.missionId,
-			paneLaunchPlanEntry,
-			prompt,
-			runtimeContext,
-			sessionName,
-			workspaceRoot,
-		});
-	},
-});
+			const currentWorkflow =
+				currentMission?.workflow ?? createEmptyFf15MissionWorkflowState();
+
+			const preparedSend = await prepareMissionSend(
+				dependencies,
+				{
+					missionId: input.missionId,
+					workspaceRoot: dependencies.getWorkspaceRoot(),
+				},
+				currentMission
+			);
+			if ("result" in preparedSend) {
+				notifyMissionSnapshotChanged(preparedSend.result);
+				return preparedSend.result;
+			}
+
+			const {
+				launchClient,
+				paneLaunchPlanEntry,
+				runtimeContext,
+				sessionName,
+				workspaceRoot,
+			} = preparedSend;
+
+			const snapshot = await deliverMissionPrompt({
+				currentMission,
+				currentWorkflow,
+				dependencies,
+				launchClient,
+				missionId: input.missionId,
+				paneLaunchPlanEntry,
+				prompt,
+				runtimeContext,
+				sessionName,
+				workspaceRoot,
+			});
+			notifyMissionSnapshotChanged(snapshot);
+			return snapshot;
+		},
+	};
+};

@@ -6,6 +6,7 @@ import {
 export interface Ff15ProjectRuntimeContext {
 	activeProjects: string[];
 	executionRoot: string;
+	languageName: "en" | "ja";
 	openspecRoot: string | null;
 	projectsSnapshot: Ff15ProjectsContextSnapshot;
 }
@@ -23,6 +24,10 @@ export const resolveFf15ProjectRuntimeContext = (input: {
 	return {
 		activeProjects: projectsSnapshot.activeProjects,
 		executionRoot: input.workspaceRoot,
+		languageName:
+			projectsSnapshot.status === "ready"
+				? projectsSnapshot.languageName
+				: "en",
 		openspecRoot:
 			projectsSnapshot.status === "ready"
 				? projectsSnapshot.openspec.path

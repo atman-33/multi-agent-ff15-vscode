@@ -40,4 +40,4 @@ webview-ui/
 ### Testing & Quality
 
 - Use Playwright or Cypress style integration tests if adding complex interactions (tests live under the repo-level `tests/`).
-- Run `npm run lint` and `npm run build` before committing to ensure TypeScript and bundler checks pass.
+- Run `npm run fix` from the repo root and `npm run build` under `webview-ui/` before committing to ensure TypeScript and bundler checks pass.
