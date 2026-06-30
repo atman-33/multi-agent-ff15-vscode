@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	bootstrapFf15Harness,
 	resolveFf15ProjectsContext,
 	saveFf15ProjectsContext,
 } from "./context-resolver";
@@ -138,10 +139,33 @@ describe("resolveFf15ProjectsContext", () => {
 		}
 	});
 
-	it("bootstraps .ff15 when config is missing", () => {
+	it("reports uninitialized without scaffolding when config is missing", () => {
 		const workspaceRoot = createTmpWorkspace();
 
 		try {
+			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
+
+			expect(snapshot.status).toBe("uninitialized");
+			if (snapshot.status !== "uninitialized") {
+				throw new Error("Expected uninitialized projects context snapshot.");
+			}
+
+			expect(snapshot.sourceKind).toBe("ff15");
+			expect(snapshot.sourcePath).toBe(join(workspaceRoot, ".ff15"));
+			expect(snapshot.activeProjects).toEqual([]);
+			// Resolving context must never write to disk; scaffolding only happens
+			// through an explicit Initialize action.
+			expect(existsSync(join(workspaceRoot, ".ff15"))).toBe(false);
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("bootstraps .ff15 defaults when explicitly initialized", () => {
+		const workspaceRoot = createTmpWorkspace();
+
+		try {
+			bootstrapFf15Harness(join(workspaceRoot, ".ff15"));
 			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
 
 			expect(snapshot.status).toBe("ready");
@@ -554,15 +578,20 @@ describe("resolveFf15ProjectsContext", () => {
 		}
 	});
 
-	it("sets bootstrapped true and creates defaults only when .ff15 is absent", () => {
+	it("resolves uninitialized until bootstrap, then ready and idempotent", () => {
 		const workspaceRoot = createTmpWorkspace();
 
 		try {
+			const initial = resolveFf15ProjectsContext({ workspaceRoot });
+			expect(initial.status).toBe("uninitialized");
+
+			bootstrapFf15Harness(join(workspaceRoot, ".ff15"));
 			const created = resolveFf15ProjectsContext({ workspaceRoot });
 			expect(created.status).toBe("ready");
-			expect(created.bootstrapped).toBe(true);
+			expect(created.bootstrapped).toBe(false);
 
-			// Second resolution finds the existing config and must not re-bootstrap.
+			// Re-bootstrapping is idempotent and the config stays ready.
+			bootstrapFf15Harness(join(workspaceRoot, ".ff15"));
 			const reused = resolveFf15ProjectsContext({ workspaceRoot });
 			expect(reused.status).toBe("ready");
 			expect(reused.bootstrapped).toBe(false);

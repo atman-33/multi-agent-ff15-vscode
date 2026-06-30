@@ -21,6 +21,9 @@ const FF15_PROJECTS_PAGE_ID = "ff15-projects";
 interface Ff15ProjectsViewProviderDependencies {
 	devMode?: boolean;
 	getWorkspaceRoot?: () => string | undefined;
+	initializeWorkspace?: (input: {
+		workspaceRoot: string;
+	}) => Ff15ProjectsContextSnapshot;
 	projectsWorkbenchController?: Ff15ProjectsWorkbenchController;
 	resolveProjectsContext?: (input: {
 		workspaceRoot: string;
@@ -33,6 +36,9 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	private readonly extensionUri: Uri;
 	private readonly devMode: boolean;
 	private readonly getWorkspaceRoot: () => string | undefined;
+	private readonly initializeWorkspace?: (input: {
+		workspaceRoot: string;
+	}) => Ff15ProjectsContextSnapshot;
 	private readonly projectsWorkbenchController: Ff15ProjectsWorkbenchController;
 	private readonly projectsWorkbenchSubscription: Disposable;
 	private readonly resolveProjectsContext: (input: {
@@ -53,7 +59,6 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		status: "error",
 	};
 	private view?: WebviewView;
-	private bootstrapNotified = false;
 
 	constructor(
 		extensionUri: Uri,
@@ -63,6 +68,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		this.devMode = dependencies.devMode ?? false;
 		this.getWorkspaceRoot =
 			dependencies.getWorkspaceRoot ?? resolveActiveWorkspaceRoot;
+		this.initializeWorkspace = dependencies.initializeWorkspace;
 		this.projectsWorkbenchController =
 			dependencies.projectsWorkbenchController ?? {
 				onDidChangeProjectsContext: () => ({
@@ -112,6 +118,10 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 					);
 					return;
 				}
+				case "ff15-projects.initialize": {
+					this.initialize();
+					return;
+				}
 				case "ff15-projects.ready": {
 					this.postSnapshot(this.resolveSnapshot());
 					return;
@@ -122,6 +132,35 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		});
 
 		this.postSnapshot(this.resolveSnapshot());
+	}
+
+	initialize() {
+		const workspaceRoot = this.getWorkspaceRoot();
+		if (!workspaceRoot) {
+			window.showWarningMessage(
+				"Open a workspace folder before initializing the FF15 workspace."
+			);
+			this.postSnapshot(this.resolveSnapshot());
+			return;
+		}
+
+		if (!this.initializeWorkspace) {
+			window.showErrorMessage(
+				"FF15 workspace initialization is not available."
+			);
+			return;
+		}
+
+		try {
+			const snapshot = this.initializeWorkspace({ workspaceRoot });
+			this.postSnapshot(snapshot);
+			window.showInformationMessage("Initialized FF15 workspace (.ff15).");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			window.showErrorMessage(
+				`Failed to initialize FF15 workspace: ${message}`
+			);
+		}
 	}
 
 	private resolveSnapshot(): Ff15ProjectsContextSnapshot {
@@ -148,12 +187,6 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 
 	private postSnapshot(snapshot: Ff15ProjectsContextSnapshot) {
 		this.latestSnapshot = snapshot;
-		if (snapshot.bootstrapped && !this.bootstrapNotified) {
-			this.bootstrapNotified = true;
-			window.showInformationMessage(
-				"Created default FF15 configuration in .ff15."
-			);
-		}
 		this.view?.webview.postMessage({
 			command: "ff15-projects.state",
 			devMode: this.devMode,

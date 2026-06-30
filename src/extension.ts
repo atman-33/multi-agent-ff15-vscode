@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import {
 	commands,
 	ExtensionMode,
@@ -6,6 +7,7 @@ import {
 	workspace,
 } from "vscode";
 import {
+	FF15_INITIALIZE_WORKSPACE_COMMAND_ID,
 	FF15_OPEN_SETTINGS_COMMAND_ID,
 	OPENCODE_ADD_SELECTION_TO_CHAT_COMMAND_ID,
 	OPENCODE_ADD_TO_CHAT_COMMAND_ID,
@@ -29,6 +31,7 @@ import {
 } from "./features/ff15-missions/vscode-controller";
 import { createFf15MissionWorkbenchController } from "./features/ff15-missions/workbench-controller";
 import {
+	bootstrapFf15Harness,
 	resolveFf15ProjectsContext,
 	saveFf15ProjectsContext,
 } from "./features/ff15-projects/context-resolver";
@@ -87,16 +90,19 @@ const registerFf15Views = (
 	debug: ReturnType<typeof createActivationDebugLogger>
 ) => {
 	const isDevMode = context.extensionMode === ExtensionMode.Development;
-	const activationWorkspaceRoot = resolveActiveWorkspaceRoot();
-	debug.log(`workspace root resolved: ${activationWorkspaceRoot ?? "<none>"}`);
-	if (activationWorkspaceRoot) {
-		debug.log("materializing bundled workspace template files");
+	const extensionRoot = context.extensionUri.fsPath;
+
+	// Workspace scaffolding (`.ff15` config + bundled agent/skill templates) is
+	// created only through an explicit Initialize action, never as a side effect
+	// of activation, so workspaces that do not use FF15 stay untouched.
+	const initializeFf15Workspace = (input: { workspaceRoot: string }) => {
+		bootstrapFf15Harness(join(input.workspaceRoot, ".ff15"));
 		materializeBundledFf15WorkspaceTemplateFiles({
-			extensionRoot: context.extensionUri.fsPath,
-			workspaceRoot: activationWorkspaceRoot,
+			extensionRoot,
+			workspaceRoot: input.workspaceRoot,
 		});
-		debug.log("workspace template files materialized");
-	}
+		return resolveFf15ProjectsContext({ workspaceRoot: input.workspaceRoot });
+	};
 
 	const getFf15Configuration = () =>
 		workspace.getConfiguration("multi-agent-ff15-vscode");
@@ -188,6 +194,7 @@ const registerFf15Views = (
 		context.extensionUri,
 		{
 			devMode: isDevMode,
+			initializeWorkspace: initializeFf15Workspace,
 			projectsWorkbenchController: ff15ProjectsWorkbenchController,
 		}
 	);
@@ -209,7 +216,10 @@ const registerFf15Views = (
 			Ff15SettingsViewProvider.viewId,
 			ff15SettingsViewProvider
 		),
-		commands.registerCommand(FF15_OPEN_SETTINGS_COMMAND_ID, openFf15Settings)
+		commands.registerCommand(FF15_OPEN_SETTINGS_COMMAND_ID, openFf15Settings),
+		commands.registerCommand(FF15_INITIALIZE_WORKSPACE_COMMAND_ID, () => {
+			ff15ProjectsViewProvider.initialize();
+		})
 	);
 };
 

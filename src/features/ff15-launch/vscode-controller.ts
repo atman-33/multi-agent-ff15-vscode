@@ -14,6 +14,9 @@ import { launchZellijTerminal } from "./launch-terminal";
 import { resolveActiveWorkspaceRoot } from "./workspace-root";
 import { resolveFf15ProjectRuntimeContext } from "../ff15-projects/runtime-context";
 
+const UNINITIALIZED_WORKSPACE_MESSAGE =
+	"FF15 workspace is not initialized. Open the Projects view and run Initialize.";
+
 export const createVsCodeFf15LaunchController = (extensionUri: Uri) => {
 	const resolveRuntimeContext = () => {
 		const workspaceRoot = resolveActiveWorkspaceRoot();
@@ -38,7 +41,7 @@ export const createVsCodeFf15LaunchController = (extensionUri: Uri) => {
 			}
 		);
 
-	return createFf15LaunchController({
+	const controller = createFf15LaunchController({
 		ensureCommandAvailable,
 		getLaunchClient,
 		getLaunchLayoutPath: (workspaceRoot, paneLaunchPlan) =>
@@ -51,4 +54,25 @@ export const createVsCodeFf15LaunchController = (extensionUri: Uri) => {
 		launchTerminal: launchZellijTerminal,
 		showErrorMessage: window.showErrorMessage,
 	});
+
+	return {
+		async launch(): Promise<LaunchResult> {
+			// Gate launch on an initialized `.ff15`; otherwise the harness has no
+			// config/profiles to drive the party and would fail opaquely.
+			const runtimeContext = resolveRuntimeContext();
+			if (
+				runtimeContext &&
+				runtimeContext.projectsSnapshot.status !== "ready"
+			) {
+				await window.showErrorMessage(UNINITIALIZED_WORKSPACE_MESSAGE);
+				return {
+					cwd: runtimeContext.executionRoot,
+					message: UNINITIALIZED_WORKSPACE_MESSAGE,
+					status: "error",
+				};
+			}
+
+			return controller.launch();
+		},
+	};
 };

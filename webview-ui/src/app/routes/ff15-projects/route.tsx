@@ -32,6 +32,32 @@ const Route = () => {
 		};
 	}, []);
 
+	if (snapshot.status === "uninitialized") {
+		return (
+			<Ff15Screen background={false}>
+				<div className="mx-auto flex h-full max-w-3xl flex-col gap-3 px-3 py-2">
+					{devMode ? <DevBadge /> : null}
+					<div className="px-1 text-[color:var(--ff15-text)] text-sm leading-6">
+						<p className="font-medium">FF15 workspace is not initialized.</p>
+						<p className="mt-1 text-[13px] text-[color:var(--ff15-text-muted)]">
+							Initialize to scaffold the <code>.ff15</code> configuration and
+							the bundled FF15 agent/skill templates (<code>.github</code>,{" "}
+							<code>.opencode</code>, <code>.claude</code>) into this workspace.
+							Nothing is written until you do.
+						</p>
+					</div>
+					<SidebarActionButton
+						onClick={() => {
+							vscode.postMessage({ command: "ff15-projects.initialize" });
+						}}
+					>
+						Initialize FF15 Workspace
+					</SidebarActionButton>
+				</div>
+			</Ff15Screen>
+		);
+	}
+
 	const availableProfiles =
 		snapshot.status === "ready" ? snapshot.profiles : [];
 	const sourceSummary = formatSourceKind(snapshot.sourceKind);

@@ -245,11 +245,22 @@ describe("Ff15ProjectsViewProvider", () => {
 		});
 	});
 
-	it("notifies once when default config was bootstrapped", async () => {
+	it("initializes the workspace and notifies on the initialize message", async () => {
 		const infoSpy = vi
 			.spyOn(window, "showInformationMessage")
 			.mockResolvedValue(undefined);
-		const snapshot = {
+		const uninitializedSnapshot = {
+			activeProjects: [],
+			languageName: null,
+			error: null,
+			openspec: { path: null, sourceProjectId: null },
+			profiles: [],
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15",
+			bootstrapped: false,
+			status: "uninitialized",
+		} as const;
+		const readySnapshot = {
 			activeProjects: ["default"],
 			languageName: "en",
 			error: null,
@@ -260,22 +271,31 @@ describe("Ff15ProjectsViewProvider", () => {
 			profiles: [{ id: "default", path: "C:/workspace", warnings: [] }],
 			sourceKind: "ff15",
 			sourcePath: "C:/workspace/.ff15",
-			bootstrapped: true,
+			bootstrapped: false,
 			status: "ready",
 		} as const;
+		const initializeWorkspace = vi.fn().mockReturnValue(readySnapshot);
 		const provider = new Ff15ProjectsViewProvider({} as never, {
 			getWorkspaceRoot: () => "C:/workspace",
-			resolveProjectsContext: vi.fn().mockReturnValue(snapshot),
+			initializeWorkspace,
+			resolveProjectsContext: vi.fn().mockReturnValue(uninitializedSnapshot),
 		});
 		const webviewView = createWebviewViewDouble((listener) => {
 			messageHandler = listener;
 		});
 
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
-		// A second post (e.g. webview ready) must not re-notify.
-		await messageHandler?.({ command: "ff15-projects.ready" });
+		await messageHandler?.({ command: "ff15-projects.initialize" });
 
+		expect(initializeWorkspace).toHaveBeenCalledWith({
+			workspaceRoot: "C:/workspace",
+		});
 		expect(infoSpy).toHaveBeenCalledTimes(1);
+		expect(webviewView.webview.postMessage).toHaveBeenCalledWith({
+			command: "ff15-projects.state",
+			devMode: false,
+			snapshot: readySnapshot,
+		});
 		infoSpy.mockRestore();
 	});
 

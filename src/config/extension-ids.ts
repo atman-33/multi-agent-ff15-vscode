@@ -4,6 +4,7 @@ export const FF15_MISSIONS_VIEW_ID = `${FF15_VIEW_CONTAINER_ID}.missionsView`;
 export const FF15_PROJECTS_VIEW_ID = `${FF15_VIEW_CONTAINER_ID}.projectsView`;
 export const FF15_SETTINGS_VIEW_ID = `${FF15_VIEW_CONTAINER_ID}.settingsView`;
 export const FF15_OPEN_SETTINGS_COMMAND_ID = `${FF15_VIEW_CONTAINER_ID}.openSettings`;
+export const FF15_INITIALIZE_WORKSPACE_COMMAND_ID = `${FF15_VIEW_CONTAINER_ID}.initializeWorkspace`;
 
 // View container ids must contain only alphanumeric characters, '_' and '-'
 // (no dots), otherwise VSCode rejects the whole viewsContainers contribution.
