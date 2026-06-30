@@ -390,10 +390,53 @@ describe("resolveFf15ProjectsContext", () => {
 				expect.stringContaining("default_checks"),
 			]);
 			expect(snapshot.profiles[1]?.warnings).toEqual([]);
-			// alpha has no openspec_root, so the first repo root resolves the path.
+			// alpha resolves its path from the first repo root.
 			expect(snapshot.profiles[0]?.path).toBe(resolve(workspaceRoot, "."));
-			// beta resolves its path from openspec_root.
+			// beta resolves its path from the first repo root.
 			expect(snapshot.profiles[1]?.path).toBe(resolve(workspaceRoot, "beta"));
+		} finally {
+			rmSync(workspaceRoot, { force: true, recursive: true });
+		}
+	});
+
+	it("resolves the launch path from the repo root, not openspec_root", () => {
+		const workspaceRoot = createTmpWorkspace();
+		const ff15Root = join(workspaceRoot, ".ff15");
+
+		try {
+			writeFile(
+				join(ff15Root, "config", "config.yaml"),
+				[
+					"active_projects:",
+					"  - gamma",
+					"openspec:",
+					"  project_id: gamma",
+					"",
+				].join("\n")
+			);
+			// openspec_root points at a subfolder, while the repo root is the
+			// actual project directory. The launch path must use the repo root.
+			writeFile(
+				join(ff15Root, "projects", "gamma.yaml"),
+				[
+					"id: gamma",
+					"openspec_root: gamma/openspec",
+					"repos:",
+					"  - id: extension",
+					"    root: gamma",
+					"",
+				].join("\n")
+			);
+
+			const snapshot = resolveFf15ProjectsContext({ workspaceRoot });
+
+			expect(snapshot.status).toBe("ready");
+			if (snapshot.status !== "ready") {
+				throw new Error("Expected ready projects context snapshot.");
+			}
+
+			const gamma = snapshot.profiles.find((profile) => profile.id === "gamma");
+			expect(gamma?.path).toBe(resolve(workspaceRoot, "gamma"));
 		} finally {
 			rmSync(workspaceRoot, { force: true, recursive: true });
 		}
