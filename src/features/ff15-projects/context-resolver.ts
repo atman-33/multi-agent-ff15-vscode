@@ -321,19 +321,13 @@ const loadProjectProfiles = (input: {
 };
 
 // Resolve the project's root folder for launch actions (terminal / VS Code).
-// Prefer openspec_root, falling back to the first repo root; null when neither
-// is configured. Existence is not checked here; launch handlers validate it.
+// Prefer the first repo root (the actual project directory), falling back to
+// openspec_root only when no repo root is configured; null when neither is
+// configured. Existence is not checked here; launch handlers validate it.
 const getProfileRootPath = (input: {
 	harnessOwnerRoot: string;
 	profileRecord: Record<string, unknown>;
 }): string | null => {
-	const openspecRoot = getOptionalNonEmptyString(
-		input.profileRecord.openspec_root
-	);
-	if (openspecRoot) {
-		return resolve(input.harnessOwnerRoot, openspecRoot);
-	}
-
 	const repos = Array.isArray(input.profileRecord.repos)
 		? input.profileRecord.repos
 		: [];
@@ -348,6 +342,13 @@ const getProfileRootPath = (input: {
 		if (repoRoot) {
 			return resolve(input.harnessOwnerRoot, repoRoot);
 		}
+	}
+
+	const openspecRoot = getOptionalNonEmptyString(
+		input.profileRecord.openspec_root
+	);
+	if (openspecRoot) {
+		return resolve(input.harnessOwnerRoot, openspecRoot);
 	}
 
 	return null;
