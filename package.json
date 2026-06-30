@@ -84,6 +84,11 @@
     },
     "commands": [
       {
+        "command": "multi-agent-ff15-vscode.initializeWorkspace",
+        "title": "Initialize Workspace",
+        "category": "FF15"
+      },
+      {
         "command": "multi-agent-ff15-vscode.openSettings",
         "title": "Open FF15 Settings",
         "category": "FF15"

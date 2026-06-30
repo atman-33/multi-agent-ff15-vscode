@@ -172,11 +172,9 @@ describe("activate", () => {
 
 		activate(context as never);
 
-		expect(resolveActiveWorkspaceRoot).toHaveBeenCalled();
-		expect(materializeBundledFf15WorkspaceTemplateFiles).toHaveBeenCalledWith({
-			extensionRoot: "c:/extension",
-			workspaceRoot: "c:/workspace",
-		});
+		// Activation must not scaffold the workspace; files are only written
+		// through an explicit Initialize action.
+		expect(materializeBundledFf15WorkspaceTemplateFiles).not.toHaveBeenCalled();
 
 		expect(missionsViewProviderConstructor).toHaveBeenCalledWith(
 			expect.anything(),
@@ -198,6 +196,7 @@ describe("activate", () => {
 		expect(projectsViewProviderConstructor).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.objectContaining({
+				initializeWorkspace: expect.any(Function),
 				projectsWorkbenchController: expect.objectContaining({
 					showProjectsEditor: expect.any(Function),
 				}),
@@ -226,6 +225,10 @@ describe("activate", () => {
 			expect.objectContaining({
 				webviewOptions: { retainContextWhenHidden: true },
 			})
+		);
+		expect(commands.registerCommand).toHaveBeenCalledWith(
+			"multi-agent-ff15-vscode.initializeWorkspace",
+			expect.any(Function)
 		);
 		expect(commands.registerCommand).toHaveBeenCalledWith(
 			"multi-agent-ff15-vscode.openSettings",

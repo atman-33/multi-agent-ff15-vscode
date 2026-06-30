@@ -48,7 +48,11 @@
         "noUnusedFunctionParameters": "off",
         "noUnusedVariables": "off",
         "noUnusedPrivateClassMembers": "off",
-        "useExhaustiveDependencies": "off"
+        "useExhaustiveDependencies": "off",
+        "noUnusedImports": {
+          "level": "error",
+          "fix": "none"
+        }
       },
       "nursery": {
         "noEmptySource": "off"

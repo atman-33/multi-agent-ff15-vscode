@@ -48,9 +48,25 @@ export interface Ff15ProjectsContextErrorSnapshot {
 	error: string;
 }
 
+export interface Ff15ProjectsContextUninitializedSnapshot {
+	status: "uninitialized";
+	sourceKind: Ff15ProjectsContextSourceKind;
+	sourcePath: string;
+	bootstrapped: false;
+	activeProjects: [];
+	profiles: [];
+	languageName: null;
+	openspec: {
+		path: null;
+		sourceProjectId: null;
+	};
+	error: null;
+}
+
 export type Ff15ProjectsContextSnapshot =
 	| Ff15ProjectsContextReadySnapshot
-	| Ff15ProjectsContextErrorSnapshot;
+	| Ff15ProjectsContextErrorSnapshot
+	| Ff15ProjectsContextUninitializedSnapshot;
 
 export interface Ff15ProjectsContextDraft {
 	activeProjects: string[];
@@ -97,12 +113,10 @@ export const resolveFf15ProjectsContext = (input: {
 	workspaceRoot: string;
 }): Ff15ProjectsContextSnapshot => {
 	const harnessSource = resolveHarnessSource(input.workspaceRoot);
-	if (harnessSource.status === "error") {
-		return buildErrorSnapshot({
-			error: harnessSource.error,
+	if (harnessSource.status === "uninitialized") {
+		return buildUninitializedSnapshot({
 			sourceKind: harnessSource.sourceKind,
 			sourcePath: harnessSource.harnessRoot,
-			bootstrapped: harnessSource.bootstrapped,
 		});
 	}
 
@@ -118,8 +132,10 @@ export const saveFf15ProjectsContext = (input: {
 	workspaceRoot: string;
 }): Ff15ProjectsContextSnapshot => {
 	const harnessSource = resolveHarnessSource(input.workspaceRoot);
-	if (harnessSource.status === "error") {
-		throw harnessSource.error;
+	if (harnessSource.status === "uninitialized") {
+		throw new Error(
+			"FF15 workspace is not initialized. Run Initialize before saving projects context."
+		);
 	}
 
 	const configPath = join(harnessSource.harnessRoot, "config", "config.yaml");
@@ -238,7 +254,7 @@ const loadHarnessSnapshot = (input: {
 	}
 };
 
-const bootstrapFf15Harness = (ff15Root: string) => {
+export const bootstrapFf15Harness = (ff15Root: string) => {
 	ensureTextFile(
 		join(ff15Root, "config", "config.yaml"),
 		BOOTSTRAP_CONFIG_CONTENT
@@ -506,11 +522,10 @@ type Ff15ProjectsHarnessSource =
 			status: "ready";
 	  }
 	| {
-			error: unknown;
 			harnessRoot: string;
 			sourceKind: Ff15ProjectsContextSourceKind;
-			bootstrapped: boolean;
-			status: "error";
+			bootstrapped: false;
+			status: "uninitialized";
 	  };
 
 const createReadyHarnessSource = (
@@ -524,17 +539,14 @@ const createReadyHarnessSource = (
 	status: "ready",
 });
 
-const createErrorHarnessSource = (
-	error: unknown,
+const createUninitializedHarnessSource = (
 	harnessRoot: string,
-	sourceKind: Ff15ProjectsContextSourceKind,
-	bootstrapped: boolean
+	sourceKind: Ff15ProjectsContextSourceKind
 ): Ff15ProjectsHarnessSource => ({
-	error,
 	harnessRoot,
 	sourceKind,
-	bootstrapped,
-	status: "error",
+	bootstrapped: false,
+	status: "uninitialized",
 });
 
 const resolveHarnessSource = (
@@ -547,12 +559,10 @@ const resolveHarnessSource = (
 		return createReadyHarnessSource(ff15Root, "ff15", false);
 	}
 
-	try {
-		bootstrapFf15Harness(ff15Root);
-		return createReadyHarnessSource(ff15Root, "ff15", true);
-	} catch (error) {
-		return createErrorHarnessSource(error, ff15Root, "ff15", true);
-	}
+	// The `.ff15` harness is created only through an explicit Initialize action,
+	// never as a side effect of resolving context. Report it as uninitialized so
+	// the UI can prompt the user instead of scaffolding files automatically.
+	return createUninitializedHarnessSource(ff15Root, "ff15");
 };
 
 const isDirectory = (path: string) => {
@@ -562,6 +572,24 @@ const isDirectory = (path: string) => {
 
 	return statSync(path).isDirectory();
 };
+
+const buildUninitializedSnapshot = (input: {
+	sourceKind: Ff15ProjectsContextSourceKind;
+	sourcePath: string;
+}): Ff15ProjectsContextUninitializedSnapshot => ({
+	activeProjects: [],
+	error: null,
+	profiles: [],
+	languageName: null,
+	openspec: {
+		path: null,
+		sourceProjectId: null,
+	},
+	sourceKind: input.sourceKind,
+	sourcePath: input.sourcePath,
+	bootstrapped: false,
+	status: "uninitialized",
+});
 
 const buildErrorSnapshot = (input: {
 	error: unknown;

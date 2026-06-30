@@ -30,6 +30,19 @@ export type ProjectsSnapshot =
 				sourceProjectId: null;
 			};
 			error: string;
+	  }
+	| {
+			status: "uninitialized";
+			sourceKind: "ff15";
+			sourcePath: string;
+			activeProjects: [];
+			profiles: [];
+			languageName: null;
+			openspec: {
+				path: null;
+				sourceProjectId: null;
+			};
+			error: null;
 	  };
 
 export interface ProjectsDraft {
