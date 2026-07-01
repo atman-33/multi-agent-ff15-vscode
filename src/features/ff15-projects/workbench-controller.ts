@@ -1,5 +1,4 @@
-import { existsSync, watch } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import type { Disposable, Webview, WebviewPanel } from "vscode";
 import { commands, Uri, ViewColumn, window } from "vscode";
 import { getWebviewContent } from "../../lib/webview/get-webview-content";
@@ -9,6 +8,7 @@ import {
 	type Ff15ProjectsContextDraft,
 	type Ff15ProjectsContextSnapshot,
 } from "./context-resolver";
+import { createProjectsContextWatcherSync } from "./context-watcher";
 
 export const FF15_PROJECTS_WORKBENCH_PANEL_VIEW_TYPE =
 	"multi-agent-ff15-vscode.projectsWorkbench";
@@ -49,30 +49,6 @@ const FF15_PROJECTS_SAVE_DEBOUNCE_MS = 400;
 
 type Ff15ProjectsConflictResolution = "discard-local" | "keep-local" | "reload";
 type Ff15ProjectsSaveState = "conflict" | "error" | "saved" | "saving";
-
-const createProjectsContextWatcher = (input: {
-	onChange: () => void | Promise<void>;
-	sourcePath: string;
-}): Disposable => {
-	const watchers = [
-		join(input.sourcePath, "config"),
-		join(input.sourcePath, "projects"),
-	]
-		.filter((path) => existsSync(path))
-		.map((path) =>
-			watch(path, { persistent: false }, () => {
-				input.onChange();
-			})
-		);
-
-	return {
-		dispose: () => {
-			for (const watcher of watchers) {
-				watcher.close();
-			}
-		},
-	};
-};
 
 const getFallbackDraft = (): Ff15ProjectsContextDraft => ({
 	activeProjects: [],
@@ -128,12 +104,8 @@ export const createFf15ProjectsWorkbenchController = (
 		options.renderWebviewContent ?? getWebviewContent;
 	const saveProjectsContext =
 		options.saveProjectsContext ?? saveFf15ProjectsContext;
-	const watchProjectsContext =
-		options.watchProjectsContext ?? createProjectsContextWatcher;
 
 	let activeWorkspaceRoot: string | undefined;
-	let activeWatchSourcePath: string | undefined;
-	let contextWatcher: Disposable | undefined;
 	let lastAcceptedDraft: Ff15ProjectsContextDraft | undefined;
 	let lastAcceptedSnapshot: Ff15ProjectsContextSnapshot | undefined;
 	let latestDraft: Ff15ProjectsContextDraft | undefined;
@@ -155,12 +127,6 @@ export const createFf15ProjectsWorkbenchController = (
 
 		clearTimeout(pendingSaveTimer);
 		pendingSaveTimer = undefined;
-	};
-
-	const clearContextWatcher = () => {
-		contextWatcher?.dispose();
-		contextWatcher = undefined;
-		activeWatchSourcePath = undefined;
 	};
 
 	const postConflict = async (
@@ -268,25 +234,10 @@ export const createFf15ProjectsWorkbenchController = (
 		await handleExternalConflict(targetPanel, externalSnapshot);
 	};
 
-	const syncContextWatcher = (
-		snapshot: Ff15ProjectsContextSnapshot,
-		targetPanel: WebviewPanel
-	) => {
-		if (snapshot.sourcePath === activeWatchSourcePath) {
-			return;
-		}
-
-		clearContextWatcher();
-		if (!snapshot.sourcePath) {
-			return;
-		}
-
-		contextWatcher = watchProjectsContext({
-			onChange: () => handleExternalChange(targetPanel),
-			sourcePath: snapshot.sourcePath,
-		});
-		activeWatchSourcePath = snapshot.sourcePath;
-	};
+	const contextWatcherSync = createProjectsContextWatcherSync({
+		onChange: () => (panel ? handleExternalChange(panel) : undefined),
+		watchProjectsContext: options.watchProjectsContext,
+	});
 
 	const postState = async (
 		workspaceRoot: string,
@@ -294,7 +245,7 @@ export const createFf15ProjectsWorkbenchController = (
 	) => {
 		const snapshot = options.resolveProjectsContext({ workspaceRoot });
 		applyAcceptedSnapshot(snapshot);
-		syncContextWatcher(snapshot, targetPanel);
+		contextWatcherSync.sync(snapshot.sourcePath);
 		await targetPanel.webview.postMessage({
 			command: "ff15-projects-workbench.state",
 			devMode: options.devMode ?? false,
@@ -540,7 +491,7 @@ export const createFf15ProjectsWorkbenchController = (
 			bindPanelMessages(panel);
 			panel.onDidDispose(() => {
 				clearPendingSave();
-				clearContextWatcher();
+				contextWatcherSync.dispose();
 				lastAcceptedDraft = undefined;
 				lastAcceptedSnapshot = undefined;
 				latestDraft = undefined;

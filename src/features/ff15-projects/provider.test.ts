@@ -15,7 +15,24 @@ const createWebviewViewDouble = (
 			return { dispose: vi.fn() };
 		}),
 	},
+	onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
 });
+
+const createWatcherDouble = () => {
+	let onChange: (() => void | Promise<void>) | undefined;
+
+	return {
+		trigger: async () => {
+			await onChange?.();
+		},
+		watchProjectsContext: vi.fn(
+			(input: { onChange: () => void | Promise<void>; sourcePath: string }) => {
+				onChange = input.onChange;
+				return { dispose: vi.fn() };
+			}
+		),
+	};
+};
 
 vi.mock("../../lib/webview/get-webview-content", () => ({
 	getWebviewContent: vi
@@ -55,18 +72,9 @@ describe("Ff15ProjectsViewProvider", () => {
 			getWorkspaceRoot,
 			resolveProjectsContext,
 		});
-		const webviewView = {
-			webview: {
-				html: "",
-				localResourceRoots: [],
-				options: undefined,
-				postMessage: vi.fn(),
-				onDidReceiveMessage: vi.fn((listener) => {
-					messageHandler = listener;
-					return { dispose: vi.fn() };
-				}),
-			},
-		};
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
 
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 
@@ -88,6 +96,129 @@ describe("Ff15ProjectsViewProvider", () => {
 			devMode: false,
 			snapshot: resolverSnapshot,
 		});
+	});
+
+	it("starts watching the resolved config source path when the view is resolved", () => {
+		const resolverSnapshot = {
+			activeProjects: ["project-a"],
+			languageName: "en",
+			error: null,
+			openspec: {
+				path: "C:/workspace/openspec",
+				sourceProjectId: "project-a",
+			},
+			profiles: [
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			],
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15",
+			bootstrapped: false,
+			status: "ready",
+		} as const;
+		const watcherDouble = createWatcherDouble();
+		const provider = new Ff15ProjectsViewProvider({} as never, {
+			getWorkspaceRoot: () => "C:/workspace",
+			resolveProjectsContext: vi.fn().mockReturnValue(resolverSnapshot),
+			watchProjectsContext: watcherDouble.watchProjectsContext,
+		});
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+
+		expect(watcherDouble.watchProjectsContext).toHaveBeenCalledWith({
+			sourcePath: "C:/workspace/.ff15",
+			onChange: expect.any(Function),
+		});
+	});
+
+	it("posts a fresh snapshot when the file watcher reports an external change", async () => {
+		const initialSnapshot = {
+			activeProjects: ["project-a"],
+			languageName: "en",
+			error: null,
+			openspec: {
+				path: "C:/workspace/openspec",
+				sourceProjectId: "project-a",
+			},
+			profiles: [
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			],
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15",
+			bootstrapped: false,
+			status: "ready",
+		} as const;
+		const updatedSnapshot = {
+			...initialSnapshot,
+			activeProjects: ["project-a", "project-b"],
+		} as const;
+		const watcherDouble = createWatcherDouble();
+		const resolveProjectsContext = vi
+			.fn()
+			.mockReturnValueOnce(initialSnapshot)
+			.mockReturnValue(updatedSnapshot);
+		const provider = new Ff15ProjectsViewProvider({} as never, {
+			getWorkspaceRoot: () => "C:/workspace",
+			resolveProjectsContext,
+			watchProjectsContext: watcherDouble.watchProjectsContext,
+		});
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+		await watcherDouble.trigger();
+
+		expect(webviewView.webview.postMessage).toHaveBeenNthCalledWith(2, {
+			command: "ff15-projects.state",
+			devMode: false,
+			snapshot: updatedSnapshot,
+		});
+	});
+
+	it("disposes the file watcher when the webview view is disposed", () => {
+		const resolverSnapshot = {
+			activeProjects: ["project-a"],
+			languageName: "en",
+			error: null,
+			openspec: {
+				path: "C:/workspace/openspec",
+				sourceProjectId: "project-a",
+			},
+			profiles: [
+				{ id: "project-a", path: "C:/workspace/project-a", warnings: [] },
+			],
+			sourceKind: "ff15",
+			sourcePath: "C:/workspace/.ff15",
+			bootstrapped: false,
+			status: "ready",
+		} as const;
+		const watcherDispose = vi.fn();
+		const watchProjectsContext = vi.fn().mockReturnValue({
+			dispose: watcherDispose,
+		});
+		const provider = new Ff15ProjectsViewProvider({} as never, {
+			getWorkspaceRoot: () => "C:/workspace",
+			resolveProjectsContext: vi.fn().mockReturnValue(resolverSnapshot),
+			watchProjectsContext,
+		});
+		let disposeListener: (() => void) | undefined;
+		const webviewView = {
+			...createWebviewViewDouble((listener) => {
+				messageHandler = listener;
+			}),
+			onDidDispose: vi.fn((listener: () => void) => {
+				disposeListener = listener;
+				return { dispose: vi.fn() };
+			}),
+		};
+
+		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
+		disposeListener?.();
+
+		expect(watcherDispose).toHaveBeenCalledTimes(1);
 	});
 
 	it("opens the Projects editor in a central panel from the sidebar action", async () => {
@@ -116,18 +247,9 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			resolveProjectsContext: vi.fn().mockReturnValue(resolverSnapshot),
 		});
-		const webviewView = {
-			webview: {
-				html: "",
-				localResourceRoots: [],
-				options: undefined,
-				postMessage: vi.fn(),
-				onDidReceiveMessage: vi.fn((listener) => {
-					messageHandler = listener;
-					return { dispose: vi.fn() };
-				}),
-			},
-		};
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
 
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 
@@ -180,18 +302,9 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			resolveProjectsContext,
 		});
-		const webviewView = {
-			webview: {
-				html: "",
-				localResourceRoots: [],
-				options: undefined,
-				postMessage: vi.fn(),
-				onDidReceiveMessage: vi.fn((listener) => {
-					messageHandler = listener;
-					return { dispose: vi.fn() };
-				}),
-			},
-		};
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
 
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 
@@ -218,18 +331,9 @@ describe("Ff15ProjectsViewProvider", () => {
 			},
 			resolveProjectsContext,
 		});
-		const webviewView = {
-			webview: {
-				html: "",
-				localResourceRoots: [],
-				options: undefined,
-				postMessage: vi.fn(),
-				onDidReceiveMessage: vi.fn((listener) => {
-					messageHandler = listener;
-					return { dispose: vi.fn() };
-				}),
-			},
-		};
+		const webviewView = createWebviewViewDouble((listener) => {
+			messageHandler = listener;
+		});
 
 		provider.resolveWebviewView(webviewView as never, {} as never, {} as never);
 
