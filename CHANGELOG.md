@@ -2,6 +2,18 @@
 
 ---
 
+## v0.5.0 2026-07-01
+
+### Added
+
+- auto-reload and manual refresh for Projects sidebar config
+- add release skill for automated GitHub Actions release flow
+
+### Changed
+
+- Merge pull request #83 from atman-33/feature/projects-sidebar-reload
+- Merge pull request #82 from atman-33/feature/add-release-skill
+
 ## v0.4.0 2026-06-30
 
 ### Added

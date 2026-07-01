@@ -2,7 +2,7 @@
   "name": "multi-agent-ff15-vscode",
   "displayName": "multi-agent-ff15",
   "description": "FF15-style launch surface for VS Code.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "atman-33",
   "publisher": "atman-dev",
   "icon": "icon.png",
