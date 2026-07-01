@@ -9,6 +9,7 @@ import {
 import {
 	FF15_INITIALIZE_WORKSPACE_COMMAND_ID,
 	FF15_OPEN_SETTINGS_COMMAND_ID,
+	FF15_PROJECTS_RELOAD_COMMAND_ID,
 	OPENCODE_ADD_SELECTION_TO_CHAT_COMMAND_ID,
 	OPENCODE_ADD_TO_CHAT_COMMAND_ID,
 	OPENCODE_CHAT_VIEW_ID,
@@ -219,6 +220,9 @@ const registerFf15Views = (
 		commands.registerCommand(FF15_OPEN_SETTINGS_COMMAND_ID, openFf15Settings),
 		commands.registerCommand(FF15_INITIALIZE_WORKSPACE_COMMAND_ID, () => {
 			ff15ProjectsViewProvider.initialize();
+		}),
+		commands.registerCommand(FF15_PROJECTS_RELOAD_COMMAND_ID, () => {
+			ff15ProjectsViewProvider.refresh();
 		})
 	);
 };

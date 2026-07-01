@@ -14,6 +14,10 @@ import {
 	resolveFf15ProjectsContext,
 	type Ff15ProjectsContextSnapshot,
 } from "./context-resolver";
+import {
+	createProjectsContextWatcherSync,
+	type ProjectsContextWatcherSync,
+} from "./context-watcher";
 import type { Ff15ProjectsWorkbenchController } from "./workbench-controller";
 
 const FF15_PROJECTS_PAGE_ID = "ff15-projects";
@@ -28,6 +32,10 @@ interface Ff15ProjectsViewProviderDependencies {
 	resolveProjectsContext?: (input: {
 		workspaceRoot: string;
 	}) => Ff15ProjectsContextSnapshot;
+	watchProjectsContext?: (input: {
+		onChange: () => void | Promise<void>;
+		sourcePath: string;
+	}) => Disposable;
 }
 
 export class Ff15ProjectsViewProvider implements WebviewViewProvider {
@@ -44,6 +52,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 	private readonly resolveProjectsContext: (input: {
 		workspaceRoot: string;
 	}) => Ff15ProjectsContextSnapshot;
+	private readonly contextWatcherSync: ProjectsContextWatcherSync;
 	private latestSnapshot: Ff15ProjectsContextSnapshot = {
 		activeProjects: [],
 		error: "Unable to resolve workspace root for Projects view.",
@@ -80,6 +89,10 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 			};
 		this.resolveProjectsContext =
 			dependencies.resolveProjectsContext ?? resolveFf15ProjectsContext;
+		this.contextWatcherSync = createProjectsContextWatcherSync({
+			onChange: () => this.refresh(),
+			watchProjectsContext: dependencies.watchProjectsContext,
+		});
 		this.projectsWorkbenchSubscription =
 			this.projectsWorkbenchController.onDidChangeProjectsContext(() => {
 				this.postSnapshot(this.resolveSnapshot());
@@ -131,7 +144,15 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 			}
 		});
 
-		this.postSnapshot(this.resolveSnapshot());
+		webviewView.onDidDispose(() => {
+			this.contextWatcherSync.dispose();
+		});
+
+		this.applySnapshot(this.resolveSnapshot());
+	}
+
+	refresh() {
+		this.applySnapshot(this.resolveSnapshot());
 	}
 
 	initialize() {
@@ -152,8 +173,7 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 		}
 
 		try {
-			const snapshot = this.initializeWorkspace({ workspaceRoot });
-			this.postSnapshot(snapshot);
+			this.applySnapshot(this.initializeWorkspace({ workspaceRoot }));
 			window.showInformationMessage("Initialized FF15 workspace (.ff15).");
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -192,5 +212,10 @@ export class Ff15ProjectsViewProvider implements WebviewViewProvider {
 			devMode: this.devMode,
 			snapshot,
 		});
+	}
+
+	private applySnapshot(snapshot: Ff15ProjectsContextSnapshot) {
+		this.postSnapshot(snapshot);
+		this.contextWatcherSync.sync(snapshot.sourcePath);
 	}
 }

@@ -94,6 +94,12 @@
         "category": "FF15"
       },
       {
+        "command": "multi-agent-ff15-vscode.reloadProjectsConfig",
+        "title": "Reload Projects Configuration",
+        "category": "FF15",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "multi-agent-ff15-vscode.openCode.addToChat",
         "title": "OpenCode: Add to Chat",
         "icon": "$(add)"
@@ -129,6 +135,13 @@
         {
           "command": "multi-agent-ff15-vscode.openCode.addSelectionToChat",
           "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "multi-agent-ff15-vscode.reloadProjectsConfig",
+          "when": "view == multi-agent-ff15-vscode.projectsView",
           "group": "navigation"
         }
       ]
